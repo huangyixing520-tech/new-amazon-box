@@ -65,11 +65,14 @@ test("ships the complete local demo flow and its assets", async () => {
   assert.match(page, /product-demo\.mp4/);
   assert.match(page, /销售地区/);
   assert.match(page, /输出语言/);
-  assert.match(page, /startStream/);
+  assert.match(page, /streamTurn/);
   assert.match(page, /停止生成/);
   assert.match(page, /继续生成/);
   assert.match(page, /preview-modal/);
-  assert.match(page, /refine-send/);
+  assert.match(page, /conversation-send/);
+  assert.match(page, /listing-title-input/);
+  assert.match(page, /download-listing/);
+  assert.match(page, /conversation-turn/);
   assert.match(layout, /generateMetadata/);
   assert.match(layout, /summary_large_image/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);

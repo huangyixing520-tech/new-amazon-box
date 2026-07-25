@@ -2,7 +2,6 @@
 
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -31,6 +30,18 @@ type GalleryItem = {
   image: string;
   wide?: boolean;
   crop?: string;
+};
+
+type Turn = {
+  id: string;
+  prompt: string;
+  skill: string;
+  kind: SkillKind;
+  region: string;
+  language: string;
+  productImage: string;
+  completed: number;
+  running: boolean;
 };
 
 const skills: (Option & { kind: SkillKind })[] = [
@@ -322,17 +333,17 @@ function Composer({
           </div>
         ) : null}
 
-        <label className="prompt-label" htmlFor={compact ? "refine-prompt" : "main-prompt"}>
-          {compact ? "继续调整当前结果" : "描述你希望生成的内容"}
+        <label className="prompt-label" htmlFor={compact ? "conversation-prompt" : "main-prompt"}>
+          {compact ? "继续发送新任务" : "描述你希望生成的内容"}
         </label>
         <textarea
-          id={compact ? "refine-prompt" : "main-prompt"}
-          data-testid={compact ? "refine-input" : "prompt-input"}
+          id={compact ? "conversation-prompt" : "main-prompt"}
+          data-testid={compact ? "conversation-input" : "prompt-input"}
           value={prompt}
           rows={compact ? 2 : 4}
           placeholder={
             compact
-              ? "例如：标题更简洁，突出自加热和 20 Bar 压力"
+              ? "例如：再生成一套商品图，突出便携和自加热"
               : "上传一张商品图，选择 Skill、销售地区与语言"
           }
           onChange={(event) => onPrompt(event.target.value)}
@@ -395,8 +406,8 @@ function Composer({
           <button
             type="button"
             className="send-button"
-            aria-label={compact ? "发送调整要求" : "开始生成"}
-            data-testid={compact ? "refine-send" : "send"}
+            aria-label={compact ? "发送新任务" : "开始生成"}
+            data-testid={compact ? "conversation-send" : "send"}
             disabled={disabled}
             onClick={onSend}
           >
@@ -424,6 +435,24 @@ function ListingResult({
   const copy = listingCopy[language as keyof typeof listingCopy] ?? listingCopy.en;
   const price = prices[region] ?? prices.us;
   const [galleryImage, setGalleryImage] = useState("");
+  const [title, setTitle] = useState(copy.title);
+  const [salePrice, setSalePrice] = useState(
+    `${price.major}${price.minor ? `.${price.minor}` : ""}`,
+  );
+  const [listPrice, setListPrice] = useState(price.list.replace(price.symbol, ""));
+  const [bullets, setBullets] = useState(copy.bullets);
+  const [description, setDescription] = useState(copy.description);
+  const [aPlusHeadline, setAPlusHeadline] = useState("Your café ritual, anywhere.");
+  const [specs, setSpecs] = useState([
+    ["Brand", "BrewGo"],
+    ["Color", "Carbon Black"],
+    ["Dimensions", '3.1"D × 3.1"W × 9.6"H'],
+    ["Special Feature", "Self Heating, Portable"],
+    ["Pressure", "20 Bar"],
+    ["Battery", "7500 mAh"],
+    ["Material", "Food-grade stainless steel"],
+    ["Item Weight", "1.5 pounds"],
+  ]);
   const shownGalleryImage = galleryImage || productImage;
 
   if (!ready) {
@@ -445,6 +474,47 @@ function ListingResult({
     );
     onNotice("商品链接已复制");
   };
+
+  const updateBullet = (index: number, value: string) => {
+    setBullets((current) =>
+      current.map((bullet, bulletIndex) => bulletIndex === index ? value : bullet),
+    );
+  };
+
+  const updateSpec = (index: number, value: string) => {
+    setSpecs((current) =>
+      current.map((spec, specIndex) => specIndex === index ? [spec[0], value] : spec),
+    );
+  };
+
+  const listingJson = JSON.stringify({
+    schemaVersion: 1,
+    marketplace: regions.find((item) => item.id === region)?.label,
+    language: languages.find((item) => item.id === language)?.label,
+    productUrl: "https://marketplace.example/dp/BREWGO-20BAR",
+    title,
+    pricing: {
+      currency: price.symbol,
+      salePrice,
+      listPrice,
+    },
+    rating: 4.6,
+    reviewCount: 1284,
+    bullets,
+    description,
+    aPlus: {
+      headline: aPlusHeadline,
+      featureStats: [
+        ["20 BAR", "Rich, balanced extraction"],
+        ["3 MIN", "Heat and brew"],
+        ["USB-C", "Charge wherever you go"],
+      ],
+    },
+    specifications: Object.fromEntries(specs),
+    images: [productImage, "/product-lifestyle.png", "/product-outdoor.png"],
+    generatedBy: "Mercato AI prototype",
+  }, null, 2);
+  const downloadHref = `data:application/json;charset=utf-8,${encodeURIComponent(listingJson)}`;
 
   return (
     <article className="listing-shell" data-testid="listing-result">
@@ -471,9 +541,20 @@ function ListingResult({
           已生成 Listing
           <span className="listing-url">marketplace.example/dp/BREWGO-20BAR</span>
         </div>
-        <button type="button" onClick={copyLink} data-testid="copy-listing-link">
-          复制链接
-        </button>
+        <span className="listing-edit-hint">虚线区域可直接编辑</span>
+        <div className="listing-actions">
+          <button type="button" onClick={copyLink} data-testid="copy-listing-link">
+            复制链接
+          </button>
+          <a
+            href={downloadHref}
+            download={`brewgo-listing-${region}-${language}.json`}
+            onClick={() => onNotice("Listing JSON 已下载")}
+            data-testid="download-listing"
+          >
+            下载 JSON
+          </a>
+        </div>
       </div>
 
       <div className="market-breadcrumb">
@@ -507,7 +588,14 @@ function ListingResult({
         </div>
 
         <section className="market-info">
-          <h2>{copy.title}</h2>
+          <textarea
+            className="editable-field listing-title-input"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            aria-label="编辑商品标题"
+            data-testid="listing-title-input"
+            rows={4}
+          />
           <a href="#brand">Visit the BrewGo Store</a>
           <div className="rating-row">
             <b>4.6</b>
@@ -525,11 +613,24 @@ function ListingResult({
             <span className="discount">-20%</span>
             <span className="price">
               <sup>{price.symbol}</sup>
-              {price.major}
-              {price.minor ? <sup>{price.minor}</sup> : null}
+              <input
+                className="editable-field price-input"
+                value={salePrice}
+                onChange={(event) => setSalePrice(event.target.value)}
+                aria-label="编辑销售价格"
+                data-testid="listing-price-input"
+              />
             </span>
           </div>
-          <p className="list-price">List Price: <s>{price.list}</s></p>
+          <label className="list-price">
+            List Price: {price.symbol}
+            <input
+              className="editable-field list-price-input"
+              value={listPrice}
+              onChange={(event) => setListPrice(event.target.value)}
+              aria-label="编辑原价"
+            />
+          </label>
           <p className="tax-note">No Import Fees Deposit &amp; free returns</p>
           <div className="coupon">
             <b>Coupon</b>
@@ -544,14 +645,24 @@ function ListingResult({
           </div>
           <h3>{copy.about}</h3>
           <ul>
-            {copy.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}
+            {bullets.map((bullet, index) => (
+              <li key={index}>
+                <textarea
+                  className="editable-field bullet-input"
+                  value={bullet}
+                  onChange={(event) => updateBullet(index, event.target.value)}
+                  aria-label={`编辑卖点 ${index + 1}`}
+                  data-testid={`listing-bullet-${index}`}
+                  rows={2}
+                />
+              </li>
+            ))}
           </ul>
         </section>
 
         <aside className="buy-box">
           <div className="buy-price">
-            <sup>{price.symbol}</sup>{price.major}
-            {price.minor ? <sup>{price.minor}</sup> : null}
+            <sup>{price.symbol}</sup>{salePrice}
           </div>
           <p><a href="#delivery">FREE delivery</a> Wednesday, July 29</p>
           <p>Or fastest delivery <b>Tomorrow</b>. Order within 7 hrs 21 mins</p>
@@ -586,18 +697,36 @@ function ListingResult({
         <div className="details-grid">
           <table>
             <tbody>
-              <tr><th>Brand</th><td>BrewGo</td></tr>
-              <tr><th>Color</th><td>Carbon Black</td></tr>
-              <tr><th>Dimensions</th><td>3.1&quot;D × 3.1&quot;W × 9.6&quot;H</td></tr>
-              <tr><th>Special Feature</th><td>Self Heating, Portable</td></tr>
+              {specs.slice(0, 4).map(([label, value], index) => (
+                <tr key={label}>
+                  <th>{label}</th>
+                  <td>
+                    <input
+                      className="editable-field spec-input"
+                      value={value}
+                      onChange={(event) => updateSpec(index, event.target.value)}
+                      aria-label={`编辑规格 ${label}`}
+                    />
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
           <table>
             <tbody>
-              <tr><th>Pressure</th><td>20 Bar</td></tr>
-              <tr><th>Battery</th><td>7500 mAh</td></tr>
-              <tr><th>Material</th><td>Food-grade stainless steel</td></tr>
-              <tr><th>Item Weight</th><td>1.5 pounds</td></tr>
+              {specs.slice(4).map(([label, value], index) => (
+                <tr key={label}>
+                  <th>{label}</th>
+                  <td>
+                    <input
+                      className="editable-field spec-input"
+                      value={value}
+                      onChange={(event) => updateSpec(index + 4, event.target.value)}
+                      aria-label={`编辑规格 ${label}`}
+                    />
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -610,8 +739,21 @@ function ListingResult({
           <img src="/product-lifestyle.png" alt="BrewGo 旅行咖啡场景" />
           <div>
             <span>BREW WITHOUT BORDERS</span>
-            <h2>Your café ritual, anywhere.</h2>
-            <p>{copy.description}</p>
+            <textarea
+              className="editable-field a-plus-title-input"
+              value={aPlusHeadline}
+              onChange={(event) => setAPlusHeadline(event.target.value)}
+              aria-label="编辑 A+ 标题"
+              rows={2}
+            />
+            <textarea
+              className="editable-field description-input"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              aria-label="编辑商品描述"
+              data-testid="listing-description-input"
+              rows={5}
+            />
           </div>
         </div>
         <div className="a-plus-features">
@@ -752,39 +894,34 @@ function VideoResult({
 export default function Home() {
   const [screen, setScreen] = useState<"home" | "studio">("home");
   const [prompt, setPrompt] = useState("");
-  const [refinePrompt, setRefinePrompt] = useState("");
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [skill, setSkill] = useState("listing");
   const [region, setRegion] = useState("us");
   const [language, setLanguage] = useState("en");
-  const [completed, setCompleted] = useState(0);
-  const [running, setRunning] = useState(false);
+  const [turns, setTurns] = useState<Turn[]>([]);
   const [preview, setPreview] = useState<GalleryItem | null>(null);
   const [regenerating, setRegenerating] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const timers = useRef<Map<string, ReturnType<typeof setTimeout>[]>>(new Map());
+  const turnCounter = useRef(0);
 
   const selectedSkill = skills.find((item) => item.id === skill) ?? skills[0];
   const selectedKind = selectedSkill.kind;
-  const generation = generationCopy[selectedKind];
   const productImage = uploads[0]?.url ?? "/product-main.png";
-  const total = generation.phases.length;
-  const ready = completed === total && !running;
 
-  const history = useMemo(
-    () => [
-      { title: `${selectedSkill.label} · 便携咖啡机`, detail: ready ? "生成完成" : `${completed} / ${total} 步` },
-      { title: "德国站商品套图", detail: "6 张图片" },
-    ],
-    [completed, ready, selectedSkill.label, total],
-  );
-
-  const clearTimers = () => {
-    timers.current.forEach((timer) => clearTimeout(timer));
-    timers.current = [];
+  const clearTurnTimers = (turnId: string) => {
+    timers.current.get(turnId)?.forEach((timer) => clearTimeout(timer));
+    timers.current.delete(turnId);
   };
 
-  useEffect(() => clearTimers, []);
+  const clearAllTimers = () => {
+    timers.current.forEach((turnTimers) => {
+      turnTimers.forEach((timer) => clearTimeout(timer));
+    });
+    timers.current.clear();
+  };
+
+  useEffect(() => clearAllTimers, []);
 
   const showNotice = (text: string) => {
     setNotice(text);
@@ -799,50 +936,85 @@ export default function Home() {
   const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    setUploads((current) => {
-      current.forEach((upload) => {
-        if (upload.owned) URL.revokeObjectURL(upload.url);
-      });
-      return [{
-        id: `${file.name}-${file.lastModified}`,
-        name: file.name,
-        url: URL.createObjectURL(file),
-        owned: true,
-      }];
-    });
+    setUploads([{
+      id: `${file.name}-${file.lastModified}`,
+      name: file.name,
+      url: URL.createObjectURL(file),
+      owned: true,
+    }]);
     event.target.value = "";
   };
 
   const removeUpload = (id: string) => {
-    setUploads((current) => {
-      const target = current.find((upload) => upload.id === id);
-      if (target?.owned) URL.revokeObjectURL(target.url);
-      return current.filter((upload) => upload.id !== id);
-    });
+    setUploads((current) => current.filter((upload) => upload.id !== id));
   };
 
-  const startStream = () => {
-    clearTimers();
-    setCompleted(0);
-    setRunning(true);
-    generation.phases.forEach((_, index) => {
+  const streamTurn = (turnId: string, kind: SkillKind, startAt = 0) => {
+    clearTurnTimers(turnId);
+    setTurns((current) =>
+      current.map((turn) =>
+        turn.id === turnId ? { ...turn, running: true } : turn,
+      ),
+    );
+    const phases = generationCopy[kind].phases;
+    const turnTimers: ReturnType<typeof setTimeout>[] = [];
+    for (let index = startAt; index < phases.length; index += 1) {
       const timer = setTimeout(() => {
-        setCompleted(index + 1);
-        if (index === generation.phases.length - 1) setRunning(false);
-      }, 520 + index * 460);
-      timers.current.push(timer);
-    });
+        setTurns((current) =>
+          current.map((turn) =>
+            turn.id === turnId
+              ? {
+                  ...turn,
+                  completed: index + 1,
+                  running: index < phases.length - 1,
+                }
+              : turn,
+          ),
+        );
+        if (index === phases.length - 1) timers.current.delete(turnId);
+      }, 500 + (index - startAt) * 430);
+      turnTimers.push(timer);
+    }
+    timers.current.set(turnId, turnTimers);
   };
 
   const startGeneration = () => {
     if (!uploads.length) return;
+    const id = `turn-${turnCounter.current += 1}`;
+    const taskPrompt = prompt.trim() || (
+      selectedKind === "listing"
+        ? "生成完整商品 Listing"
+        : selectedKind === "images"
+          ? "生成商品主副图和 A+ 套图"
+          : "生成一支 15 秒商品短视频"
+    );
+    const turn: Turn = {
+      id,
+      prompt: taskPrompt,
+      skill: selectedSkill.id,
+      kind: selectedKind,
+      region,
+      language,
+      productImage,
+      completed: 0,
+      running: true,
+    };
+    setTurns((current) => [...current, turn]);
     setScreen("studio");
-    startStream();
+    setPrompt("");
+    window.setTimeout(() => {
+      streamTurn(id, selectedKind);
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
   };
 
-  const stopGeneration = () => {
-    clearTimers();
-    setRunning(false);
+  const stopGeneration = (turnId: string) => {
+    clearTurnTimers(turnId);
+    setTurns((current) =>
+      current.map((turn) =>
+        turn.id === turnId ? { ...turn, running: false } : turn,
+      ),
+    );
     showNotice("已停止未完成的生成");
   };
 
@@ -853,128 +1025,175 @@ export default function Home() {
       setRegenerating(null);
       showNotice(`「${item.title}」已更新`);
     }, 1200);
-    timers.current.push(timer);
+    const key = `regenerate-${item.id}`;
+    timers.current.set(key, [timer]);
   };
 
-  const sendRefinement = () => {
-    if (!refinePrompt.trim()) return;
-    showNotice("已应用调整，正在刷新结果");
-    setRefinePrompt("");
-    startStream();
+  const openStudio = (turnId?: string) => {
+    if (!turns.length) return;
+    setScreen("studio");
+    window.setTimeout(() => {
+      document.getElementById(turnId ?? turns[turns.length - 1].id)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 0);
   };
 
   if (screen === "studio") {
-    const imageReadyCount = Math.min(completed, gallery.length);
+    const latestTurn = turns[turns.length - 1];
     return (
       <main className="studio" data-testid="studio">
         <aside className="studio-sidebar">
           <button
             className="brand brand-button"
             type="button"
-            onClick={() => {
-              clearTimers();
-              setScreen("home");
-            }}
+            onClick={() => setScreen("home")}
             aria-label="返回创作首页"
           >
             <span className="brand-mark" aria-hidden="true">M</span>
             <span>MERCATO</span>
           </button>
-          <button className="new-chat" type="button" onClick={() => setScreen("home")}>
-            ＋ 新建创作
-          </button>
-          <nav className="conversation-list" aria-label="创作历史">
-            <span className="nav-caption">今天</span>
-            {history.map((item, index) => (
-              <button type="button" className={index === 0 ? "conversation-active" : ""} key={item.title}>
-                <strong>{item.title}</strong>
-                <small>{item.detail}</small>
-              </button>
-            ))}
+          <nav className="workspace-links" aria-label="工作区导航">
+            <button type="button" onClick={() => setScreen("home")}>⌂ 首页</button>
+            <button type="button" className="active" onClick={() => openStudio(turns[0]?.id)}>◉ 当前对话</button>
+            <button type="button" onClick={() => openStudio(latestTurn?.id)}>◇ 最近结果</button>
           </nav>
-          <button className="sidebar-footer" type="button">设置</button>
+          <button className="new-chat" type="button" onClick={() => setScreen("home")}>
+            ＋ 添加新任务
+          </button>
+          <nav className="conversation-list" aria-label="当前对话任务">
+            <span className="nav-caption">当前对话 · {turns.length} 个任务</span>
+            {turns.map((turn, index) => {
+              const total = generationCopy[turn.kind].phases.length;
+              return (
+                <button
+                  type="button"
+                  className={index === turns.length - 1 ? "conversation-active" : ""}
+                  onClick={() => openStudio(turn.id)}
+                  key={turn.id}
+                >
+                  <strong>{skills.find((item) => item.id === turn.skill)?.label}</strong>
+                  <small>{turn.running ? `${turn.completed} / ${total} 步` : turn.completed === total ? "生成完成" : "已停止"}</small>
+                </button>
+              );
+            })}
+          </nav>
+          <button className="sidebar-footer" type="button" onClick={() => setScreen("home")}>
+            返回首页
+          </button>
         </aside>
 
-        <section className="studio-main">
-          <header className="studio-header">
+        <section className="studio-main conversation-main">
+          <header className="studio-header" id="conversation-top">
             <div>
-              <span className="studio-kicker">{regions.find((item) => item.id === region)?.label} · {languages.find((item) => item.id === language)?.label}</span>
-              <h1>{generation.title}</h1>
+              <span className="studio-kicker">持续创作 · 结果不会覆盖</span>
+              <h1>便携咖啡机创作</h1>
             </div>
-            <span className="output-type">{generation.count}</span>
+            <span className="output-type">{turns.length} 个任务</span>
           </header>
 
-          <div className="request-summary">
-            <div className="request-product">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={productImage} alt="本次创作的商品" />
-            </div>
-            <p>{prompt || "为商品生成跨境电商内容"}</p>
-            <div className="request-tags" aria-label="本次设置">
-              <span>{selectedSkill.label}</span>
-              <span>{regions.find((item) => item.id === region)?.label}</span>
-              <span>{languages.find((item) => item.id === language)?.label}</span>
-            </div>
-          </div>
+          <section className="conversation-stream" aria-label="创作对话">
+            {turns.map((turn, index) => {
+              const generation = generationCopy[turn.kind];
+              const total = generation.phases.length;
+              const ready = turn.completed === total && !turn.running;
+              return (
+                <article className="conversation-turn" id={turn.id} key={turn.id} data-testid={`conversation-turn-${index}`}>
+                  <div className="user-message">
+                    <div className="message-avatar">Y</div>
+                    <div className="message-bubble">
+                      <div className="message-product">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={turn.productImage} alt="用户上传的商品" />
+                      </div>
+                      <div className="message-copy">
+                        <span>你</span>
+                        <p>{turn.prompt}</p>
+                        <div className="request-tags">
+                          <span>{skills.find((item) => item.id === turn.skill)?.label}</span>
+                          <span>{regions.find((item) => item.id === turn.region)?.label}</span>
+                          <span>{languages.find((item) => item.id === turn.language)?.label}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
-          <div className="generation-status">
-            <div>
-              <span className={running ? "pulse-dot" : "done-dot"} />
-              <strong data-testid="progress">
-                {running
-                  ? generation.phases[Math.min(completed, total - 1)]
-                  : ready
-                    ? "生成完成"
-                    : "已停止"}
-              </strong>
-              <span>{completed} / {total}</span>
-            </div>
-            {running ? (
-              <button type="button" onClick={stopGeneration}>停止生成</button>
-            ) : completed < total ? (
-              <button type="button" onClick={startStream}>继续生成</button>
-            ) : null}
-          </div>
-          <div className="progress-meter" aria-hidden="true">
-            <span style={{ transform: `scaleX(${completed / total})` }} />
-          </div>
+                  <div className="assistant-message">
+                    <div className="message-avatar ai-avatar">M</div>
+                    <div className="assistant-content">
+                      <header className="assistant-head">
+                        <div>
+                          <span>Mercato AI</span>
+                          <h2>{generation.title}</h2>
+                        </div>
+                        <span>{generation.count}</span>
+                      </header>
 
-          <div className={`dynamic-result dynamic-${selectedKind}`}>
-            {selectedKind === "listing" ? (
-              <ListingResult
-                productImage={productImage}
-                language={language}
-                region={region}
-                ready={ready}
-                onNotice={showNotice}
-              />
-            ) : null}
-            {selectedKind === "images" ? (
-              <ImageSuite
-                readyCount={imageReadyCount}
-                onPreview={setPreview}
-                onRegenerate={regenerate}
-                regenerating={regenerating}
-              />
-            ) : null}
-            {selectedKind === "video" ? (
-              <VideoResult ready={ready} productImage={productImage} onNotice={showNotice} />
-            ) : null}
-          </div>
+                      <div className="generation-status">
+                        <div>
+                          <span className={turn.running ? "pulse-dot" : "done-dot"} />
+                          <strong data-testid={`progress-${index}`}>
+                            {turn.running
+                              ? generation.phases[Math.min(turn.completed, total - 1)]
+                              : ready
+                                ? "生成完成"
+                                : "已停止"}
+                          </strong>
+                          <span>{turn.completed} / {total}</span>
+                        </div>
+                        {turn.running ? (
+                          <button type="button" onClick={() => stopGeneration(turn.id)}>停止生成</button>
+                        ) : turn.completed < total ? (
+                          <button type="button" onClick={() => streamTurn(turn.id, turn.kind, turn.completed)}>继续生成</button>
+                        ) : null}
+                      </div>
+                      <div className="progress-meter" aria-hidden="true">
+                        <span style={{ transform: `scaleX(${turn.completed / total})` }} />
+                      </div>
+
+                      <div className={`dynamic-result dynamic-${turn.kind}`}>
+                        {turn.kind === "listing" ? (
+                          <ListingResult
+                            productImage={turn.productImage}
+                            language={turn.language}
+                            region={turn.region}
+                            ready={ready}
+                            onNotice={showNotice}
+                          />
+                        ) : null}
+                        {turn.kind === "images" ? (
+                          <ImageSuite
+                            readyCount={Math.min(turn.completed, gallery.length)}
+                            onPreview={setPreview}
+                            onRegenerate={regenerate}
+                            regenerating={regenerating}
+                          />
+                        ) : null}
+                        {turn.kind === "video" ? (
+                          <VideoResult ready={ready} productImage={turn.productImage} onNotice={showNotice} />
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </section>
 
           <div className="studio-composer">
             <Composer
               compact
-              prompt={refinePrompt}
-              uploads={[]}
+              prompt={prompt}
+              uploads={uploads}
               skill={skill}
               region={region}
               language={language}
-              disabled={!refinePrompt.trim()}
-              onPrompt={setRefinePrompt}
+              disabled={!uploads.length}
+              onPrompt={setPrompt}
               onFiles={handleFiles}
               onRemove={removeUpload}
-              onSend={sendRefinement}
+              onSend={startGeneration}
               onSkill={setSkill}
               onRegion={setRegion}
               onLanguage={setLanguage}
@@ -1010,8 +1229,14 @@ export default function Home() {
   return (
     <main className="home">
       <header className="topbar">
-        <div className="brand"><span className="brand-mark" aria-hidden="true">M</span><span>MERCATO</span></div>
-        <nav aria-label="主导航"><a href="#create" className="active">创作</a><a href="#assets">资产</a><a href="#history">历史</a></nav>
+        <button type="button" className="brand brand-button" onClick={() => setScreen("home")} aria-label="Mercato 首页">
+          <span className="brand-mark" aria-hidden="true">M</span><span>MERCATO</span>
+        </button>
+        <nav aria-label="主导航">
+          <button type="button" className="active" onClick={() => setScreen("home")}>首页</button>
+          <button type="button" disabled={!turns.length} onClick={() => openStudio(turns[0]?.id)}>当前对话</button>
+          <button type="button" disabled={!turns.length} onClick={() => openStudio()}>最近结果</button>
+        </nav>
         <button type="button" className="avatar" aria-label="账户">Y</button>
       </header>
 
@@ -1054,7 +1279,7 @@ export default function Home() {
           <div className="skill-hint">
             <span>Skill 决定结果页</span>
             <p data-testid="skill-output-hint">
-              {selectedKind === "listing" && "将生成可浏览的商品详情页、文案、价格与 A+ 内容"}
+              {selectedKind === "listing" && "将生成可编辑、可下载的商品详情页、文案、价格与 A+ 内容"}
               {selectedKind === "images" && "将生成 4 张正方形主副图与 2 张横版 A+ 图片"}
               {selectedKind === "video" && "将生成一条 15 秒商品视频与镜头脚本"}
             </p>
@@ -1074,6 +1299,11 @@ export default function Home() {
               </button>
             ))}
           </div>
+          {turns.length ? (
+            <button type="button" className="resume-conversation" onClick={() => openStudio()}>
+              返回当前对话 · {turns.length} 个任务
+            </button>
+          ) : null}
         </div>
       </section>
     </main>
