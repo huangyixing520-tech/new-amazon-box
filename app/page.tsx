@@ -293,6 +293,12 @@ const prices: Record<string, { symbol: string; major: string; minor: string; lis
 };
 
 const conversationTitle = "便携咖啡机创作";
+const promptIdeas = [
+  "亚马逊商品链接",
+  "一套商品主副图",
+  "A+ 卖点套图",
+  "15 秒商品视频",
+];
 
 function OptionMenu({
   label,
@@ -390,6 +396,16 @@ function Composer({
   onLanguage: (value: string) => void;
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [promptIdea, setPromptIdea] = useState(0);
+
+  useEffect(() => {
+    if (compact || prompt || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(
+      () => setPromptIdea((current) => (current + 1) % promptIdeas.length),
+      2200,
+    );
+    return () => window.clearInterval(timer);
+  }, [compact, prompt]);
 
   const submitOnShortcut = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !disabled) {
@@ -430,7 +446,7 @@ function Composer({
           placeholder={
             compact
               ? "例如：再生成一套商品图，突出便携和自加热"
-              : "上传一张商品图，选择 Skill、销售地区与语言"
+              : `让 Mercato 帮我生成${promptIdeas[promptIdea]}`
           }
           onChange={(event) => onPrompt(event.target.value)}
           onKeyDown={submitOnShortcut}
@@ -1592,7 +1608,7 @@ export default function Home() {
       <section className="home-workspace" id="create">
         <div className="home-stage">
           <div className="home-copy">
-            <h1>一张商品图，<br />生成完整商品内容</h1>
+            <h1>一张商品图，<br />生成亚马逊链接</h1>
           </div>
           <div className="home-composer-wrap">
             <div className="home-sample-row">

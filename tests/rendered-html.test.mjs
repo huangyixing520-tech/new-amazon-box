@@ -31,7 +31,8 @@ test("server-renders the Mercato creation workspace", async () => {
   const html = await response.text();
   assert.match(html, /<title>Mercato AI \| 跨境电商素材创作<\/title>/i);
   assert.match(html, /一张商品图，/);
-  assert.match(html, /生成完整商品内容/);
+  assert.match(html, /生成亚马逊链接/);
+  assert.doesNotMatch(html, /生成完整商品内容/);
   assert.match(html, /工作区导航/);
   assert.match(html, /个人账户/);
   assert.doesNotMatch(html, /主导航/);
@@ -93,6 +94,9 @@ test("ships the complete local demo flow and its assets", async () => {
   assert.match(page, /account-trigger/);
   assert.match(page, /account-menu/);
   assert.match(page, /帮助与支持/);
+  assert.match(page, /让 Mercato 帮我生成/);
+  assert.match(page, /promptIdeas/);
+  assert.match(page, /prefers-reduced-motion: reduce/);
   assert.match(page, /<span className="brand-mark" aria-hidden="true">♥<\/span>/);
   assert.match(page, /\n            ↑\n/);
   assert.doesNotMatch(page, /\n            ↗\n/);
