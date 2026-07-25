@@ -397,15 +397,37 @@ function Composer({
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [promptIdea, setPromptIdea] = useState(0);
+  const [promptIdeaText, setPromptIdeaText] = useState(promptIdeas[0]);
+  const [deletingPromptIdea, setDeletingPromptIdea] = useState(false);
 
   useEffect(() => {
-    if (compact || prompt || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = window.setInterval(
-      () => setPromptIdea((current) => (current + 1) % promptIdeas.length),
-      2200,
-    );
-    return () => window.clearInterval(timer);
-  }, [compact, prompt]);
+    if (compact || prompt) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const fullIdea = promptIdeas[promptIdea];
+    const delay = deletingPromptIdea
+      ? promptIdeaText.length
+        ? 48
+        : 260
+      : promptIdeaText === fullIdea
+        ? 1200
+        : 82;
+    const timer = window.setTimeout(() => {
+      if (deletingPromptIdea) {
+        if (promptIdeaText.length) {
+          setPromptIdeaText((current) => current.slice(0, -1));
+        } else {
+          setDeletingPromptIdea(false);
+          setPromptIdea((current) => (current + 1) % promptIdeas.length);
+        }
+      } else if (promptIdeaText === fullIdea) {
+        setDeletingPromptIdea(true);
+      } else {
+        setPromptIdeaText(fullIdea.slice(0, promptIdeaText.length + 1));
+      }
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [compact, deletingPromptIdea, prompt, promptIdea, promptIdeaText]);
 
   const submitOnShortcut = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !disabled) {
@@ -446,7 +468,7 @@ function Composer({
           placeholder={
             compact
               ? "例如：再生成一套商品图，突出便携和自加热"
-              : `让 Mercato 帮我生成${promptIdeas[promptIdea]}`
+              : `让 Mercato 帮我生成${promptIdeaText}`
           }
           onChange={(event) => onPrompt(event.target.value)}
           onKeyDown={submitOnShortcut}
