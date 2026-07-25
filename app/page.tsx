@@ -1608,7 +1608,7 @@ export default function Home() {
       <section className="home-workspace" id="create">
         <div className="home-stage">
           <div className="home-copy">
-            <h1>一张商品图，<br />生成亚马逊链接</h1>
+            <h1>一张商品图，生成亚马逊链接</h1>
           </div>
           <div className="home-composer-wrap">
             <div className="home-sample-row">

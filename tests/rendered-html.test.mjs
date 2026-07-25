@@ -98,6 +98,8 @@ test("ships the complete local demo flow and its assets", async () => {
   assert.match(page, /让 Mercato 帮我生成/);
   assert.match(page, /promptIdeas/);
   assert.match(page, /prefers-reduced-motion: reduce/);
+  assert.match(page, /<h1>一张商品图，生成亚马逊链接<\/h1>/);
+  assert.doesNotMatch(page, /一张商品图，<br \/>生成亚马逊链接/);
   assert.match(page, /<span className="brand-mark" aria-hidden="true">♥<\/span>/);
   assert.match(page, /\n            ↑\n/);
   assert.doesNotMatch(page, /\n            ↗\n/);
