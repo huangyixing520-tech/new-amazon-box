@@ -31,7 +31,7 @@ test("server-renders the Mercato creation workspace", async () => {
   const html = await response.text();
   assert.match(html, /<title>Mercato AI \| 跨境电商素材创作<\/title>/i);
   assert.match(html, /一张商品图，/);
-  assert.match(html, /生成全球素材/);
+  assert.match(html, /生成完整商品内容/);
   assert.match(html, /上传你的商品/);
   assert.match(html, /data-testid="skill-trigger"/);
   assert.match(html, /data-testid="region-trigger"/);
@@ -50,18 +50,25 @@ test("ships the complete local demo flow and its assets", async () => {
     access(new URL("../public/product-main.png", import.meta.url)),
     access(new URL("../public/product-lifestyle.png", import.meta.url)),
     access(new URL("../public/product-outdoor.png", import.meta.url)),
+    access(new URL("../public/product-demo.mp4", import.meta.url)),
     access(new URL("../public/mercato-demo-assets.zip", import.meta.url)),
     access(new URL("../public/og.png", import.meta.url)),
   ]);
 
   assert.match(page, /选择 Skill/);
+  assert.match(page, /Amazon Listing/);
+  assert.match(page, /商品套图/);
+  assert.match(page, /商品视频/);
+  assert.match(page, /listing-result/);
+  assert.match(page, /image-result/);
+  assert.match(page, /video-result/);
+  assert.match(page, /product-demo\.mp4/);
   assert.match(page, /销售地区/);
   assert.match(page, /输出语言/);
   assert.match(page, /startStream/);
   assert.match(page, /停止生成/);
   assert.match(page, /继续生成/);
   assert.match(page, /preview-modal/);
-  assert.match(page, /mercato-demo-assets\.zip/);
   assert.match(page, /refine-send/);
   assert.match(layout, /generateMetadata/);
   assert.match(layout, /summary_large_image/);
