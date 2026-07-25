@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #f5f7fb;
+  --bg: #f3f5f0;
   --surface: #ffffff;
-  --surface-soft: #eef1f7;
-  --surface-strong: #e1e6ef;
-  --text: #17181c;
-  --muted: #6e7380;
-  --line: #dce1ea;
-  --accent: #4d6df3;
-  --accent-ink: #ffffff;
+  --surface-soft: #eaede7;
+  --surface-strong: #dfe4dc;
+  --text: #171a16;
+  --muted: #6d736a;
+  --line: #d8ddd5;
+  --accent: #c9f33e;
+  --accent-ink: #172006;
   --focus: #315cff;
-  --shadow: 0 28px 90px rgb(59 76 140 / 0.12);
+  --shadow: 0 28px 90px rgb(29 36 27 / 0.12);
   --radius-card: 32px;
   --radius-control: 18px;
   --radius-pill: 999px;
@@ -50,10 +50,8 @@ button:active, a:active { transform: translateY(1px); }
   height: 34px;
   display: grid;
   place-items: center;
-  background: linear-gradient(145deg, #ff8a57 8%, #ff5aa5 54%, #7e72ff 92%);
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 6px 12px rgb(255 92 164 / .2));
+  color: var(--text);
+  filter: drop-shadow(0 5px 10px rgb(29 36 27 / .12));
   font-size: 30px;
   font-weight: 840;
   line-height: 1;
@@ -189,7 +187,7 @@ button:active, a:active { transform: translateY(1px); }
 .studio-main { width: min(100%, 1600px); margin: 0 auto; padding: 32px 38px 210px; }
 .conversation-main { width: min(100%, 1540px); }
 
-.home-shell { background: #f5f6f8; }
+.home-shell { background: #f6f7f3; }
 .home-workspace {
   position: relative;
   min-width: 0;
@@ -202,29 +200,44 @@ button:active, a:active { transform: translateY(1px); }
   border: 1px solid rgb(255 255 255 / .72);
   border-radius: 32px;
   background:
-    radial-gradient(ellipse 74% 36% at 50% 5%, #ffffff 0%, rgb(255 255 255 / .94) 46%, transparent 74%),
-    radial-gradient(ellipse 74% 42% at 50% 50%, rgb(113 148 255 / .42) 0%, rgb(149 163 255 / .26) 45%, transparent 78%),
-    linear-gradient(180deg, #fbfcff 0%, #f3f6ff 30%, #dfe8ff 54%, #eee3f8 76%, #ffe4ee 100%);
+    radial-gradient(circle at 84% 16%, rgb(201 243 62 / .12), transparent 28%),
+    radial-gradient(circle at 16% 84%, rgb(117 130 109 / .08), transparent 30%),
+    linear-gradient(180deg, #fafbf8 0%, #f1f3ee 100%);
 }
 .home-workspace::before {
   content: "";
   position: absolute;
-  width: 76%;
-  height: 44%;
-  left: 12%;
-  bottom: 0;
+  width: 44%;
+  height: 34%;
+  right: -5%;
+  bottom: -8%;
   z-index: -1;
   border-radius: 50%;
-  background: radial-gradient(ellipse, rgb(255 115 169 / .32), rgb(216 151 235 / .18) 50%, transparent 74%);
-  filter: blur(44px);
+  background: radial-gradient(ellipse, rgb(201 243 62 / .16), transparent 70%);
+  filter: blur(48px);
+  pointer-events: none;
+}
+.home-workspace::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: .22;
+  background-image:
+    radial-gradient(circle, rgb(23 26 22 / .22) .55px, transparent .75px),
+    radial-gradient(circle, rgb(201 243 62 / .18) .5px, transparent .75px);
+  background-position: 0 0, 3px 3px;
+  background-size: 5px 5px, 7px 7px;
+  -webkit-mask-image: linear-gradient(180deg, rgb(0 0 0 / .35), black 45%, rgb(0 0 0 / .6));
+  mask-image: linear-gradient(180deg, rgb(0 0 0 / .35), black 45%, rgb(0 0 0 / .6));
   pointer-events: none;
 }
 .home-stage { position: relative; width: min(960px, 100%); margin: auto; padding: 58px 38px 112px; z-index: 1; }
 .home-copy h1 { margin: 0; font-size: clamp(44px, 5.2vw, 72px); line-height: .96; letter-spacing: -.068em; }
 .home-composer-wrap { margin-top: 34px; }
 .home-sample-row { margin-bottom: 11px; display: flex; justify-content: flex-end; }
-.home-sample-row .sample-button { border-color: rgb(255 255 255 / .65); background: rgb(255 255 255 / .64); color: #3f4656; backdrop-filter: blur(16px); }
-.home-composer-wrap .composer { border-color: rgb(255 255 255 / .82); box-shadow: 0 30px 80px rgb(43 55 127 / .16), 0 10px 28px rgb(222 71 178 / .08); }
+.home-sample-row .sample-button { border-color: rgb(216 221 213 / .88); background: rgb(255 255 255 / .7); color: var(--muted); backdrop-filter: blur(16px); }
+.home-composer-wrap .composer { border-color: rgb(216 221 213 / .9); box-shadow: 0 30px 80px rgb(29 36 27 / .14), 0 10px 28px rgb(201 243 62 / .06); }
 .home-composer-wrap .composer-body { min-height: 112px; }
 .studio-header { display: flex; align-items: end; justify-content: space-between; gap: 24px; }
 .studio-header h1 { margin: 0; font-size: clamp(30px, 3.2vw, 48px); line-height: 1; letter-spacing: -.05em; }

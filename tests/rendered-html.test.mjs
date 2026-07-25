@@ -47,9 +47,10 @@ test("server-renders the Mercato creation workspace", async () => {
 });
 
 test("ships the complete local demo flow and its assets", async () => {
-  const [page, layout, packageJson] = await Promise.all([
+  const [page, layout, styles, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     access(new URL("../public/product-main.png", import.meta.url)),
     access(new URL("../public/product-lifestyle.png", import.meta.url)),
@@ -102,6 +103,9 @@ test("ships the complete local demo flow and its assets", async () => {
   assert.doesNotMatch(page, /\n            ↗\n/);
   assert.match(layout, /generateMetadata/);
   assert.match(layout, /summary_large_image/);
+  assert.match(styles, /--accent: #c9f33e/);
+  assert.match(styles, /\.home-workspace::after/);
+  assert.match(styles, /background-size: 5px 5px, 7px 7px/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   assert.doesNotMatch(page, /SkeletonPreview|codex-preview/);
 });
