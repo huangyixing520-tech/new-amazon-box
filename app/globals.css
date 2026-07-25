@@ -153,26 +153,23 @@ button:active, a:active { transform: translateY(1px); }
 .conversation-list button:hover, .conversation-list button.conversation-active { background: var(--surface-soft); }
 .conversation-list strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .conversation-list small { color: var(--muted); font-size: 10px; }
+.sidebar-user { margin-top: auto; padding: 9px 8px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 13px; background: transparent; color: var(--text); cursor: pointer; text-align: left; }
+.sidebar-user:hover { background: var(--surface-soft); }
+.sidebar-user > span:last-child { display: grid; gap: 2px; }
+.sidebar-user strong { font-size: 11px; }
+.sidebar-user small { color: var(--muted); font-size: 9px; }
 .sidebar-footer { margin-top: auto; padding: 11px 12px; border: 0; border-radius: 12px; background: transparent; cursor: pointer; text-align: left; font-size: 12px; }
 .studio-main { width: min(100%, 1600px); margin: 0 auto; padding: 32px 38px 210px; }
 .conversation-main { width: min(100%, 1540px); }
 
 .home-shell { background: #f6f7f3; }
 .home-workspace { min-width: 0; min-height: 100dvh; display: flex; flex-direction: column; }
-.home-workspace-header { height: 72px; padding: 0 34px; display: flex; align-items: center; justify-content: space-between; }
-.home-workspace-header > span { color: var(--muted); font-size: 9px; font-weight: 780; letter-spacing: .14em; }
-.home-stage { width: min(960px, 100%); margin: auto; padding: 46px 38px 112px; }
-.home-copy > span { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .14em; }
-.home-copy h1 { margin: 14px 0 0; font-size: clamp(44px, 5.2vw, 72px); line-height: .96; letter-spacing: -.068em; }
-.home-copy p { margin: 20px 0 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
-.home-composer-wrap { margin-top: 36px; }
-.home-composer-heading { margin-bottom: 11px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.home-composer-heading > span { color: var(--muted); font-size: 10px; font-weight: 720; }
+.home-stage { width: min(960px, 100%); margin: auto; padding: 58px 38px 112px; }
+.home-copy h1 { margin: 0; font-size: clamp(44px, 5.2vw, 72px); line-height: .96; letter-spacing: -.068em; }
+.home-composer-wrap { margin-top: 34px; }
+.home-sample-row { margin-bottom: 11px; display: flex; justify-content: flex-end; }
 .home-composer-wrap .composer { box-shadow: 0 28px 80px rgb(29 36 27 / .13); }
 .home-composer-wrap .composer-body { min-height: 230px; }
-.home-after-composer { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
-.home-after-composer > p { max-width: 480px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
-.home-after-composer .quick-starts { margin: 0; flex-wrap: nowrap; }
 .studio-header { display: flex; align-items: end; justify-content: space-between; gap: 24px; }
 .studio-kicker { display: block; margin-bottom: 7px; color: var(--muted); font-size: 11px; font-weight: 670; }
 .studio-header h1 { margin: 0; font-size: clamp(30px, 3.2vw, 48px); line-height: 1; letter-spacing: -.05em; }
@@ -418,11 +415,10 @@ button:active, a:active { transform: translateY(1px); }
   .studio { grid-template-columns: 1fr; }
   .studio-sidebar { position: static; height: 64px; padding: 10px 16px; flex-direction: row; align-items: center; border-right: 0; border-bottom: 1px solid var(--line); }
   .new-chat { margin: 0 0 0 auto; }
-  .workspace-links, .conversation-list, .sidebar-footer { display: none; }
+  .workspace-links, .conversation-list, .sidebar-user, .sidebar-footer { display: none; }
   .studio-main { padding: 28px 16px 220px; }
   .studio-composer { width: calc(100vw - 24px); left: 50%; bottom: 12px; }
   .asset-card { grid-column: span 6; }
-  .home-workspace-header { height: 58px; padding: 0 18px; }
   .home-stage { padding: 42px 22px 90px; }
 }
 
@@ -432,11 +428,8 @@ button:active, a:active { transform: translateY(1px); }
   .home h1 { font-size: 39px; }
   .home-subtitle { font-size: 14px; }
   .home-copy h1 { font-size: 42px; }
-  .home-copy p { font-size: 13px; }
   .home-composer-wrap { margin-top: 28px; }
   .home-composer-wrap .composer-body { min-height: 220px; }
-  .home-after-composer { align-items: flex-start; flex-direction: column; }
-  .home-after-composer .quick-starts { overflow-x: auto; width: 100%; }
   .outcome-preview { height: 245px; }
   .outcome-card { min-width: 0; padding: 15px; }
   .outcome-card b { font-size: 14px; }

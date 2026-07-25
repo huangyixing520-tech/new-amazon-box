@@ -32,9 +32,10 @@ test("server-renders the Mercato creation workspace", async () => {
   assert.match(html, /<title>Mercato AI \| 跨境电商素材创作<\/title>/i);
   assert.match(html, /一张商品图，/);
   assert.match(html, /生成完整商品内容/);
-  assert.match(html, /上传你的商品/);
   assert.match(html, /工作区导航/);
+  assert.match(html, /个人账户/);
   assert.doesNotMatch(html, /主导航/);
+  assert.doesNotMatch(html, /AI COMMERCE STUDIO|CREATE FOR ANY MARKET|上传商品，选择 Skill|上传你的商品，开始创作/);
   assert.match(html, /data-testid="skill-trigger"/);
   assert.match(html, /data-testid="region-trigger"/);
   assert.match(html, /data-testid="language-trigger"/);

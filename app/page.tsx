@@ -26,7 +26,6 @@ type SkillKind = "listing" | "images" | "single" | "seeding" | "video";
 type SkillOption = Option & {
   kind: SkillKind;
   starter: string;
-  outputHint: string;
 };
 
 type GalleryItem = {
@@ -57,7 +56,6 @@ const skills: SkillOption[] = [
     label: "Amazon Listing",
     description: "生成完整商品链接、文案与 A+ 详情",
     starter: "生成完整商品 Listing",
-    outputHint: "将生成可编辑、可下载的商品详情页、文案、价格与 A+ 内容",
   },
   {
     id: "amazon-image-set",
@@ -65,7 +63,6 @@ const skills: SkillOption[] = [
     label: "Amazon A+／卖点套图",
     description: "生成 A+ 图、卖点图或完整 Amazon 套图",
     starter: "生成 Amazon A+ 图和卖点套图",
-    outputHint: "将生成 Amazon 卖点图与横版 A+ 图片，并保持整套品牌视觉一致",
   },
   {
     id: "ecommerce-image-set",
@@ -73,7 +70,6 @@ const skills: SkillOption[] = [
     label: "跨境电商套图",
     description: "适配 Amazon、TikTok、Shopee 的营销套图",
     starter: "生成跨境电商商品营销套图",
-    outputHint: "将生成适配销售地区、平台和语言的完整商品营销套图",
   },
   {
     id: "amazon-scene-image",
@@ -81,7 +77,6 @@ const skills: SkillOption[] = [
     label: "Amazon 人物场景图",
     description: "生成真人使用或操作商品的生活方式图",
     starter: "生成一张 Amazon 人物使用场景图",
-    outputHint: "将生成一张真人与商品自然互动的高质量 Amazon 场景图",
   },
   {
     id: "china-ecommerce-main-image",
@@ -89,7 +84,6 @@ const skills: SkillOption[] = [
     label: "国内电商主图",
     description: "生成淘宝、天猫、京东等中文商品主图",
     starter: "生成一张国内中文电商商品主图",
-    outputHint: "将生成一张 1:1 中文电商主图，突出标题、卖点与促销信息",
   },
   {
     id: "china-seeding-image",
@@ -97,7 +91,6 @@ const skills: SkillOption[] = [
     label: "种草组图",
     description: "生成好物分享、安利与合集种草图片",
     starter: "生成一组 3:4 商品种草图",
-    outputHint: "将生成 4 张 3:4 种草组图，覆盖封面、细节与真实使用场景",
   },
   {
     id: "white-background-image",
@@ -105,7 +98,6 @@ const skills: SkillOption[] = [
     label: "商品白底精修",
     description: "抠图换纯白背景并精修商品质感",
     starter: "生成一张平台规范的商品白底图",
-    outputHint: "将生成一张 1:1 纯白背景精修图，完整保留商品结构与细节",
   },
   {
     id: "video",
@@ -113,11 +105,8 @@ const skills: SkillOption[] = [
     label: "商品视频",
     description: "生成商品短视频与镜头脚本",
     starter: "生成一支 15 秒商品短视频",
-    outputHint: "将生成一条 15 秒商品视频与镜头脚本",
   },
 ];
-
-const featuredSkillIds = ["listing", "amazon-image-set", "video"];
 
 const regions: Option[] = [
   { id: "us", label: "美国站" },
@@ -1126,6 +1115,13 @@ function AppSidebar({
           );
         })}
       </nav>
+      <button type="button" className="sidebar-user" aria-label="个人账户">
+        <span className="avatar" aria-hidden="true">Y</span>
+        <span>
+          <strong>我的账户</strong>
+          <small>个人设置</small>
+        </span>
+      </button>
     </aside>
   );
 }
@@ -1460,62 +1456,35 @@ export default function Home() {
         onNewTask={openNewTask}
       />
       <section className="home-workspace" id="create">
-        <header className="home-workspace-header">
-          <span>AI COMMERCE STUDIO</span>
-          <button type="button" className="avatar" aria-label="账户">Y</button>
-        </header>
         <div className="home-stage">
           <div className="home-copy">
-            <span>CREATE FOR ANY MARKET</span>
             <h1>一张商品图，<br />生成完整商品内容</h1>
-            <p>上传商品，选择 Skill、销售地区和语言。其余交给 Mercato。</p>
           </div>
           <div className="home-composer-wrap">
-            <div className="home-composer-heading">
-              <span>上传你的商品，开始创作</span>
+            <div className="home-sample-row">
               <button type="button" className="sample-button" data-testid="sample-product" onClick={addSample}>使用示例商品</button>
             </div>
-          <Composer
-            prompt={prompt}
-            uploads={uploads}
-            skill={skill}
-            region={region}
-            language={language}
-            disabled={!uploads.length}
-            onPrompt={setPrompt}
-            onFiles={handleFiles}
-            onRemove={removeUpload}
-            onSend={startGeneration}
-            onSkill={setSkill}
-            onRegion={setRegion}
-            onLanguage={setLanguage}
-          />
-          <div className="home-after-composer">
-            <p data-testid="skill-output-hint">
-              {selectedSkill.outputHint}
-            </p>
-            <div className="quick-starts" aria-label="快捷创作">
-              {skills.filter((item) => featuredSkillIds.includes(item.id)).map((item) => (
-                <button
-                  type="button"
-                  className={skill === item.id ? "active" : ""}
-                  onClick={() => {
-                    setSkill(item.id);
-                    setPrompt(item.starter);
-                  }}
-                  key={item.id}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+            <Composer
+              prompt={prompt}
+              uploads={uploads}
+              skill={skill}
+              region={region}
+              language={language}
+              disabled={!uploads.length}
+              onPrompt={setPrompt}
+              onFiles={handleFiles}
+              onRemove={removeUpload}
+              onSend={startGeneration}
+              onSkill={setSkill}
+              onRegion={setRegion}
+              onLanguage={setLanguage}
+            />
+            {turns.length ? (
+              <button type="button" className="resume-conversation" onClick={() => openStudio()}>
+                返回当前对话 · {turns.length} 个任务
+              </button>
+            ) : null}
           </div>
-          {turns.length ? (
-            <button type="button" className="resume-conversation" onClick={() => openStudio()}>
-              返回当前对话 · {turns.length} 个任务
-            </button>
-          ) : null}
-        </div>
         </div>
       </section>
     </main>
