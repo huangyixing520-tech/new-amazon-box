@@ -197,6 +197,9 @@ button:active, a:active { transform: translateY(1px); }
 .conversation-stream { margin-top: 34px; display: grid; gap: 56px; }
 .conversation-turn { scroll-margin-top: 28px; display: grid; gap: 22px; }
 .user-message, .assistant-message { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: start; gap: 12px; }
+.user-message { grid-template-columns: minmax(0, 1fr) 34px; }
+.user-message .message-avatar { grid-column: 2; grid-row: 1; }
+.user-message .message-bubble { grid-column: 1; grid-row: 1; justify-self: end; background: color-mix(in srgb, var(--accent), var(--surface) 91%); }
 .message-avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 11px; font-weight: 800; }
 .ai-avatar { background: var(--accent); color: var(--accent-ink); }
 .message-bubble { width: min(720px, 100%); padding: 12px; display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 13px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
@@ -438,6 +441,7 @@ button:active, a:active { transform: translateY(1px); }
   .request-tags { grid-column: 1 / -1; overflow-x: auto; }
   .conversation-stream { gap: 42px; }
   .user-message, .assistant-message { grid-template-columns: 30px minmax(0,1fr); gap: 8px; }
+  .user-message { grid-template-columns: minmax(0,1fr) 30px; }
   .message-avatar { width: 30px; height: 30px; border-radius: 9px; }
   .message-bubble { grid-template-columns: 48px minmax(0,1fr); padding: 9px; }
   .message-product { width: 48px; height: 48px; }
