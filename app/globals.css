@@ -145,6 +145,8 @@ button:active, a:active { transform: translateY(1px); }
 .workspace-links { margin-top: 30px; display: grid; gap: 5px; }
 .workspace-links button { padding: 10px 11px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); cursor: pointer; text-align: left; font-size: 11px; font-weight: 650; }
 .workspace-links button:hover, .workspace-links button.active { background: var(--surface-soft); color: var(--text); }
+.workspace-links button:disabled { cursor: not-allowed; opacity: .38; }
+.studio-sidebar .new-chat { margin: 18px 0 22px; }
 .conversation-list { display: grid; gap: 6px; }
 .nav-caption { margin: 14px 10px 6px; color: var(--muted); font-size: 10px; font-weight: 680; }
 .conversation-list button { padding: 12px; display: grid; gap: 4px; border: 0; border-radius: 13px; background: transparent; cursor: pointer; text-align: left; }
@@ -154,6 +156,23 @@ button:active, a:active { transform: translateY(1px); }
 .sidebar-footer { margin-top: auto; padding: 11px 12px; border: 0; border-radius: 12px; background: transparent; cursor: pointer; text-align: left; font-size: 12px; }
 .studio-main { width: min(100%, 1600px); margin: 0 auto; padding: 32px 38px 210px; }
 .conversation-main { width: min(100%, 1540px); }
+
+.home-shell { background: #f6f7f3; }
+.home-workspace { min-width: 0; min-height: 100dvh; display: flex; flex-direction: column; }
+.home-workspace-header { height: 72px; padding: 0 34px; display: flex; align-items: center; justify-content: space-between; }
+.home-workspace-header > span { color: var(--muted); font-size: 9px; font-weight: 780; letter-spacing: .14em; }
+.home-stage { width: min(960px, 100%); margin: auto; padding: 46px 38px 112px; }
+.home-copy > span { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .14em; }
+.home-copy h1 { margin: 14px 0 0; font-size: clamp(44px, 5.2vw, 72px); line-height: .96; letter-spacing: -.068em; }
+.home-copy p { margin: 20px 0 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
+.home-composer-wrap { margin-top: 36px; }
+.home-composer-heading { margin-bottom: 11px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.home-composer-heading > span { color: var(--muted); font-size: 10px; font-weight: 720; }
+.home-composer-wrap .composer { box-shadow: 0 28px 80px rgb(29 36 27 / .13); }
+.home-composer-wrap .composer-body { min-height: 230px; }
+.home-after-composer { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.home-after-composer > p { max-width: 480px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.home-after-composer .quick-starts { margin: 0; flex-wrap: nowrap; }
 .studio-header { display: flex; align-items: end; justify-content: space-between; gap: 24px; }
 .studio-kicker { display: block; margin-bottom: 7px; color: var(--muted); font-size: 11px; font-weight: 670; }
 .studio-header h1 { margin: 0; font-size: clamp(30px, 3.2vw, 48px); line-height: 1; letter-spacing: -.05em; }
@@ -386,6 +405,8 @@ button:active, a:active { transform: translateY(1px); }
   .studio-main { padding: 28px 16px 220px; }
   .studio-composer { width: calc(100vw - 24px); left: 50%; bottom: 12px; }
   .asset-card { grid-column: span 6; }
+  .home-workspace-header { height: 58px; padding: 0 18px; }
+  .home-stage { padding: 42px 22px 90px; }
 }
 
 @media (max-width: 640px) {
@@ -393,6 +414,12 @@ button:active, a:active { transform: translateY(1px); }
   .home-intro { min-height: 545px; padding: 28px 24px; }
   .home h1 { font-size: 39px; }
   .home-subtitle { font-size: 14px; }
+  .home-copy h1 { font-size: 42px; }
+  .home-copy p { font-size: 13px; }
+  .home-composer-wrap { margin-top: 28px; }
+  .home-composer-wrap .composer-body { min-height: 220px; }
+  .home-after-composer { align-items: flex-start; flex-direction: column; }
+  .home-after-composer .quick-starts { overflow-x: auto; width: 100%; }
   .outcome-preview { height: 245px; }
   .outcome-card { min-width: 0; padding: 15px; }
   .outcome-card b { font-size: 14px; }

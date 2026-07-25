@@ -891,6 +891,70 @@ function VideoResult({
   );
 }
 
+function AppSidebar({
+  screen,
+  turns,
+  onHome,
+  onStudio,
+  onNewTask,
+}: {
+  screen: "home" | "studio";
+  turns: Turn[];
+  onHome: () => void;
+  onStudio: (turnId?: string) => void;
+  onNewTask: () => void;
+}) {
+  const latestTurn = turns[turns.length - 1];
+
+  return (
+    <aside className="studio-sidebar">
+      <button
+        className="brand brand-button"
+        type="button"
+        onClick={onHome}
+        aria-label="Mercato 首页"
+      >
+        <span className="brand-mark" aria-hidden="true">M</span>
+        <span>MERCATO</span>
+      </button>
+      <nav className="workspace-links" aria-label="工作区导航">
+        <button type="button" className={screen === "home" ? "active" : ""} onClick={onHome}>⌂ 首页</button>
+        <button
+          type="button"
+          className={screen === "studio" ? "active" : ""}
+          disabled={!turns.length}
+          onClick={() => onStudio(turns[0]?.id)}
+        >
+          ◉ 当前对话
+        </button>
+        <button type="button" disabled={!turns.length} onClick={() => onStudio(latestTurn?.id)}>◇ 最近结果</button>
+      </nav>
+      <button className="new-chat" type="button" onClick={onNewTask}>
+        ＋ 添加新任务
+      </button>
+      <nav className="conversation-list" aria-label="当前对话任务">
+        <span className="nav-caption">
+          {turns.length ? `当前对话 · ${turns.length} 个任务` : "还没有生成记录"}
+        </span>
+        {turns.map((turn, index) => {
+          const total = generationCopy[turn.kind].phases.length;
+          return (
+            <button
+              type="button"
+              className={screen === "studio" && index === turns.length - 1 ? "conversation-active" : ""}
+              onClick={() => onStudio(turn.id)}
+              key={turn.id}
+            >
+              <strong>{skills.find((item) => item.id === turn.skill)?.label}</strong>
+              <small>{turn.running ? `${turn.completed} / ${total} 步` : turn.completed === total ? "生成完成" : "已停止"}</small>
+            </button>
+          );
+        })}
+      </nav>
+    </aside>
+  );
+}
+
 export default function Home() {
   const [screen, setScreen] = useState<"home" | "studio">("home");
   const [prompt, setPrompt] = useState("");
@@ -1040,49 +1104,21 @@ export default function Home() {
     }, 0);
   };
 
+  const openNewTask = () => {
+    setScreen("home");
+    window.setTimeout(() => document.getElementById("main-prompt")?.focus(), 0);
+  };
+
   if (screen === "studio") {
-    const latestTurn = turns[turns.length - 1];
     return (
       <main className="studio" data-testid="studio">
-        <aside className="studio-sidebar">
-          <button
-            className="brand brand-button"
-            type="button"
-            onClick={() => setScreen("home")}
-            aria-label="返回创作首页"
-          >
-            <span className="brand-mark" aria-hidden="true">M</span>
-            <span>MERCATO</span>
-          </button>
-          <nav className="workspace-links" aria-label="工作区导航">
-            <button type="button" onClick={() => setScreen("home")}>⌂ 首页</button>
-            <button type="button" className="active" onClick={() => openStudio(turns[0]?.id)}>◉ 当前对话</button>
-            <button type="button" onClick={() => openStudio(latestTurn?.id)}>◇ 最近结果</button>
-          </nav>
-          <button className="new-chat" type="button" onClick={() => setScreen("home")}>
-            ＋ 添加新任务
-          </button>
-          <nav className="conversation-list" aria-label="当前对话任务">
-            <span className="nav-caption">当前对话 · {turns.length} 个任务</span>
-            {turns.map((turn, index) => {
-              const total = generationCopy[turn.kind].phases.length;
-              return (
-                <button
-                  type="button"
-                  className={index === turns.length - 1 ? "conversation-active" : ""}
-                  onClick={() => openStudio(turn.id)}
-                  key={turn.id}
-                >
-                  <strong>{skills.find((item) => item.id === turn.skill)?.label}</strong>
-                  <small>{turn.running ? `${turn.completed} / ${total} 步` : turn.completed === total ? "生成完成" : "已停止"}</small>
-                </button>
-              );
-            })}
-          </nav>
-          <button className="sidebar-footer" type="button" onClick={() => setScreen("home")}>
-            返回首页
-          </button>
-        </aside>
+        <AppSidebar
+          screen={screen}
+          turns={turns}
+          onHome={() => setScreen("home")}
+          onStudio={openStudio}
+          onNewTask={openNewTask}
+        />
 
         <section className="studio-main conversation-main">
           <header className="studio-header" id="conversation-top">
@@ -1227,40 +1263,30 @@ export default function Home() {
   }
 
   return (
-    <main className="home">
-      <header className="topbar">
-        <button type="button" className="brand brand-button" onClick={() => setScreen("home")} aria-label="Mercato 首页">
-          <span className="brand-mark" aria-hidden="true">M</span><span>MERCATO</span>
-        </button>
-        <nav aria-label="主导航">
-          <button type="button" className="active" onClick={() => setScreen("home")}>首页</button>
-          <button type="button" disabled={!turns.length} onClick={() => openStudio(turns[0]?.id)}>当前对话</button>
-          <button type="button" disabled={!turns.length} onClick={() => openStudio()}>最近结果</button>
-        </nav>
-        <button type="button" className="avatar" aria-label="账户">Y</button>
-      </header>
-
-      <section className="home-grid" id="create">
-        <div className="home-intro">
-          <div>
-            <p className="home-kicker">AI COMMERCE STUDIO</p>
-            <h1><span>一张商品图，</span><span>生成完整商品内容</span></h1>
-            <p className="home-subtitle">
-              选择 Skill 决定最终产物：商品链接、成套图片，或可直接投放的视频。
-            </p>
+    <main className="studio home-shell">
+      <AppSidebar
+        screen={screen}
+        turns={turns}
+        onHome={() => setScreen("home")}
+        onStudio={openStudio}
+        onNewTask={openNewTask}
+      />
+      <section className="home-workspace" id="create">
+        <header className="home-workspace-header">
+          <span>AI COMMERCE STUDIO</span>
+          <button type="button" className="avatar" aria-label="账户">Y</button>
+        </header>
+        <div className="home-stage">
+          <div className="home-copy">
+            <span>CREATE FOR ANY MARKET</span>
+            <h1>一张商品图，<br />生成完整商品内容</h1>
+            <p>上传商品，选择 Skill、销售地区和语言。其余交给 Mercato。</p>
           </div>
-          <div className="outcome-preview" aria-label="三种生成结果">
-            <div className="outcome-card outcome-listing"><span>LISTING</span><b>完整商品链接</b><i>Title · Price · A+</i></div>
-            <div className="outcome-card outcome-images"><span>IMAGES</span><b>主副图与 A+</b><i>1:1 · 1464 × 600</i></div>
-            <div className="outcome-card outcome-video"><span>VIDEO</span><b>商品短视频</b><i>15s · 9:16</i><em>▶</em></div>
-          </div>
-        </div>
-
-        <div className="create-panel">
-          <div className="create-panel-header">
-            <div><span>开始创作</span><h2>上传你的商品</h2></div>
-            <button type="button" className="sample-button" data-testid="sample-product" onClick={addSample}>使用示例商品</button>
-          </div>
+          <div className="home-composer-wrap">
+            <div className="home-composer-heading">
+              <span>上传你的商品，开始创作</span>
+              <button type="button" className="sample-button" data-testid="sample-product" onClick={addSample}>使用示例商品</button>
+            </div>
           <Composer
             prompt={prompt}
             uploads={uploads}
@@ -1276,34 +1302,34 @@ export default function Home() {
             onRegion={setRegion}
             onLanguage={setLanguage}
           />
-          <div className="skill-hint">
-            <span>Skill 决定结果页</span>
+          <div className="home-after-composer">
             <p data-testid="skill-output-hint">
               {selectedKind === "listing" && "将生成可编辑、可下载的商品详情页、文案、价格与 A+ 内容"}
               {selectedKind === "images" && "将生成 4 张正方形主副图与 2 张横版 A+ 图片"}
               {selectedKind === "video" && "将生成一条 15 秒商品视频与镜头脚本"}
             </p>
-          </div>
-          <div className="quick-starts" aria-label="快捷创作">
-            {skills.map((item) => (
-              <button
-                type="button"
-                className={skill === item.id ? "active" : ""}
-                onClick={() => {
-                  setSkill(item.id);
-                  setPrompt(item.kind === "listing" ? "生成完整商品 Listing" : item.kind === "images" ? "生成商品主副图和 A+ 套图" : "生成一支 15 秒商品短视频");
-                }}
-                key={item.id}
-              >
-                {item.label}
-              </button>
-            ))}
+            <div className="quick-starts" aria-label="快捷创作">
+              {skills.map((item) => (
+                <button
+                  type="button"
+                  className={skill === item.id ? "active" : ""}
+                  onClick={() => {
+                    setSkill(item.id);
+                    setPrompt(item.kind === "listing" ? "生成完整商品 Listing" : item.kind === "images" ? "生成商品主副图和 A+ 套图" : "生成一支 15 秒商品短视频");
+                  }}
+                  key={item.id}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
           {turns.length ? (
             <button type="button" className="resume-conversation" onClick={() => openStudio()}>
               返回当前对话 · {turns.length} 个任务
             </button>
           ) : null}
+        </div>
         </div>
       </section>
     </main>
