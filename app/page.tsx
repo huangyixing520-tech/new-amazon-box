@@ -39,6 +39,7 @@ type GalleryItem = {
 
 type Turn = {
   id: string;
+  title: string;
   prompt: string;
   skill: string;
   kind: SkillKind;
@@ -300,6 +301,7 @@ function OptionMenu({
   open,
   onOpen,
   onChange,
+  prefix,
   rich = false,
   testId,
 }: {
@@ -309,6 +311,7 @@ function OptionMenu({
   open: boolean;
   onOpen: () => void;
   onChange: (value: string) => void;
+  prefix?: string;
   rich?: boolean;
   testId: string;
 }) {
@@ -324,7 +327,7 @@ function OptionMenu({
         data-testid={testId}
         onClick={onOpen}
       >
-        <span>{selected.label}</span>
+        <span>{prefix ? <b className="option-prefix">{prefix}：</b> : null}{selected.label}</span>
         <span className="chevron" aria-hidden="true">
           {open ? "⌃" : "⌄"}
         </span>
@@ -436,6 +439,16 @@ function Composer({
 
       <div className="composer-toolbar">
         <div className="settings-cluster">
+          <label className="upload-button">
+            <input
+              type="file"
+              accept="image/*"
+              data-testid="file-input"
+              onChange={onFiles}
+            />
+            <span aria-hidden="true">＋</span>
+            <span>商品图</span>
+          </label>
           <OptionMenu
             label="选择 Skill"
             options={skills}
@@ -446,6 +459,7 @@ function Composer({
               onSkill(value);
               setOpenMenu(null);
             }}
+            prefix="技能"
             rich
             testId="skill-trigger"
           />
@@ -476,16 +490,6 @@ function Composer({
         </div>
 
         <div className="composer-actions">
-          <label className="upload-button">
-            <input
-              type="file"
-              accept="image/*"
-              data-testid="file-input"
-              onChange={onFiles}
-            />
-            <span aria-hidden="true">＋</span>
-            <span>商品图</span>
-          </label>
           <button
             type="button"
             className="send-button"
@@ -1060,19 +1064,44 @@ function VideoResult({
 function AppSidebar({
   screen,
   turns,
-  title,
+  activeTurnId,
   onHome,
   onStudio,
   onNewTask,
+  onRename,
+  onDelete,
 }: {
   screen: "home" | "studio";
   turns: Turn[];
-  title: string;
+  activeTurnId: string | null;
   onHome: () => void;
   onStudio: (turnId?: string) => void;
   onNewTask: () => void;
+  onRename: (turnId: string, title: string) => void;
+  onDelete: (turnId: string) => void;
 }) {
   const latestTurn = turns[turns.length - 1];
+  const [contextMenu, setContextMenu] = useState<{
+    turnId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    window.addEventListener("click", close);
+    window.addEventListener("blur", close);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("blur", close);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [contextMenu]);
 
   return (
     <aside className="studio-sidebar">
@@ -1106,21 +1135,58 @@ function AppSidebar({
         <span className="nav-caption">
           {turns.length ? `当前对话 · ${turns.length} 个任务` : "还没有生成记录"}
         </span>
-        {turns.map((turn, index) => {
+        {turns.map((turn) => {
           const total = generationCopy[turn.kind].phases.length;
           return (
             <button
               type="button"
-              className={screen === "studio" && index === turns.length - 1 ? "conversation-active" : ""}
+              className={screen === "studio" && turn.id === activeTurnId ? "conversation-active" : ""}
               onClick={() => onStudio(turn.id)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setContextMenu({ turnId: turn.id, x: event.clientX, y: event.clientY });
+              }}
               key={turn.id}
             >
-              <strong>{title}</strong>
+              <strong>{turn.title}</strong>
               <small>{turn.running ? `${turn.completed} / ${total} 步` : turn.completed === total ? "生成完成" : "已停止"}</small>
             </button>
           );
         })}
       </nav>
+      {contextMenu ? (
+        <div
+          className="conversation-menu"
+          role="menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          data-testid="conversation-context-menu"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              const turn = turns.find((item) => item.id === contextMenu.turnId);
+              const title = window.prompt("重命名对话", turn?.title ?? "");
+              if (title?.trim()) onRename(contextMenu.turnId, title.trim());
+            }}
+          >
+            重命名
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="danger"
+            onClick={() => {
+              const turn = turns.find((item) => item.id === contextMenu.turnId);
+              if (window.confirm(`确定删除「${turn?.title ?? "这个任务"}」吗？`)) {
+                onDelete(contextMenu.turnId);
+              }
+            }}
+          >
+            删除
+          </button>
+        </div>
+      ) : null}
       <button type="button" className="sidebar-user" aria-label="个人账户">
         <span className="avatar" aria-hidden="true">Y</span>
         <span>
@@ -1140,6 +1206,7 @@ export default function Home() {
   const [region, setRegion] = useState("us");
   const [language, setLanguage] = useState("en");
   const [turns, setTurns] = useState<Turn[]>([]);
+  const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
   const [preview, setPreview] = useState<GalleryItem | null>(null);
   const [regenerating, setRegenerating] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
@@ -1149,6 +1216,7 @@ export default function Home() {
   const selectedSkill = skills.find((item) => item.id === skill) ?? skills[0];
   const selectedKind = selectedSkill.kind;
   const productImage = uploads[0]?.url ?? "/product-main.png";
+  const activeTurn = turns.find((turn) => turn.id === activeTurnId) ?? turns[turns.length - 1];
 
   const clearTurnTimers = (turnId: string) => {
     timers.current.get(turnId)?.forEach((timer) => clearTimeout(timer));
@@ -1225,6 +1293,7 @@ export default function Home() {
     const taskPrompt = prompt.trim() || selectedSkill.starter;
     const turn: Turn = {
       id,
+      title: conversationTitle,
       prompt: taskPrompt,
       skill: selectedSkill.id,
       kind: selectedKind,
@@ -1235,6 +1304,7 @@ export default function Home() {
       running: true,
     };
     setTurns((current) => [...current, turn]);
+    setActiveTurnId(id);
     setScreen("studio");
     setPrompt("");
     window.setTimeout(() => {
@@ -1266,13 +1336,35 @@ export default function Home() {
 
   const openStudio = (turnId?: string) => {
     if (!turns.length) return;
+    const targetTurnId = turnId ?? turns[turns.length - 1].id;
+    setActiveTurnId(targetTurnId);
     setScreen("studio");
     window.setTimeout(() => {
-      document.getElementById(turnId ?? turns[turns.length - 1].id)?.scrollIntoView({
+      document.getElementById(targetTurnId)?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
     }, 0);
+  };
+
+  const renameTurn = (turnId: string, title: string) => {
+    setTurns((current) =>
+      current.map((turn) => turn.id === turnId ? { ...turn, title } : turn),
+    );
+    showNotice("对话已重命名");
+  };
+
+  const deleteTurn = (turnId: string) => {
+    clearTurnTimers(turnId);
+    const remaining = turns.filter((turn) => turn.id !== turnId);
+    setTurns(remaining);
+    if (!remaining.length) {
+      setActiveTurnId(null);
+      setScreen("home");
+    } else if (activeTurnId === turnId) {
+      setActiveTurnId(remaining[remaining.length - 1].id);
+    }
+    showNotice("对话已删除");
   };
 
   const openNewTask = () => {
@@ -1286,15 +1378,17 @@ export default function Home() {
         <AppSidebar
           screen={screen}
           turns={turns}
-          title={conversationTitle}
+          activeTurnId={activeTurnId}
           onHome={() => setScreen("home")}
           onStudio={openStudio}
           onNewTask={openNewTask}
+          onRename={renameTurn}
+          onDelete={deleteTurn}
         />
 
         <section className="studio-main conversation-main">
           <header className="studio-header" id="conversation-top">
-            <h1>{conversationTitle}</h1>
+            <h1>{activeTurn?.title ?? conversationTitle}</h1>
             <span className="output-type">{turns.length} 个任务</span>
           </header>
 
@@ -1455,10 +1549,12 @@ export default function Home() {
       <AppSidebar
         screen={screen}
         turns={turns}
-        title={conversationTitle}
+        activeTurnId={activeTurnId}
         onHome={() => setScreen("home")}
         onStudio={openStudio}
         onNewTask={openNewTask}
+        onRename={renameTurn}
+        onDelete={deleteTurn}
       />
       <section className="home-workspace" id="create">
         <div className="home-stage">

@@ -117,6 +117,7 @@ button:active, a:active { transform: translateY(1px); }
 .option-trigger, .upload-button { min-height: 42px; padding: 0 13px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); cursor: pointer; color: var(--text); font-size: 12px; font-weight: 650; white-space: nowrap; }
 .option-trigger:hover, .upload-button:hover { background: var(--surface-soft); }
 .option-menu-rich .option-trigger { border-color: color-mix(in srgb, var(--accent), var(--line) 34%); background: color-mix(in srgb, var(--accent), var(--surface) 88%); }
+.option-prefix { color: var(--muted); font-weight: 620; }
 .chevron { color: var(--muted); }
 .option-popover { position: absolute; min-width: 210px; max-height: min(520px, 68vh); left: 0; bottom: calc(100% + 10px); z-index: 30; padding: 7px; overflow-y: auto; border: 1px solid var(--line); border-radius: 18px; background: rgb(255 255 255 / .98); box-shadow: 0 20px 60px rgb(20 25 18 / .18); }
 .option-menu-rich .option-popover { min-width: 340px; }
@@ -153,6 +154,10 @@ button:active, a:active { transform: translateY(1px); }
 .conversation-list button:hover, .conversation-list button.conversation-active { background: var(--surface-soft); }
 .conversation-list strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .conversation-list small { color: var(--muted); font-size: 10px; }
+.conversation-menu { position: fixed; z-index: 60; width: 132px; padding: 6px; display: grid; gap: 2px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: 0 18px 48px rgb(20 25 18 / .18); }
+.conversation-menu button { padding: 9px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text); cursor: pointer; text-align: left; font-size: 11px; }
+.conversation-menu button:hover { background: var(--surface-soft); }
+.conversation-menu button.danger { color: #c53c32; }
 .sidebar-user { margin-top: auto; padding: 9px 8px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 13px; background: transparent; color: var(--text); cursor: pointer; text-align: left; }
 .sidebar-user:hover { background: var(--surface-soft); }
 .sidebar-user > span:last-child { display: grid; gap: 2px; }
@@ -437,7 +442,7 @@ button:active, a:active { transform: translateY(1px); }
   .create-panel-header { align-items: start; flex-direction: column; }
   .composer-body { min-height: 240px; }
   .composer-toolbar { align-items: stretch; flex-direction: column; }
-  .settings-cluster { display: grid; grid-template-columns: 1.3fr 1fr 1fr; }
+  .settings-cluster { display: grid; grid-template-columns: auto 1.3fr 1fr 1fr; }
   .option-trigger { width: 100%; justify-content: space-between; padding-inline: 8px; font-size: 10px; }
   .composer-actions { justify-content: space-between; }
   .upload-button { flex: 1; }
