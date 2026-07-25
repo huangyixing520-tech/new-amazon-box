@@ -82,6 +82,10 @@ test("ships the complete local demo flow and its assets", async () => {
   assert.match(page, /listing-title-input/);
   assert.match(page, /download-listing/);
   assert.match(page, /conversation-turn/);
+  assert.match(page, /const conversationTitle = "便携咖啡机创作"/);
+  assert.match(page, /<strong>\{title\}<\/strong>/);
+  assert.match(page, /screen === "studio"/);
+  assert.doesNotMatch(page, /持续创作 · 结果不会覆盖|studio-kicker/);
   assert.match(layout, /generateMetadata/);
   assert.match(layout, /summary_large_image/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);

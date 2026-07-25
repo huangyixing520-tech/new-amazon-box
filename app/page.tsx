@@ -291,6 +291,8 @@ const prices: Record<string, { symbol: string; major: string; minor: string; lis
   sea: { symbol: "$", major: "82", minor: "00", list: "$105.00" },
 };
 
+const conversationTitle = "便携咖啡机创作";
+
 function OptionMenu({
   label,
   options,
@@ -1058,12 +1060,14 @@ function VideoResult({
 function AppSidebar({
   screen,
   turns,
+  title,
   onHome,
   onStudio,
   onNewTask,
 }: {
   screen: "home" | "studio";
   turns: Turn[];
+  title: string;
   onHome: () => void;
   onStudio: (turnId?: string) => void;
   onNewTask: () => void;
@@ -1093,9 +1097,11 @@ function AppSidebar({
         </button>
         <button type="button" disabled={!turns.length} onClick={() => onStudio(latestTurn?.id)}>◇ 最近结果</button>
       </nav>
-      <button className="new-chat" type="button" onClick={onNewTask}>
-        ＋ 添加新任务
-      </button>
+      {screen === "studio" ? (
+        <button className="new-chat" type="button" onClick={onNewTask}>
+          ＋ 添加新任务
+        </button>
+      ) : null}
       <nav className="conversation-list" aria-label="当前对话任务">
         <span className="nav-caption">
           {turns.length ? `当前对话 · ${turns.length} 个任务` : "还没有生成记录"}
@@ -1109,7 +1115,7 @@ function AppSidebar({
               onClick={() => onStudio(turn.id)}
               key={turn.id}
             >
-              <strong>{skills.find((item) => item.id === turn.skill)?.label}</strong>
+              <strong>{title}</strong>
               <small>{turn.running ? `${turn.completed} / ${total} 步` : turn.completed === total ? "生成完成" : "已停止"}</small>
             </button>
           );
@@ -1280,6 +1286,7 @@ export default function Home() {
         <AppSidebar
           screen={screen}
           turns={turns}
+          title={conversationTitle}
           onHome={() => setScreen("home")}
           onStudio={openStudio}
           onNewTask={openNewTask}
@@ -1287,10 +1294,7 @@ export default function Home() {
 
         <section className="studio-main conversation-main">
           <header className="studio-header" id="conversation-top">
-            <div>
-              <span className="studio-kicker">持续创作 · 结果不会覆盖</span>
-              <h1>便携咖啡机创作</h1>
-            </div>
+            <h1>{conversationTitle}</h1>
             <span className="output-type">{turns.length} 个任务</span>
           </header>
 
@@ -1451,6 +1455,7 @@ export default function Home() {
       <AppSidebar
         screen={screen}
         turns={turns}
+        title={conversationTitle}
         onHome={() => setScreen("home")}
         onStudio={openStudio}
         onNewTask={openNewTask}
