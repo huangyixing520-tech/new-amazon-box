@@ -1081,6 +1081,7 @@ function AppSidebar({
   onDelete: (turnId: string) => void;
 }) {
   const latestTurn = turns[turns.length - 1];
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     turnId: string;
     x: number;
@@ -1102,6 +1103,13 @@ function AppSidebar({
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [contextMenu]);
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const close = () => setUserMenuOpen(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [userMenuOpen]);
 
   return (
     <aside className="studio-sidebar">
@@ -1187,13 +1195,38 @@ function AppSidebar({
           </button>
         </div>
       ) : null}
-      <button type="button" className="sidebar-user" aria-label="个人账户">
-        <span className="avatar" aria-hidden="true">Y</span>
-        <span>
-          <strong>我的账户</strong>
-          <small>个人设置</small>
-        </span>
-      </button>
+      <div className="sidebar-account">
+        {userMenuOpen ? (
+          <div className="account-menu" role="menu" data-testid="account-menu">
+            <div className="account-menu-head">
+              <span className="avatar" aria-hidden="true">Y</span>
+              <div><strong>我的账户</strong><small>Mercato 创作者</small></div>
+            </div>
+            {["个人资料", "设置", "外观", "帮助与支持"].map((item) => (
+              <button type="button" role="menuitem" key={item}>{item}<span>›</span></button>
+            ))}
+            <button type="button" role="menuitem" className="sign-out">退出登录</button>
+          </div>
+        ) : null}
+        <button
+          type="button"
+          className="sidebar-user"
+          aria-label="个人账户"
+          aria-haspopup="menu"
+          aria-expanded={userMenuOpen}
+          onClick={(event) => {
+            event.stopPropagation();
+            setUserMenuOpen((open) => !open);
+          }}
+          data-testid="account-trigger"
+        >
+          <span className="avatar" aria-hidden="true">Y</span>
+          <span>
+            <strong>我的账户</strong>
+            <small>个人设置</small>
+          </span>
+        </button>
+      </div>
     </aside>
   );
 }

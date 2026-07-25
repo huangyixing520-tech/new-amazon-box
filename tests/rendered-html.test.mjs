@@ -90,6 +90,9 @@ test("ships the complete local demo flow and its assets", async () => {
   assert.match(page, /重命名对话/);
   assert.match(page, /对话已删除/);
   assert.match(page, /prefix="技能"/);
+  assert.match(page, /account-trigger/);
+  assert.match(page, /account-menu/);
+  assert.match(page, /帮助与支持/);
   assert.match(layout, /generateMetadata/);
   assert.match(layout, /summary_large_image/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
