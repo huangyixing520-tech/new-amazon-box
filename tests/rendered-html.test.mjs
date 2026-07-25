@@ -59,10 +59,16 @@ test("ships the complete local demo flow and its assets", async () => {
 
   assert.match(page, /选择 Skill/);
   assert.match(page, /Amazon Listing/);
-  assert.match(page, /商品套图/);
+  assert.match(page, /Amazon A\+／卖点套图/);
+  assert.match(page, /跨境电商套图/);
+  assert.match(page, /Amazon 人物场景图/);
+  assert.match(page, /国内电商主图/);
+  assert.match(page, /种草组图/);
+  assert.match(page, /商品白底精修/);
   assert.match(page, /商品视频/);
   assert.match(page, /listing-result/);
   assert.match(page, /image-result/);
+  assert.match(page, /single-image-result/);
   assert.match(page, /video-result/);
   assert.match(page, /product-demo\.mp4/);
   assert.match(page, /销售地区/);

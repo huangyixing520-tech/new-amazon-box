@@ -118,8 +118,8 @@ button:active, a:active { transform: translateY(1px); }
 .option-trigger:hover, .upload-button:hover { background: var(--surface-soft); }
 .option-menu-rich .option-trigger { border-color: color-mix(in srgb, var(--accent), var(--line) 34%); background: color-mix(in srgb, var(--accent), var(--surface) 88%); }
 .chevron { color: var(--muted); }
-.option-popover { position: absolute; min-width: 210px; left: 0; bottom: calc(100% + 10px); z-index: 30; padding: 7px; border: 1px solid var(--line); border-radius: 18px; background: rgb(255 255 255 / .98); box-shadow: 0 20px 60px rgb(20 25 18 / .18); }
-.option-menu-rich .option-popover { min-width: 300px; }
+.option-popover { position: absolute; min-width: 210px; max-height: min(520px, 68vh); left: 0; bottom: calc(100% + 10px); z-index: 30; padding: 7px; overflow-y: auto; border: 1px solid var(--line); border-radius: 18px; background: rgb(255 255 255 / .98); box-shadow: 0 20px 60px rgb(20 25 18 / .18); }
+.option-menu-rich .option-popover { min-width: 340px; }
 .popover-label { padding: 9px 10px 7px; color: var(--muted); font-size: 11px; font-weight: 690; }
 .option-row { width: 100%; min-height: 48px; padding: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 0; border-radius: 12px; background: transparent; cursor: pointer; text-align: left; }
 .option-row:hover { background: var(--surface-soft); }
@@ -331,6 +331,20 @@ button:active, a:active { transform: translateY(1px); }
 .asset-card footer a:hover, .asset-card footer button:hover { background: var(--surface-soft); color: var(--text); }
 .asset-skeleton { min-height: 360px; padding: 18px; display: flex; align-items: end; background: linear-gradient(110deg,var(--surface-soft) 8%,var(--surface) 18%,var(--surface-soft) 33%); background-size: 250% 100%; animation: shimmer 1.8s linear infinite; }
 .asset-skeleton span { padding: 6px 8px; border-radius: 7px; background: rgb(255 255 255 / .7); color: var(--muted); font-size: 9px; }
+.seeding-suite .asset-card { grid-column: span 3; min-height: 470px; }
+.seeding-suite .asset-visual img { min-height: 400px; aspect-ratio: 3 / 4; }
+.single-image-result { width: min(900px, 100%); }
+.single-asset-card { overflow: hidden; border-radius: 22px; background: var(--surface); }
+.single-asset-visual { width: 100%; min-height: 640px; padding: 0; display: block; overflow: hidden; border: 0; background: var(--surface-soft); cursor: zoom-in; }
+.single-asset-visual img { width: 100%; height: 640px; display: block; object-fit: contain; }
+.single-asset-card footer { min-height: 76px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.single-asset-card footer > div { display: flex; align-items: center; gap: 10px; }
+.single-asset-card footer > div:first-child { align-items: flex-start; flex-direction: column; gap: 3px; }
+.single-asset-card footer span { color: var(--muted); font-size: 9px; }
+.single-asset-card footer strong { font-size: 12px; }
+.single-asset-card footer a, .single-asset-card footer button { padding: 9px 11px; border: 0; border-radius: 10px; background: var(--surface-soft); color: var(--text); cursor: pointer; text-decoration: none; font-size: 10px; }
+.single-asset-skeleton { min-height: 640px; padding: 20px; display: flex; align-items: end; background: linear-gradient(110deg,var(--surface-soft) 8%,var(--surface) 18%,var(--surface-soft) 33%); background-size: 250% 100%; animation: shimmer 1.8s linear infinite; }
+.single-asset-skeleton span { padding: 7px 9px; border-radius: 8px; background: rgb(255 255 255 / .72); color: var(--muted); font-size: 10px; }
 
 .video-result { padding: 26px; border-radius: 24px; background: #171a16; color: #f0f3ec; }
 .video-layout { display: grid; grid-template-columns: minmax(320px, .84fr) 1fr; gap: 34px; }
@@ -466,6 +480,10 @@ button:active, a:active { transform: translateY(1px); }
   .listing-loader-grid { grid-template-columns: 1fr; }
   .listing-loader-grid i:not(:first-child) { display: none; }
   .asset-card, .asset-card.asset-wide { grid-column: 1 / -1; }
+  .seeding-suite .asset-card { grid-column: 1 / -1; }
+  .single-asset-visual, .single-asset-skeleton { min-height: 420px; }
+  .single-asset-visual img { height: 420px; }
+  .single-asset-card footer { align-items: flex-start; flex-direction: column; }
   .result-section-head { align-items: start; flex-direction: column; }
   .video-result { padding: 18px; }
   .video-stage { min-height: 540px; }

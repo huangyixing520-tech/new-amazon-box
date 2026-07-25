@@ -21,7 +21,13 @@ type Upload = {
   owned?: boolean;
 };
 
-type SkillKind = "listing" | "images" | "video";
+type SkillKind = "listing" | "images" | "single" | "seeding" | "video";
+
+type SkillOption = Option & {
+  kind: SkillKind;
+  starter: string;
+  outputHint: string;
+};
 
 type GalleryItem = {
   id: string;
@@ -44,26 +50,74 @@ type Turn = {
   running: boolean;
 };
 
-const skills: (Option & { kind: SkillKind })[] = [
+const skills: SkillOption[] = [
   {
     id: "listing",
     kind: "listing",
     label: "Amazon Listing",
     description: "生成完整商品链接、文案与 A+ 详情",
+    starter: "生成完整商品 Listing",
+    outputHint: "将生成可编辑、可下载的商品详情页、文案、价格与 A+ 内容",
   },
   {
-    id: "images",
+    id: "amazon-image-set",
     kind: "images",
-    label: "商品套图",
-    description: "正方形主副图与横版 A+ 图片",
+    label: "Amazon A+／卖点套图",
+    description: "生成 A+ 图、卖点图或完整 Amazon 套图",
+    starter: "生成 Amazon A+ 图和卖点套图",
+    outputHint: "将生成 Amazon 卖点图与横版 A+ 图片，并保持整套品牌视觉一致",
+  },
+  {
+    id: "ecommerce-image-set",
+    kind: "images",
+    label: "跨境电商套图",
+    description: "适配 Amazon、TikTok、Shopee 的营销套图",
+    starter: "生成跨境电商商品营销套图",
+    outputHint: "将生成适配销售地区、平台和语言的完整商品营销套图",
+  },
+  {
+    id: "amazon-scene-image",
+    kind: "single",
+    label: "Amazon 人物场景图",
+    description: "生成真人使用或操作商品的生活方式图",
+    starter: "生成一张 Amazon 人物使用场景图",
+    outputHint: "将生成一张真人与商品自然互动的高质量 Amazon 场景图",
+  },
+  {
+    id: "china-ecommerce-main-image",
+    kind: "single",
+    label: "国内电商主图",
+    description: "生成淘宝、天猫、京东等中文商品主图",
+    starter: "生成一张国内中文电商商品主图",
+    outputHint: "将生成一张 1:1 中文电商主图，突出标题、卖点与促销信息",
+  },
+  {
+    id: "china-seeding-image",
+    kind: "seeding",
+    label: "种草组图",
+    description: "生成好物分享、安利与合集种草图片",
+    starter: "生成一组 3:4 商品种草图",
+    outputHint: "将生成 4 张 3:4 种草组图，覆盖封面、细节与真实使用场景",
+  },
+  {
+    id: "white-background-image",
+    kind: "single",
+    label: "商品白底精修",
+    description: "抠图换纯白背景并精修商品质感",
+    starter: "生成一张平台规范的商品白底图",
+    outputHint: "将生成一张 1:1 纯白背景精修图，完整保留商品结构与细节",
   },
   {
     id: "video",
     kind: "video",
     label: "商品视频",
     description: "生成商品短视频与镜头脚本",
+    starter: "生成一支 15 秒商品短视频",
+    outputHint: "将生成一条 15 秒商品视频与镜头脚本",
   },
 ];
+
+const featuredSkillIds = ["listing", "amazon-image-set", "video"];
 
 const regions: Option[] = [
   { id: "us", label: "美国站" },
@@ -122,6 +176,34 @@ const gallery: GalleryItem[] = [
   },
 ];
 
+const seedingGallery: GalleryItem[] = [
+  {
+    id: "seeding-cover",
+    group: "种草图 01 · 3:4",
+    title: "今天的随身咖啡搭子",
+    image: "/product-lifestyle.png",
+  },
+  {
+    id: "seeding-detail",
+    group: "种草图 02 · 3:4",
+    title: "小机身，也有浓郁油脂",
+    image: "/product-main.png",
+    crop: "crop-detail",
+  },
+  {
+    id: "seeding-outdoor",
+    group: "种草图 03 · 3:4",
+    title: "露营也能喝到现萃",
+    image: "/product-outdoor.png",
+  },
+  {
+    id: "seeding-routine",
+    group: "种草图 04 · 3:4",
+    title: "三分钟完成咖啡仪式",
+    image: "/product-lifestyle.png",
+  },
+];
+
 const generationCopy: Record<
   SkillKind,
   { title: string; count: string; phases: string[] }
@@ -135,6 +217,16 @@ const generationCopy: Record<
     title: "商品套图",
     count: "6 张图片",
     phases: ["抠出商品主体", "生成纯白主图", "生成卖点副图", "生成场景副图", "排版 A+ 图片", "完成质量检查"],
+  },
+  single: {
+    title: "商品图片",
+    count: "1 张图片",
+    phases: ["识别商品主体", "匹配视觉规范", "生成商品图片", "完成质量检查"],
+  },
+  seeding: {
+    title: "种草组图",
+    count: "4 张图片",
+    phases: ["识别商品与受众", "生成种草封面", "生成细节与场景图", "统一组图风格"],
   },
   video: {
     title: "商品视频",
@@ -767,27 +859,33 @@ function ListingResult({
 }
 
 function ImageSuite({
+  skillId,
   readyCount,
   onPreview,
   onRegenerate,
   regenerating,
 }: {
+  skillId: string;
   readyCount: number;
   onPreview: (item: GalleryItem) => void;
   onRegenerate: (item: GalleryItem) => void;
   regenerating: string | null;
 }) {
+  const isSeeding = skillId === "china-seeding-image";
+  const items = isSeeding ? seedingGallery : gallery;
+  const title = skills.find((item) => item.id === skillId)?.label ?? "商品套图";
+
   return (
-    <section className="image-suite" data-testid="image-result">
+    <section className={`image-suite ${isSeeding ? "seeding-suite" : ""}`} data-testid="image-result">
       <header className="result-section-head">
         <div>
-          <span>IMAGE COLLECTION</span>
-          <h2>商品套图</h2>
+          <span>{isSeeding ? "SEEDING COLLECTION" : "IMAGE COLLECTION"}</span>
+          <h2>{title}</h2>
         </div>
-        <p>正方形主副图 4 张 · 横版 A+ 2 张</p>
+        <p>{isSeeding ? "3:4 种草组图 4 张" : "正方形卖点图 4 张 · 横版 A+ 2 张"}</p>
       </header>
       <div className="asset-grid" aria-live="polite">
-        {gallery.map((item, index) => {
+        {items.map((item, index) => {
           const ready = index < readyCount && regenerating !== item.id;
           return (
             <article
@@ -824,6 +922,83 @@ function ImageSuite({
           );
         })}
       </div>
+    </section>
+  );
+}
+
+const singleImageOutputs: Record<string, GalleryItem> = {
+  "amazon-scene-image": {
+    id: "amazon-scene-output",
+    group: "Amazon 场景图 · 1:1",
+    title: "清晨露营咖啡时刻",
+    image: "/product-outdoor.png",
+  },
+  "china-ecommerce-main-image": {
+    id: "china-main-output",
+    group: "国内电商主图 · 1:1",
+    title: "随时随地，一键现萃",
+    image: "/product-lifestyle.png",
+  },
+  "white-background-image": {
+    id: "white-background-output",
+    group: "平台白底图 · 1:1",
+    title: "纯白背景商品精修",
+    image: "/product-main.png",
+  },
+};
+
+function SingleImageResult({
+  skillId,
+  ready,
+  onPreview,
+  onRegenerate,
+  regenerating,
+}: {
+  skillId: string;
+  ready: boolean;
+  onPreview: (item: GalleryItem) => void;
+  onRegenerate: (item: GalleryItem) => void;
+  regenerating: string | null;
+}) {
+  const item = singleImageOutputs[skillId] ?? singleImageOutputs["amazon-scene-image"];
+  const skillLabel = skills.find((skillItem) => skillItem.id === skillId)?.label ?? "商品图片";
+  const showImage = ready && regenerating !== item.id;
+
+  return (
+    <section className="single-image-result" data-testid="single-image-result">
+      <header className="result-section-head">
+        <div>
+          <span>SINGLE IMAGE</span>
+          <h2>{skillLabel}</h2>
+        </div>
+        <p>{item.group}</p>
+      </header>
+      <article className="single-asset-card">
+        {showImage ? (
+          <>
+            <button
+              type="button"
+              className="single-asset-visual"
+              onClick={() => onPreview(item)}
+              aria-label={`预览 ${item.title}`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={item.image} alt={item.title} />
+            </button>
+            <footer>
+              <div><span>{item.group}</span><strong>{item.title}</strong></div>
+              <div>
+                <a href={item.image} download>下载原图</a>
+                <button type="button" onClick={() => onRegenerate(item)}>重新生成</button>
+              </div>
+            </footer>
+          </>
+        ) : (
+          <div className="single-asset-skeleton">
+            <span>{regenerating === item.id ? "正在重新生成" : "正在生成图片"}</span>
+          </div>
+        )}
+      </article>
     </section>
   );
 }
@@ -1045,13 +1220,7 @@ export default function Home() {
   const startGeneration = () => {
     if (!uploads.length) return;
     const id = `turn-${turnCounter.current += 1}`;
-    const taskPrompt = prompt.trim() || (
-      selectedKind === "listing"
-        ? "生成完整商品 Listing"
-        : selectedKind === "images"
-          ? "生成商品主副图和 A+ 套图"
-          : "生成一支 15 秒商品短视频"
-    );
+    const taskPrompt = prompt.trim() || selectedSkill.starter;
     const turn: Turn = {
       id,
       prompt: taskPrompt,
@@ -1161,7 +1330,7 @@ export default function Home() {
                       <header className="assistant-head">
                         <div>
                           <span>Mercato AI</span>
-                          <h2>{generation.title}</h2>
+                          <h2>{skills.find((item) => item.id === turn.skill)?.label ?? generation.title}</h2>
                         </div>
                         <span>{generation.count}</span>
                       </header>
@@ -1200,7 +1369,26 @@ export default function Home() {
                         ) : null}
                         {turn.kind === "images" ? (
                           <ImageSuite
+                            skillId={turn.skill}
                             readyCount={Math.min(turn.completed, gallery.length)}
+                            onPreview={setPreview}
+                            onRegenerate={regenerate}
+                            regenerating={regenerating}
+                          />
+                        ) : null}
+                        {turn.kind === "seeding" ? (
+                          <ImageSuite
+                            skillId={turn.skill}
+                            readyCount={Math.min(turn.completed, seedingGallery.length)}
+                            onPreview={setPreview}
+                            onRegenerate={regenerate}
+                            regenerating={regenerating}
+                          />
+                        ) : null}
+                        {turn.kind === "single" ? (
+                          <SingleImageResult
+                            skillId={turn.skill}
+                            ready={ready}
                             onPreview={setPreview}
                             onRegenerate={regenerate}
                             regenerating={regenerating}
@@ -1304,18 +1492,16 @@ export default function Home() {
           />
           <div className="home-after-composer">
             <p data-testid="skill-output-hint">
-              {selectedKind === "listing" && "将生成可编辑、可下载的商品详情页、文案、价格与 A+ 内容"}
-              {selectedKind === "images" && "将生成 4 张正方形主副图与 2 张横版 A+ 图片"}
-              {selectedKind === "video" && "将生成一条 15 秒商品视频与镜头脚本"}
+              {selectedSkill.outputHint}
             </p>
             <div className="quick-starts" aria-label="快捷创作">
-              {skills.map((item) => (
+              {skills.filter((item) => featuredSkillIds.includes(item.id)).map((item) => (
                 <button
                   type="button"
                   className={skill === item.id ? "active" : ""}
                   onClick={() => {
                     setSkill(item.id);
-                    setPrompt(item.kind === "listing" ? "生成完整商品 Listing" : item.kind === "images" ? "生成商品主副图和 A+ 套图" : "生成一支 15 秒商品短视频");
+                    setPrompt(item.starter);
                   }}
                   key={item.id}
                 >
