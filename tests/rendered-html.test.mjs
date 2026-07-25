@@ -93,6 +93,9 @@ test("ships the complete local demo flow and its assets", async () => {
   assert.match(page, /account-trigger/);
   assert.match(page, /account-menu/);
   assert.match(page, /帮助与支持/);
+  assert.match(page, /<span className="brand-mark" aria-hidden="true">♥<\/span>/);
+  assert.match(page, /\n            ↑\n/);
+  assert.doesNotMatch(page, /\n            ↗\n/);
   assert.match(layout, /generateMetadata/);
   assert.match(layout, /summary_large_image/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);

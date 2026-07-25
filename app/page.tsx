@@ -498,7 +498,7 @@ function Composer({
             disabled={disabled}
             onClick={onSend}
           >
-            ↗
+            ↑
           </button>
         </div>
       </div>
@@ -1119,7 +1119,7 @@ function AppSidebar({
         onClick={onHome}
         aria-label="Mercato 首页"
       >
-        <span className="brand-mark" aria-hidden="true">M</span>
+        <span className="brand-mark" aria-hidden="true">♥</span>
         <span>MERCATO</span>
       </button>
       <nav className="workspace-links" aria-label="工作区导航">
