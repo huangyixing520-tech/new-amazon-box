@@ -19,6 +19,7 @@ type Upload = {
   name: string;
   url: string;
   owned?: boolean;
+  file?: File;
 };
 
 type SkillKind = "listing" | "images" | "single" | "seeding" | "video";
@@ -37,6 +38,19 @@ type GalleryItem = {
   crop?: string;
 };
 
+type ListingData = {
+  title: string;
+  brand?: string;
+  category?: string;
+  salePrice?: string;
+  listPrice?: string;
+  bullets: string[];
+  description: string;
+  aPlusHeadline?: string;
+  specifications?: Record<string, string>;
+  productUrlSlug?: string;
+};
+
 type Turn = {
   id: string;
   title: string;
@@ -48,6 +62,12 @@ type Turn = {
   productImage: string;
   completed: number;
   running: boolean;
+  phase: string;
+  error?: string;
+  agentText?: string;
+  listing?: ListingData;
+  images?: string[];
+  videoUrl?: string;
 };
 
 const skills: SkillOption[] = [
@@ -548,37 +568,37 @@ function ListingResult({
   productImage,
   language,
   region,
+  data,
   ready,
   onNotice,
 }: {
   productImage: string;
   language: string;
   region: string;
+  data?: ListingData;
   ready: boolean;
   onNotice: (text: string) => void;
 }) {
   const copy = listingCopy[language as keyof typeof listingCopy] ?? listingCopy.en;
   const price = prices[region] ?? prices.us;
   const [galleryImage, setGalleryImage] = useState("");
-  const [title, setTitle] = useState(copy.title);
+  const [title, setTitle] = useState(data?.title ?? copy.title);
   const [salePrice, setSalePrice] = useState(
-    `${price.major}${price.minor ? `.${price.minor}` : ""}`,
+    data?.salePrice ?? `${price.major}${price.minor ? `.${price.minor}` : ""}`,
   );
-  const [listPrice, setListPrice] = useState(price.list.replace(price.symbol, ""));
-  const [bullets, setBullets] = useState(copy.bullets);
-  const [description, setDescription] = useState(copy.description);
-  const [aPlusHeadline, setAPlusHeadline] = useState("Your café ritual, anywhere.");
-  const [specs, setSpecs] = useState([
-    ["Brand", "BrewGo"],
-    ["Color", "Carbon Black"],
-    ["Dimensions", '3.1"D × 3.1"W × 9.6"H'],
-    ["Special Feature", "Self Heating, Portable"],
-    ["Pressure", "20 Bar"],
-    ["Battery", "7500 mAh"],
-    ["Material", "Food-grade stainless steel"],
-    ["Item Weight", "1.5 pounds"],
-  ]);
+  const [listPrice, setListPrice] = useState(data?.listPrice ?? price.list.replace(price.symbol, ""));
+  const [bullets, setBullets] = useState(data?.bullets ?? copy.bullets);
+  const [description, setDescription] = useState(data?.description ?? copy.description);
+  const [aPlusHeadline, setAPlusHeadline] = useState(data?.aPlusHeadline ?? "Your product story, made for this market.");
+  const [specs, setSpecs] = useState(
+    Object.entries(data?.specifications ?? {
+      Brand: data?.brand ?? "Generic",
+      "Product type": "To be confirmed",
+      "Recommended use": "Everyday use",
+    }),
+  );
   const shownGalleryImage = galleryImage || productImage;
+  const productSlug = data?.productUrlSlug ?? "MERCATO-GENERATED";
 
   if (!ready) {
     return (
@@ -595,7 +615,7 @@ function ListingResult({
 
   const copyLink = async () => {
     await navigator.clipboard?.writeText(
-      "https://marketplace.example/dp/BREWGO-20BAR",
+      `https://marketplace.example/dp/${productSlug}`,
     );
     onNotice("商品链接已复制");
   };
@@ -616,7 +636,7 @@ function ListingResult({
     schemaVersion: 1,
     marketplace: regions.find((item) => item.id === region)?.label,
     language: languages.find((item) => item.id === language)?.label,
-    productUrl: "https://marketplace.example/dp/BREWGO-20BAR",
+    productUrl: `https://marketplace.example/dp/${productSlug}`,
     title,
     pricing: {
       currency: price.symbol,
@@ -637,7 +657,7 @@ function ListingResult({
     },
     specifications: Object.fromEntries(specs),
     images: [productImage, "/product-lifestyle.png", "/product-outdoor.png"],
-    generatedBy: "Mercato AI prototype",
+    generatedBy: "Mercato AI",
   }, null, 2);
   const downloadHref = `data:application/json;charset=utf-8,${encodeURIComponent(listingJson)}`;
 
@@ -664,7 +684,7 @@ function ListingResult({
         <div>
           <span className="live-dot" />
           已生成 Listing
-          <span className="listing-url">marketplace.example/dp/BREWGO-20BAR</span>
+          <span className="listing-url">marketplace.example/dp/{productSlug}</span>
         </div>
         <span className="listing-edit-hint">虚线区域可直接编辑</span>
         <div className="listing-actions">
@@ -683,7 +703,7 @@ function ListingResult({
       </div>
 
       <div className="market-breadcrumb">
-        Home & Kitchen › Coffee Machines › Portable Espresso Makers
+        {data?.category ?? "Marketplace › Generated product"}
       </div>
 
       <div className="market-product">
@@ -707,7 +727,7 @@ function ListingResult({
           </div>
           <div className="market-main-image">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={shownGalleryImage} alt="BrewGo 便携咖啡机" />
+            <img src={shownGalleryImage} alt={title} />
             <span>移动鼠标放大图片</span>
           </div>
         </div>
@@ -721,7 +741,7 @@ function ListingResult({
             data-testid="listing-title-input"
             rows={4}
           />
-          <a href="#brand">Visit the BrewGo Store</a>
+          <a href="#brand">Visit the {data?.brand ?? "Brand"} Store</a>
           <div className="rating-row">
             <b>4.6</b>
             <span className="stars">★★★★★</span>
@@ -893,19 +913,22 @@ function ListingResult({
 
 function ImageSuite({
   skillId,
-  readyCount,
+  generatedImages = [],
   onPreview,
   onRegenerate,
   regenerating,
 }: {
   skillId: string;
-  readyCount: number;
+  generatedImages?: string[];
   onPreview: (item: GalleryItem) => void;
   onRegenerate: (item: GalleryItem) => void;
   regenerating: string | null;
 }) {
   const isSeeding = skillId === "china-seeding-image";
-  const items = isSeeding ? seedingGallery : gallery;
+  const items = (isSeeding ? seedingGallery : gallery).map((item, index) => ({
+    ...item,
+    image: generatedImages[index] ?? item.image,
+  }));
   const title = skills.find((item) => item.id === skillId)?.label ?? "商品套图";
 
   return (
@@ -919,7 +942,7 @@ function ImageSuite({
       </header>
       <div className="asset-grid" aria-live="polite">
         {items.map((item, index) => {
-          const ready = index < readyCount && regenerating !== item.id;
+          const ready = Boolean(generatedImages[index]) && regenerating !== item.id;
           return (
             <article
               className={`asset-card ${item.wide ? "asset-wide" : ""}`}
@@ -982,18 +1005,21 @@ const singleImageOutputs: Record<string, GalleryItem> = {
 
 function SingleImageResult({
   skillId,
+  generatedImage,
   ready,
   onPreview,
   onRegenerate,
   regenerating,
 }: {
   skillId: string;
+  generatedImage?: string;
   ready: boolean;
   onPreview: (item: GalleryItem) => void;
   onRegenerate: (item: GalleryItem) => void;
   regenerating: string | null;
 }) {
-  const item = singleImageOutputs[skillId] ?? singleImageOutputs["amazon-scene-image"];
+  const preset = singleImageOutputs[skillId] ?? singleImageOutputs["amazon-scene-image"];
+  const item = { ...preset, image: generatedImage ?? preset.image };
   const skillLabel = skills.find((skillItem) => skillItem.id === skillId)?.label ?? "商品图片";
   const showImage = ready && regenerating !== item.id;
 
@@ -1039,10 +1065,12 @@ function SingleImageResult({
 function VideoResult({
   ready,
   productImage,
+  videoUrl,
   onNotice,
 }: {
   ready: boolean;
   productImage: string;
+  videoUrl?: string;
   onNotice: (text: string) => void;
 }) {
   if (!ready) {
@@ -1071,7 +1099,7 @@ function VideoResult({
             aria-label="BrewGo 商品视频"
             data-testid="generated-video"
           >
-            <source src="/product-demo.mp4" type="video/mp4" />
+            <source src={videoUrl ?? "/product-demo.mp4"} type="video/mp4" />
           </video>
         </div>
         <aside className="storyboard">
@@ -1269,6 +1297,61 @@ function AppSidebar({
   );
 }
 
+async function uploadAsFile(upload: Upload) {
+  const source = upload.file ?? new File(
+    [await fetch(upload.url).then((response) => response.blob())],
+    upload.name || "product.png",
+  );
+  if (source.size <= 700_000) return source;
+
+  const bitmap = await createImageBitmap(source);
+  const scale = Math.min(1, 1400 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (value) => value ? resolve(value) : reject(new Error("商品图压缩失败")),
+      "image/jpeg",
+      0.8,
+    );
+  });
+  return new File([blob], `${source.name.replace(/\.[^.]+$/, "")}.jpg`, {
+    type: blob.type || "image/png",
+  });
+}
+
+async function responseError(response: Response) {
+  const payload = await response.json().catch(() => null);
+  return payload?.error ?? `生成请求失败 (${response.status})`;
+}
+
+function parseListingJson(text: string): ListingData {
+  const cleaned = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "");
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("Agent 没有返回有效的 Listing JSON");
+  const value = JSON.parse(cleaned.slice(start, end + 1)) as ListingData;
+  if (!value.title || !Array.isArray(value.bullets) || !value.description) {
+    throw new Error("Agent 返回的 Listing 字段不完整");
+  }
+  return value;
+}
+
+function deepFind(value: unknown, keys: string[]): string | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  for (const [key, child] of Object.entries(value)) {
+    if (keys.includes(key) && typeof child === "string") return child;
+    const nested = deepFind(child, keys);
+    if (nested) return nested;
+  }
+}
+
 export default function Home() {
   const [screen, setScreen] = useState<"home" | "studio">("home");
   const [prompt, setPrompt] = useState("");
@@ -1281,7 +1364,7 @@ export default function Home() {
   const [preview, setPreview] = useState<GalleryItem | null>(null);
   const [regenerating, setRegenerating] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
-  const timers = useRef<Map<string, ReturnType<typeof setTimeout>[]>>(new Map());
+  const controllers = useRef<Map<string, AbortController>>(new Map());
   const turnCounter = useRef(0);
 
   const selectedSkill = skills.find((item) => item.id === skill) ?? skills[0];
@@ -1289,19 +1372,10 @@ export default function Home() {
   const productImage = uploads[0]?.url ?? "/product-main.png";
   const activeTurn = turns.find((turn) => turn.id === activeTurnId) ?? turns[turns.length - 1];
 
-  const clearTurnTimers = (turnId: string) => {
-    timers.current.get(turnId)?.forEach((timer) => clearTimeout(timer));
-    timers.current.delete(turnId);
-  };
-
-  const clearAllTimers = () => {
-    timers.current.forEach((turnTimers) => {
-      turnTimers.forEach((timer) => clearTimeout(timer));
-    });
-    timers.current.clear();
-  };
-
-  useEffect(() => clearAllTimers, []);
+  useEffect(() => () => {
+    controllers.current.forEach((controller) => controller.abort());
+    controllers.current.clear();
+  }, []);
 
   const showNotice = (text: string) => {
     setNotice(text);
@@ -1321,6 +1395,7 @@ export default function Home() {
       name: file.name,
       url: URL.createObjectURL(file),
       owned: true,
+      file,
     }]);
     event.target.value = "";
   };
@@ -1329,33 +1404,162 @@ export default function Home() {
     setUploads((current) => current.filter((upload) => upload.id !== id));
   };
 
-  const streamTurn = (turnId: string, kind: SkillKind, startAt = 0) => {
-    clearTurnTimers(turnId);
+  const patchTurn = (turnId: string, patch: Partial<Turn>) => {
     setTurns((current) =>
-      current.map((turn) =>
-        turn.id === turnId ? { ...turn, running: true } : turn,
-      ),
+      current.map((turn) => turn.id === turnId ? { ...turn, ...patch } : turn),
     );
-    const phases = generationCopy[kind].phases;
-    const turnTimers: ReturnType<typeof setTimeout>[] = [];
-    for (let index = startAt; index < phases.length; index += 1) {
-      const timer = setTimeout(() => {
-        setTurns((current) =>
-          current.map((turn) =>
-            turn.id === turnId
-              ? {
-                  ...turn,
-                  completed: index + 1,
-                  running: index < phases.length - 1,
-                }
-              : turn,
-          ),
-        );
-        if (index === phases.length - 1) timers.current.delete(turnId);
-      }, 500 + (index - startAt) * 430);
-      turnTimers.push(timer);
+  };
+
+  const generationForm = async (
+    turn: Turn,
+    upload: Upload,
+    action: "listing" | "image" | "video",
+    slot?: number,
+  ) => {
+    const form = new FormData();
+    form.set("action", action);
+    form.set("skill", turn.skill);
+    form.set("region", turn.region);
+    form.set("language", turn.language);
+    form.set("prompt", turn.prompt);
+    if (slot !== undefined) form.set("slot", String(slot));
+    const file = await uploadAsFile(upload);
+    form.set("image", file, file.name);
+    return form;
+  };
+
+  const runListing = async (turn: Turn, upload: Upload, signal: AbortSignal) => {
+    patchTurn(turn.id, { phase: "正在理解商品图片", completed: 1 });
+    const response = await fetch("/api/generate", {
+      method: "POST",
+      body: await generationForm(turn, upload, "listing"),
+      signal,
+    });
+    if (!response.ok || !response.body) throw new Error(await responseError(response));
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let pending = "";
+    let generated = "";
+    patchTurn(turn.id, { phase: "正在流式生成 Listing", completed: 2 });
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      pending += decoder.decode(value, { stream: true });
+      const lines = pending.split("\n");
+      pending = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim();
+        if (!data || data === "[DONE]") continue;
+        const event = JSON.parse(data);
+        generated += event.choices?.[0]?.delta?.content ?? "";
+      }
+      patchTurn(turn.id, { agentText: generated });
     }
-    timers.current.set(turnId, turnTimers);
+
+    const listing = parseListingJson(generated);
+    patchTurn(turn.id, {
+      listing,
+      agentText: generated,
+      phase: "生成完成",
+      completed: generationCopy.listing.phases.length,
+      running: false,
+    });
+  };
+
+  const runImages = async (turn: Turn, upload: Upload, signal: AbortSignal) => {
+    const count = turn.kind === "seeding" ? 4 : turn.kind === "single" ? 1 : 6;
+    patchTurn(turn.id, { phase: "正在生成商品图片", completed: 0, images: [] });
+    const results = new Array<string>(count);
+
+    await Promise.all(Array.from({ length: count }, async (_, slot) => {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        body: await generationForm(turn, upload, "image", slot),
+        signal,
+      });
+      if (!response.ok) throw new Error(await responseError(response));
+      const payload = await response.json();
+      results[slot] = payload.url;
+      const done = results.filter(Boolean).length;
+      patchTurn(turn.id, {
+        images: [...results],
+        completed: turn.kind === "single"
+          ? Math.round((done / count) * generationCopy.single.phases.length)
+          : done,
+        phase: `已完成 ${done} / ${count} 张`,
+      });
+    }));
+
+    patchTurn(turn.id, {
+      images: results,
+      phase: "生成完成",
+      completed: generationCopy[turn.kind].phases.length,
+      running: false,
+    });
+  };
+
+  const runVideo = async (turn: Turn, upload: Upload, signal: AbortSignal) => {
+    patchTurn(turn.id, { phase: "正在提交视频任务", completed: 1 });
+    const response = await fetch("/api/generate", {
+      method: "POST",
+      body: await generationForm(turn, upload, "video"),
+      signal,
+    });
+    if (!response.ok) throw new Error(await responseError(response));
+    const created = await response.json();
+    const taskId = deepFind(created, ["id", "task_id"]);
+    if (!taskId) throw new Error("视频接口没有返回任务 ID");
+    patchTurn(turn.id, { phase: "视频正在生成，预计需要几分钟", completed: 2 });
+
+    for (let attempt = 0; attempt < 150; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 4000));
+      if (signal.aborted) throw new DOMException("已停止", "AbortError");
+      const poll = await fetch(`/api/generate?taskId=${encodeURIComponent(taskId)}`, { signal });
+      if (!poll.ok) throw new Error(await responseError(poll));
+      const payload = await poll.json();
+      const videoUrl = deepFind(payload, ["video_url", "videoUrl", "url"]);
+      const status = deepFind(payload, ["status", "state"])?.toLowerCase();
+      if (videoUrl && ["succeeded", "success", "completed", "done"].includes(status ?? "completed")) {
+        patchTurn(turn.id, {
+          videoUrl,
+          phase: "生成完成",
+          completed: generationCopy.video.phases.length,
+          running: false,
+        });
+        return;
+      }
+      if (["failed", "error", "cancelled", "canceled"].includes(status ?? "")) {
+        throw new Error(deepFind(payload, ["message", "error"]) ?? "视频生成失败");
+      }
+      patchTurn(turn.id, {
+        phase: status ? `视频生成中 · ${status}` : "视频生成中",
+        completed: 3,
+      });
+    }
+    throw new Error("视频生成超时，请稍后重试");
+  };
+
+  const runGeneration = async (turn: Turn, upload: Upload) => {
+    const controller = new AbortController();
+    controllers.current.set(turn.id, controller);
+    patchTurn(turn.id, { running: true, error: undefined });
+    try {
+      if (turn.kind === "listing") await runListing(turn, upload, controller.signal);
+      else if (turn.kind === "video") await runVideo(turn, upload, controller.signal);
+      else await runImages(turn, upload, controller.signal);
+    } catch (error) {
+      if ((error as Error).name === "AbortError") return;
+      patchTurn(turn.id, {
+        running: false,
+        error: error instanceof Error ? error.message : "生成失败",
+        phase: "生成失败",
+      });
+    } finally {
+      controllers.current.delete(turn.id);
+    }
   };
 
   const startGeneration = () => {
@@ -1364,7 +1568,7 @@ export default function Home() {
     const taskPrompt = prompt.trim() || selectedSkill.starter;
     const turn: Turn = {
       id,
-      title: conversationTitle,
+      title: taskPrompt.slice(0, 22),
       prompt: taskPrompt,
       skill: selectedSkill.id,
       kind: selectedKind,
@@ -1373,36 +1577,57 @@ export default function Home() {
       productImage,
       completed: 0,
       running: true,
+      phase: generationCopy[selectedKind].phases[0],
     };
     setTurns((current) => [...current, turn]);
     setActiveTurnId(id);
     setScreen("studio");
     setPrompt("");
     window.setTimeout(() => {
-      streamTurn(id, selectedKind);
+      void runGeneration(turn, uploads[0]);
       document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 0);
   };
 
   const stopGeneration = (turnId: string) => {
-    clearTurnTimers(turnId);
-    setTurns((current) =>
-      current.map((turn) =>
-        turn.id === turnId ? { ...turn, running: false } : turn,
-      ),
-    );
+    controllers.current.get(turnId)?.abort();
+    controllers.current.delete(turnId);
+    patchTurn(turnId, { running: false, phase: "已停止" });
     showNotice("已停止未完成的生成");
   };
 
-  const regenerate = (item: GalleryItem) => {
+  const regenerate = async (turn: Turn, item: GalleryItem) => {
     setRegenerating(item.id);
     showNotice(`正在重新生成「${item.title}」`);
-    const timer = setTimeout(() => {
+    const presets = turn.kind === "seeding"
+      ? seedingGallery
+      : turn.kind === "single"
+        ? [singleImageOutputs[turn.skill] ?? singleImageOutputs["amazon-scene-image"]]
+        : gallery;
+    const slot = Math.max(0, presets.findIndex((preset) => preset.id === item.id));
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        body: await generationForm(turn, {
+          id: `${turn.id}-regenerate`,
+          name: "product.png",
+          url: turn.productImage,
+        }, "image", slot),
+      });
+      if (!response.ok) throw new Error(await responseError(response));
+      const payload = await response.json();
+      setTurns((current) => current.map((currentTurn) => {
+        if (currentTurn.id !== turn.id) return currentTurn;
+        const images = [...(currentTurn.images ?? [])];
+        images[slot] = payload.url;
+        return { ...currentTurn, images };
+      }));
       setRegenerating(null);
       showNotice(`「${item.title}」已更新`);
-    }, 1200);
-    const key = `regenerate-${item.id}`;
-    timers.current.set(key, [timer]);
+    } catch (error) {
+      setRegenerating(null);
+      showNotice(error instanceof Error ? error.message : "重新生成失败");
+    }
   };
 
   const openStudio = (turnId?: string) => {
@@ -1426,7 +1651,8 @@ export default function Home() {
   };
 
   const deleteTurn = (turnId: string) => {
-    clearTurnTimers(turnId);
+    controllers.current.get(turnId)?.abort();
+    controllers.current.delete(turnId);
     const remaining = turns.filter((turn) => turn.id !== turnId);
     setTurns(remaining);
     if (!remaining.length) {
@@ -1504,18 +1730,23 @@ export default function Home() {
                         <div>
                           <span className={turn.running ? "pulse-dot" : "done-dot"} />
                           <strong data-testid={`progress-${index}`}>
-                            {turn.running
-                              ? generation.phases[Math.min(turn.completed, total - 1)]
-                              : ready
-                                ? "生成完成"
-                                : "已停止"}
+                            {turn.phase}
                           </strong>
                           <span>{turn.completed} / {total}</span>
                         </div>
                         {turn.running ? (
                           <button type="button" onClick={() => stopGeneration(turn.id)}>停止生成</button>
                         ) : turn.completed < total ? (
-                          <button type="button" onClick={() => streamTurn(turn.id, turn.kind, turn.completed)}>继续生成</button>
+                          <button
+                            type="button"
+                            onClick={() => void runGeneration(turn, {
+                              id: `${turn.id}-retry`,
+                              name: "product.png",
+                              url: turn.productImage,
+                            })}
+                          >
+                            重新生成
+                          </button>
                         ) : null}
                       </div>
                       <div className="progress-meter" aria-hidden="true">
@@ -1523,11 +1754,25 @@ export default function Home() {
                       </div>
 
                       <div className={`dynamic-result dynamic-${turn.kind}`}>
+                        {turn.error ? (
+                          <div className="generation-error" role="alert">
+                            <strong>生成失败</strong>
+                            <p>{turn.error}</p>
+                          </div>
+                        ) : null}
+                        {turn.kind === "listing" && turn.agentText && !ready ? (
+                          <pre className="agent-stream" aria-live="polite">
+                            {turn.agentText}
+                            <span aria-hidden="true">▋</span>
+                          </pre>
+                        ) : null}
                         {turn.kind === "listing" ? (
                           <ListingResult
+                            key={turn.listing?.productUrlSlug ?? `${turn.id}-loading`}
                             productImage={turn.productImage}
                             language={turn.language}
                             region={turn.region}
+                            data={turn.listing}
                             ready={ready}
                             onNotice={showNotice}
                           />
@@ -1535,32 +1780,38 @@ export default function Home() {
                         {turn.kind === "images" ? (
                           <ImageSuite
                             skillId={turn.skill}
-                            readyCount={Math.min(turn.completed, gallery.length)}
+                            generatedImages={turn.images}
                             onPreview={setPreview}
-                            onRegenerate={regenerate}
+                            onRegenerate={(item) => void regenerate(turn, item)}
                             regenerating={regenerating}
                           />
                         ) : null}
                         {turn.kind === "seeding" ? (
                           <ImageSuite
                             skillId={turn.skill}
-                            readyCount={Math.min(turn.completed, seedingGallery.length)}
+                            generatedImages={turn.images}
                             onPreview={setPreview}
-                            onRegenerate={regenerate}
+                            onRegenerate={(item) => void regenerate(turn, item)}
                             regenerating={regenerating}
                           />
                         ) : null}
                         {turn.kind === "single" ? (
                           <SingleImageResult
                             skillId={turn.skill}
+                            generatedImage={turn.images?.[0]}
                             ready={ready}
                             onPreview={setPreview}
-                            onRegenerate={regenerate}
+                            onRegenerate={(item) => void regenerate(turn, item)}
                             regenerating={regenerating}
                           />
                         ) : null}
                         {turn.kind === "video" ? (
-                          <VideoResult ready={ready} productImage={turn.productImage} onNotice={showNotice} />
+                          <VideoResult
+                            ready={ready}
+                            productImage={turn.productImage}
+                            videoUrl={turn.videoUrl}
+                            onNotice={showNotice}
+                          />
                         ) : null}
                       </div>
                     </div>

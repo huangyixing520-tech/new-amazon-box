@@ -46,12 +46,13 @@ test("server-renders the Mercato creation workspace", async () => {
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
 });
 
-test("ships the complete local demo flow and its assets", async () => {
-  const [page, layout, styles, packageJson] = await Promise.all([
+test("ships the complete generation flow and its assets", async () => {
+  const [page, layout, styles, packageJson, generateRoute] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/generate/route.ts", import.meta.url), "utf8"),
     access(new URL("../public/product-main.png", import.meta.url)),
     access(new URL("../public/product-lifestyle.png", import.meta.url)),
     access(new URL("../public/product-outdoor.png", import.meta.url)),
@@ -76,9 +77,11 @@ test("ships the complete local demo flow and its assets", async () => {
   assert.match(page, /product-demo\.mp4/);
   assert.match(page, /销售地区/);
   assert.match(page, /输出语言/);
-  assert.match(page, /streamTurn/);
+  assert.match(page, /runGeneration/);
+  assert.match(page, /fetch\("\/api\/generate"/);
+  assert.doesNotMatch(page, /const streamTurn/);
   assert.match(page, /停止生成/);
-  assert.match(page, /继续生成/);
+  assert.match(page, /重新生成/);
   assert.match(page, /preview-modal/);
   assert.match(page, /conversation-send/);
   assert.match(page, /listing-title-input/);
@@ -113,4 +116,12 @@ test("ships the complete local demo flow and its assets", async () => {
   assert.match(styles, /background-size: 5px 5px, 7px 7px/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   assert.doesNotMatch(page, /SkeletonPreview|codex-preview/);
+  assert.match(generateRoute, /MiniMax-M3/);
+  assert.match(generateRoute, /dolaio\/gpt-image-2/);
+  assert.match(generateRoute, /novai\/seedance-2\.0-mini/);
+  assert.match(generateRoute, /\/chat\/completions/);
+  assert.match(generateRoute, /\/images\/edits/);
+  assert.match(generateRoute, /\/contents\/generations\/tasks/);
+  assert.match(generateRoute, /process\.env\.DOLA_API_KEY/);
+  assert.doesNotMatch(generateRoute, /DOLA_API_KEY\s*=\s*["'][^"']+["']/);
 });
