@@ -136,6 +136,10 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /videoTask\(payload\)/);
   assert.match(generateRoute, /videoUrl: taskField/);
   assert.match(generateRoute, /Unknown is better than invented/);
+  assert.match(generateRoute, /Do not create a plan/);
+  assert.match(generateRoute, /Generate the final listing directly/);
+  assert.match(generateRoute, /X-Mercato-Agent-Architecture/);
+  assert.match(generateRoute, /route-execute/);
   assert.match(generateRoute, /never as "one-touch operation"/);
   assert.match(generateRoute, /Always return non-empty numeric salePrice/);
   assert.match(generateRoute, /process\.env\.DOLA_API_KEY/);

@@ -131,6 +131,9 @@ Inspect the product image carefully. Distinguish visible facts from assumptions 
     {
       role: "system",
       content: `You are Mercato, a senior cross-border ecommerce listing specialist.
+The host has already routed this request to the selected Listing capability.
+Do not create a plan, break the task into steps, choose another capability, or describe an execution process.
+Generate the final listing directly in a single response.
 Return only valid JSON, without markdown fences or commentary.
 Write all customer-facing copy in the requested output language.
 Do not invent certifications, medical claims, exact dimensions, materials, battery capacity or performance figures unless supplied by the user.
@@ -187,6 +190,7 @@ async function createListing(form: FormData) {
     headers: {
       "Content-Type": response.headers.get("content-type") ?? "text/event-stream",
       "Cache-Control": "no-cache",
+      "X-Mercato-Agent-Architecture": "route-execute",
     },
   });
 }
