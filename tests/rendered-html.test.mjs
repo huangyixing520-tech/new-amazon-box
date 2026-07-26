@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
-import { imageOutputUrl } from "../app/api/generate/image-response.mjs";
+import { imageOutputUrl } from "../task-backend/image-response.mjs";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -48,12 +48,13 @@ test("server-renders the Mercato creation workspace", async () => {
 });
 
 test("ships the complete generation flow and its assets", async () => {
-  const [page, layout, styles, packageJson, generateRoute] = await Promise.all([
+  const [page, layout, styles, packageJson, generateRoute, taskBackend] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../app/api/generate/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../task-backend/server.mjs", import.meta.url), "utf8"),
     access(new URL("../public/product-main.png", import.meta.url)),
     access(new URL("../public/product-lifestyle.png", import.meta.url)),
     access(new URL("../public/product-outdoor.png", import.meta.url)),
@@ -128,10 +129,10 @@ test("ships the complete generation flow and its assets", async () => {
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   assert.doesNotMatch(page, /SkeletonPreview|codex-preview/);
   assert.match(generateRoute, /MiniMax-M3/);
-  assert.match(generateRoute, /yunwu\/gpt-image-2/);
+  assert.match(taskBackend, /yunwu\/gpt-image-2/);
   assert.match(generateRoute, /novai\/seedance-2\.0-mini/);
   assert.match(generateRoute, /\/chat\/completions/);
-  assert.match(generateRoute, /\/images\/edits/);
+  assert.match(taskBackend, /\/images\/edits/);
   assert.match(generateRoute, /\/contents\/generations\/tasks/);
   assert.match(generateRoute, /videoTask\(payload\)/);
   assert.match(generateRoute, /videoUrl: taskField/);
@@ -144,6 +145,14 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /Always return non-empty numeric salePrice/);
   assert.match(generateRoute, /process\.env\.DOLA_API_KEY/);
   assert.doesNotMatch(generateRoute, /DOLA_API_KEY\s*=\s*["'][^"']+["']/);
+  assert.match(generateRoute, /process\.env\.TASK_BACKEND_URL/);
+  assert.match(generateRoute, /process\.env\.TASK_BACKEND_TOKEN/);
+  assert.match(generateRoute, /imageTaskId/);
+  assert.match(taskBackend, /status: "queued"/);
+  assert.match(taskBackend, /status = "running"/);
+  assert.match(taskBackend, /status = "succeeded"/);
+  assert.match(taskBackend, /status = "failed"/);
+  assert.match(taskBackend, /TASK_CONCURRENCY/);
 });
 
 test("accepts common direct and nested image response shapes", () => {

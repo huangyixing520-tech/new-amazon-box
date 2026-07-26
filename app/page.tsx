@@ -1460,6 +1460,38 @@ export default function Home() {
     return form;
   };
 
+  const runImageTask = async (form: FormData, signal?: AbortSignal) => {
+    const response = await fetch("/api/generate", {
+      method: "POST",
+      body: form,
+      signal,
+    });
+    if (!response.ok) throw new Error(await responseError(response));
+    const created = await response.json();
+    const taskId = deepFind(created, ["id", "task_id"]);
+    if (!taskId) throw new Error("图片任务后台没有返回任务 ID");
+
+    for (let attempt = 0; attempt < 240; attempt += 1) {
+      if (attempt) await new Promise((resolve) => window.setTimeout(resolve, 3000));
+      if (signal?.aborted) throw new DOMException("已停止", "AbortError");
+      const poll = await fetch(
+        `/api/generate?imageTaskId=${encodeURIComponent(taskId)}`,
+        { signal, cache: "no-store" },
+      );
+      if (!poll.ok) throw new Error(await responseError(poll));
+      const payload = await poll.json();
+      const status = deepFind(payload, ["status", "state"])?.toLowerCase();
+      const url = deepFind(payload, ["url", "image_url", "imageUrl"]);
+      if (url && ["succeeded", "success", "completed", "done"].includes(status ?? "succeeded")) {
+        return url;
+      }
+      if (["failed", "error", "cancelled", "canceled"].includes(status ?? "")) {
+        throw new Error(deepFind(payload, ["error", "message"]) ?? "图片生成失败");
+      }
+    }
+    throw new Error("图片生成超时，请稍后重试");
+  };
+
   const runListing = async (turn: Turn, upload: Upload, signal: AbortSignal) => {
     patchTurn(turn.id, { phase: "正在理解商品图片", completed: 1 });
     const response = await fetch("/api/generate", {
@@ -1518,14 +1550,10 @@ export default function Home() {
       while (nextSlot < count) {
         const slot = nextSlot++;
         try {
-          const response = await fetch("/api/generate", {
-            method: "POST",
-            body: await generationForm(turn, upload, "image", slot),
+          results[slot] = await runImageTask(
+            await generationForm(turn, upload, "image", slot),
             signal,
-          });
-          if (!response.ok) throw new Error(await responseError(response));
-          const payload = await response.json();
-          results[slot] = payload.url;
+          );
         } catch (error) {
           if ((error as Error).name === "AbortError") throw error;
           failedSlots.push(slot);
@@ -1664,20 +1692,17 @@ export default function Home() {
         : gallery;
     const slot = Math.max(0, presets.findIndex((preset) => preset.id === item.id));
     try {
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        body: await generationForm(turn, {
+      const url = await runImageTask(
+        await generationForm(turn, {
           id: `${turn.id}-regenerate`,
           name: "product.png",
           url: turn.productImage,
         }, "image", slot),
-      });
-      if (!response.ok) throw new Error(await responseError(response));
-      const payload = await response.json();
+      );
       setTurns((current) => current.map((currentTurn) => {
         if (currentTurn.id !== turn.id) return currentTurn;
         const images = [...(currentTurn.images ?? [])];
-        images[slot] = payload.url;
+        images[slot] = url;
         const failedImageSlots = (currentTurn.failedImageSlots ?? [])
           .filter((failedSlot) => failedSlot !== slot);
         const done = images.filter(Boolean).length;

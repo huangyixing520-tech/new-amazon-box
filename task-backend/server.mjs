@@ -1,0 +1,233 @@
+import { createServer } from "node:http";
+import { timingSafeEqual, randomUUID } from "node:crypto";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { Readable } from "node:stream";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { imageOutputUrl } from "./image-response.mjs";
+
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+const TASK_TTL_MS = 24 * 60 * 60 * 1000;
+
+function errorMessage(payload, fallback) {
+  if (!payload || typeof payload !== "object") return fallback;
+  if (typeof payload.error === "string") return payload.error;
+  return payload.error?.message ?? payload.message ?? fallback;
+}
+
+function authorized(requestToken, expectedToken) {
+  const supplied = Buffer.from(requestToken || "");
+  const expected = Buffer.from(`Bearer ${expectedToken}`);
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+}
+
+function json(response, status, payload) {
+  const body = JSON.stringify(payload);
+  response.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Length": Buffer.byteLength(body),
+    "Cache-Control": "no-store",
+  });
+  response.end(body);
+}
+
+function publicTask(task) {
+  return {
+    id: task.id,
+    status: task.status,
+    url: task.url,
+    error: task.error,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+  };
+}
+
+export function createTaskServer(options = {}) {
+  const config = {
+    dataDir: options.dataDir ?? process.env.DATA_DIR ?? join(process.cwd(), "data"),
+    baseUrl: (options.baseUrl ?? process.env.DOLA_BASE_URL ??
+      "https://api.dolaio.cn/aigateway/cisco/v1").replace(/\/$/, ""),
+    apiKey: options.apiKey ?? process.env.DOLA_API_KEY,
+    token: options.token ?? process.env.TASK_BACKEND_TOKEN,
+    model: options.model ?? process.env.IMAGE_MODEL ?? "yunwu/gpt-image-2",
+    concurrency: Math.max(1, Number(options.concurrency ?? process.env.TASK_CONCURRENCY ?? 2)),
+  };
+  const tasksDir = join(config.dataDir, "tasks");
+  const inputsDir = join(config.dataDir, "inputs");
+  const pending = [];
+  const queued = new Set();
+  let active = 0;
+
+  const taskPath = (id) => join(tasksDir, `${id}.json`);
+  const inputPath = (id) => join(inputsDir, `${id}.bin`);
+
+  async function readTask(id) {
+    return JSON.parse(await readFile(taskPath(id), "utf8"));
+  }
+
+  async function saveTask(task) {
+    task.updatedAt = new Date().toISOString();
+    await writeFile(taskPath(task.id), JSON.stringify(task));
+  }
+
+  async function runTask(id) {
+    const task = await readTask(id);
+    task.status = "running";
+    task.error = undefined;
+    await saveTask(task);
+    try {
+      const bytes = await readFile(inputPath(id));
+      const request = new FormData();
+      request.set("model", config.model);
+      request.set("prompt", task.prompt);
+      request.set("size", task.size);
+      request.set("quality", task.quality);
+      request.set(
+        "image",
+        new Blob([bytes], { type: task.imageType || "image/png" }),
+        task.imageName || "product.png",
+      );
+      const response = await fetch(`${config.baseUrl}/images/edits`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${config.apiKey}` },
+        body: request,
+        signal: AbortSignal.timeout(10 * 60 * 1000),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(errorMessage(payload, `图片生成失败 (${response.status})`));
+      }
+      const url = imageOutputUrl(payload);
+      if (!url) throw new Error("图片服务已响应，但没有返回可用图片");
+      task.status = "succeeded";
+      task.url = url;
+      task.error = undefined;
+    } catch (error) {
+      task.status = "failed";
+      task.error = error instanceof Error ? error.message : "图片生成失败";
+    }
+    await saveTask(task);
+  }
+
+  function drain() {
+    while (active < config.concurrency && pending.length) {
+      const id = pending.shift();
+      queued.delete(id);
+      active += 1;
+      void runTask(id).finally(() => {
+        active -= 1;
+        drain();
+      });
+    }
+  }
+
+  function enqueue(id) {
+    if (queued.has(id)) return;
+    queued.add(id);
+    pending.push(id);
+    drain();
+  }
+
+  async function recover() {
+    await Promise.all([mkdir(tasksDir, { recursive: true }), mkdir(inputsDir, { recursive: true })]);
+    for (const name of await readdir(tasksDir)) {
+      if (!name.endsWith(".json")) continue;
+      const task = await readTask(name.slice(0, -5)).catch(() => null);
+      if (task && ["queued", "running"].includes(task.status)) enqueue(task.id);
+    }
+  }
+
+  async function cleanup() {
+    const cutoff = Date.now() - TASK_TTL_MS;
+    for (const name of await readdir(tasksDir).catch(() => [])) {
+      if (!name.endsWith(".json")) continue;
+      const id = name.slice(0, -5);
+      const task = await readTask(id).catch(() => null);
+      if (task && Date.parse(task.createdAt) < cutoff && !["queued", "running"].includes(task.status)) {
+        await Promise.all([
+          rm(taskPath(id), { force: true }),
+          rm(inputPath(id), { force: true }),
+        ]);
+      }
+    }
+  }
+
+  const ready = recover();
+  const cleanupTimer = setInterval(() => void cleanup(), 60 * 60 * 1000);
+  cleanupTimer.unref();
+
+  const server = createServer(async (request, response) => {
+    try {
+      await ready;
+      const url = new URL(request.url || "/", "http://localhost");
+      if (request.method === "GET" && url.pathname === "/health") {
+        return json(response, 200, { ok: true, active, queued: pending.length });
+      }
+      if (!config.apiKey || !config.token) {
+        return json(response, 503, { error: "后台密钥尚未配置" });
+      }
+      if (!authorized(request.headers.authorization, config.token)) {
+        return json(response, 401, { error: "未授权" });
+      }
+      if (request.method === "GET" && /^\/v1\/image-tasks\/[a-f0-9-]+$/.test(url.pathname)) {
+        const id = url.pathname.split("/").pop();
+        const task = await readTask(id).catch(() => null);
+        return task
+          ? json(response, 200, publicTask(task))
+          : json(response, 404, { error: "任务不存在或已过期" });
+      }
+      if (request.method !== "POST" || url.pathname !== "/v1/image-tasks") {
+        return json(response, 404, { error: "Not found" });
+      }
+      const contentLength = Number(request.headers["content-length"] ?? 0);
+      if (contentLength > MAX_UPLOAD_BYTES) {
+        return json(response, 413, { error: "商品图片不能超过 20MB" });
+      }
+      const webRequest = new Request("http://localhost/v1/image-tasks", {
+        method: "POST",
+        headers: request.headers,
+        body: Readable.toWeb(request),
+        duplex: "half",
+      });
+      const form = await webRequest.formData();
+      const image = form.get("image");
+      if (!(image instanceof File)) return json(response, 400, { error: "请上传商品图片" });
+      if (image.size > MAX_UPLOAD_BYTES) {
+        return json(response, 413, { error: "商品图片不能超过 20MB" });
+      }
+      const id = randomUUID();
+      const now = new Date().toISOString();
+      const task = {
+        id,
+        status: "queued",
+        prompt: String(form.get("prompt") ?? ""),
+        size: String(form.get("size") ?? "1024x1024"),
+        quality: String(form.get("quality") ?? "medium"),
+        imageName: image.name,
+        imageType: image.type,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await writeFile(inputPath(id), Buffer.from(await image.arrayBuffer()));
+      await saveTask(task);
+      enqueue(id);
+      return json(response, 202, publicTask(task));
+    } catch (error) {
+      return json(response, 500, {
+        error: error instanceof Error ? error.message : "任务服务异常",
+      });
+    }
+  });
+
+  server.on("close", () => clearInterval(cleanupTimer));
+  return server;
+}
+
+const entryPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+if (import.meta.url === entryPath) {
+  const port = Number(process.env.PORT ?? 8788);
+  const server = createTaskServer();
+  server.listen(port, "0.0.0.0", () => {
+    console.log(`Mercato image task backend listening on :${port}`);
+  });
+}

@@ -1,10 +1,7 @@
-import { imageOutputUrl } from "./image-response.mjs";
-
 const BASE_URL =
   process.env.DOLA_BASE_URL?.replace(/\/$/, "") ??
   "https://api.dolaio.cn/aigateway/cisco/v1";
 const AGENT_MODEL = process.env.AGENT_MODEL ?? "MiniMax-M3";
-const IMAGE_MODEL = process.env.IMAGE_MODEL ?? "yunwu/gpt-image-2";
 const VIDEO_MODEL = process.env.VIDEO_MODEL ?? "novai/seedance-2.0-mini";
 
 const languageNames: Record<string, string> = {
@@ -60,6 +57,13 @@ function apiKey() {
   const value = process.env.DOLA_API_KEY;
   if (!value) throw new Error("DOLA_API_KEY 尚未配置");
   return value;
+}
+
+function taskBackend() {
+  const url = process.env.TASK_BACKEND_URL?.replace(/\/$/, "");
+  const token = process.env.TASK_BACKEND_TOKEN;
+  if (!url || !token) throw new Error("图片任务后台尚未配置");
+  return { url, token };
 }
 
 function jsonError(message: string, status = 500) {
@@ -204,7 +208,6 @@ async function createImage(form: FormData) {
   const prompt = String(form.get("prompt") ?? "");
   const preset = imagePrompts[skill]?.[slot] ?? imagePrompts["amazon-scene-image"][0];
   const request = new FormData();
-  request.set("model", IMAGE_MODEL);
   request.set(
     "prompt",
     `${preset}. Preserve the uploaded product's identity, silhouette, proportions, colors, logo and functional details. ${prompt}`.trim(),
@@ -220,28 +223,20 @@ async function createImage(form: FormData) {
   request.set("quality", process.env.IMAGE_DEFAULT_QUALITY ?? "medium");
   request.set("image", image, image.name || "product.png");
 
-  const response = await fetch(`${BASE_URL}/images/edits`, {
+  const backend = taskBackend();
+  const response = await fetch(`${backend.url}/v1/image-tasks`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey()}` },
+    headers: { Authorization: `Bearer ${backend.token}` },
     body: request,
   });
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
     return jsonError(
-      upstreamError(payload, `图片生成失败 (${response.status})`),
+      upstreamError(payload, `图片任务创建失败 (${response.status})`),
       response.status,
     );
   }
-
-  const url = imageOutputUrl(payload);
-  if (url) return Response.json({ url });
-  console.warn("Image response contained no image", {
-    model: IMAGE_MODEL,
-    responseKeys: payload && typeof payload === "object"
-      ? Object.keys(payload).slice(0, 12)
-      : [],
-  });
-  return jsonError("图片服务已响应，但没有返回可用图片，请重试");
+  return Response.json(payload, { status: 202 });
 }
 
 async function createVideo(form: FormData) {
@@ -299,7 +294,31 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    const taskId = new URL(request.url).searchParams.get("taskId");
+    const search = new URL(request.url).searchParams;
+    const imageTaskId = search.get("imageTaskId");
+    if (imageTaskId) {
+      if (!/^[a-f0-9-]+$/.test(imageTaskId)) {
+        return jsonError("无效的图片任务 ID", 400);
+      }
+      const backend = taskBackend();
+      const response = await fetch(
+        `${backend.url}/v1/image-tasks/${encodeURIComponent(imageTaskId)}`,
+        {
+          headers: { Authorization: `Bearer ${backend.token}` },
+          cache: "no-store",
+        },
+      );
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        return jsonError(
+          upstreamError(payload, `图片任务查询失败 (${response.status})`),
+          response.status,
+        );
+      }
+      return Response.json(payload);
+    }
+
+    const taskId = search.get("taskId");
     if (!taskId || !/^[A-Za-z0-9._:-]+$/.test(taskId)) {
       return jsonError("无效的视频任务 ID", 400);
     }
