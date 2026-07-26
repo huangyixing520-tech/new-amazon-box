@@ -1,8 +1,10 @@
+import { imageOutputUrl } from "./image-response.mjs";
+
 const BASE_URL =
   process.env.DOLA_BASE_URL?.replace(/\/$/, "") ??
   "https://api.dolaio.cn/aigateway/cisco/v1";
 const AGENT_MODEL = process.env.AGENT_MODEL ?? "MiniMax-M3";
-const IMAGE_MODEL = process.env.IMAGE_MODEL ?? "dolaio/gpt-image-2";
+const IMAGE_MODEL = process.env.IMAGE_MODEL ?? "yunwu/gpt-image-2";
 const VIDEO_MODEL = process.env.VIDEO_MODEL ?? "novai/seedance-2.0-mini";
 
 const languageNames: Record<string, string> = {
@@ -227,11 +229,15 @@ async function createImage(form: FormData) {
     );
   }
 
-  const item = payload?.data?.[0];
-  const url =
-    item?.url ??
-    (item?.b64_json ? `data:image/png;base64,${item.b64_json}` : null);
-  return url ? Response.json({ url }) : jsonError("图片接口没有返回图片");
+  const url = imageOutputUrl(payload);
+  if (url) return Response.json({ url });
+  console.warn("Image response contained no image", {
+    model: IMAGE_MODEL,
+    responseKeys: payload && typeof payload === "object"
+      ? Object.keys(payload).slice(0, 12)
+      : [],
+  });
+  return jsonError("图片服务已响应，但没有返回可用图片，请重试");
 }
 
 async function createVideo(form: FormData) {

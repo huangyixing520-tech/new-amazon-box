@@ -67,6 +67,7 @@ type Turn = {
   agentText?: string;
   listing?: ListingData;
   images?: string[];
+  failedImageSlots?: number[];
   videoUrl?: string;
 };
 
@@ -921,12 +922,14 @@ function ListingResult({
 function ImageSuite({
   skillId,
   generatedImages = [],
+  failedSlots = [],
   onPreview,
   onRegenerate,
   regenerating,
 }: {
   skillId: string;
   generatedImages?: string[];
+  failedSlots?: number[];
   onPreview: (item: GalleryItem) => void;
   onRegenerate: (item: GalleryItem) => void;
   regenerating: string | null;
@@ -977,8 +980,17 @@ function ImageSuite({
                   </footer>
                 </>
               ) : (
-                <div className="asset-skeleton">
-                  <span>{regenerating === item.id ? "正在重做" : item.group}</span>
+                <div className={`asset-skeleton ${failedSlots.includes(index) ? "asset-failed" : ""}`}>
+                  <span>
+                    {regenerating === item.id
+                      ? "正在重做"
+                      : failedSlots.includes(index)
+                        ? "本张生成失败"
+                        : item.group}
+                  </span>
+                  {failedSlots.includes(index) ? (
+                    <button type="button" onClick={() => onRegenerate(item)}>重试本张</button>
+                  ) : null}
                 </div>
               )}
             </article>
@@ -1491,32 +1503,58 @@ export default function Home() {
 
   const runImages = async (turn: Turn, upload: Upload, signal: AbortSignal) => {
     const count = turn.kind === "seeding" ? 4 : turn.kind === "single" ? 1 : 6;
-    patchTurn(turn.id, { phase: "正在生成商品图片", completed: 0, images: [] });
+    patchTurn(turn.id, {
+      phase: "正在生成商品图片",
+      completed: 0,
+      images: [],
+      failedImageSlots: [],
+    });
     const results = new Array<string>(count);
+    const failedSlots: number[] = [];
+    let nextSlot = 0;
+    let firstError = "";
 
-    await Promise.all(Array.from({ length: count }, async (_, slot) => {
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        body: await generationForm(turn, upload, "image", slot),
-        signal,
-      });
-      if (!response.ok) throw new Error(await responseError(response));
-      const payload = await response.json();
-      results[slot] = payload.url;
-      const done = results.filter(Boolean).length;
-      patchTurn(turn.id, {
-        images: [...results],
-        completed: turn.kind === "single"
-          ? Math.round((done / count) * generationCopy.single.phases.length)
-          : done,
-        phase: `已完成 ${done} / ${count} 张`,
-      });
-    }));
+    const worker = async () => {
+      while (nextSlot < count) {
+        const slot = nextSlot++;
+        try {
+          const response = await fetch("/api/generate", {
+            method: "POST",
+            body: await generationForm(turn, upload, "image", slot),
+            signal,
+          });
+          if (!response.ok) throw new Error(await responseError(response));
+          const payload = await response.json();
+          results[slot] = payload.url;
+        } catch (error) {
+          if ((error as Error).name === "AbortError") throw error;
+          failedSlots.push(slot);
+          firstError ||= error instanceof Error ? error.message : "图片生成失败";
+        }
+        const done = results.filter(Boolean).length;
+        patchTurn(turn.id, {
+          images: [...results],
+          failedImageSlots: [...failedSlots],
+          completed: turn.kind === "single"
+            ? Math.round((done / count) * generationCopy.single.phases.length)
+            : done,
+          phase: failedSlots.length
+            ? `已完成 ${done} / ${count} 张 · ${failedSlots.length} 张失败`
+            : `已完成 ${done} / ${count} 张`,
+        });
+      }
+    };
 
+    await Promise.all(Array.from({ length: Math.min(2, count) }, worker));
+    const done = results.filter(Boolean).length;
+    if (!done) throw new Error(firstError || "图片生成失败");
     patchTurn(turn.id, {
       images: results,
-      phase: "生成完成",
-      completed: generationCopy[turn.kind].phases.length,
+      failedImageSlots: failedSlots,
+      phase: failedSlots.length
+        ? `已生成 ${done} / ${count} 张，可单独重试失败图片`
+        : "生成完成",
+      completed: failedSlots.length ? done : generationCopy[turn.kind].phases.length,
       running: false,
     });
   };
@@ -1640,7 +1678,18 @@ export default function Home() {
         if (currentTurn.id !== turn.id) return currentTurn;
         const images = [...(currentTurn.images ?? [])];
         images[slot] = payload.url;
-        return { ...currentTurn, images };
+        const failedImageSlots = (currentTurn.failedImageSlots ?? [])
+          .filter((failedSlot) => failedSlot !== slot);
+        const done = images.filter(Boolean).length;
+        const total = currentTurn.kind === "seeding" ? 4 : currentTurn.kind === "single" ? 1 : 6;
+        return {
+          ...currentTurn,
+          images,
+          failedImageSlots,
+          completed: done === total ? generationCopy[currentTurn.kind].phases.length : done,
+          phase: done === total ? "生成完成" : `已生成 ${done} / ${total} 张`,
+          error: undefined,
+        };
       }));
       setRegenerating(null);
       showNotice(`「${item.title}」已更新`);
@@ -1801,6 +1850,7 @@ export default function Home() {
                           <ImageSuite
                             skillId={turn.skill}
                             generatedImages={turn.images}
+                            failedSlots={turn.failedImageSlots}
                             onPreview={setPreview}
                             onRegenerate={(item) => void regenerate(turn, item)}
                             regenerating={regenerating}
@@ -1810,6 +1860,7 @@ export default function Home() {
                           <ImageSuite
                             skillId={turn.skill}
                             generatedImages={turn.images}
+                            failedSlots={turn.failedImageSlots}
                             onPreview={setPreview}
                             onRegenerate={(item) => void regenerate(turn, item)}
                             regenerating={regenerating}

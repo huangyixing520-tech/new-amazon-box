@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
+import { imageOutputUrl } from "../app/api/generate/image-response.mjs";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -127,7 +128,7 @@ test("ships the complete generation flow and its assets", async () => {
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   assert.doesNotMatch(page, /SkeletonPreview|codex-preview/);
   assert.match(generateRoute, /MiniMax-M3/);
-  assert.match(generateRoute, /dolaio\/gpt-image-2/);
+  assert.match(generateRoute, /yunwu\/gpt-image-2/);
   assert.match(generateRoute, /novai\/seedance-2\.0-mini/);
   assert.match(generateRoute, /\/chat\/completions/);
   assert.match(generateRoute, /\/images\/edits/);
@@ -139,4 +140,11 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /Always return non-empty numeric salePrice/);
   assert.match(generateRoute, /process\.env\.DOLA_API_KEY/);
   assert.doesNotMatch(generateRoute, /DOLA_API_KEY\s*=\s*["'][^"']+["']/);
+});
+
+test("accepts common direct and nested image response shapes", () => {
+  assert.equal(imageOutputUrl({ data: [{ url: "https://example.com/a.png" }] }), "https://example.com/a.png");
+  assert.equal(imageOutputUrl({ output: { images: [{ b64_json: "abc" }] } }), "data:image/png;base64,abc");
+  assert.equal(imageOutputUrl({ result: { image_url: "https://example.com/b.png" } }), "https://example.com/b.png");
+  assert.equal(imageOutputUrl({ data: [] }), undefined);
 });

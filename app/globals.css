@@ -420,6 +420,8 @@ button:active, a:active { transform: translateY(1px); }
 .asset-card footer a:hover, .asset-card footer button:hover { background: var(--surface-soft); color: var(--text); }
 .asset-skeleton { min-height: 360px; padding: 18px; display: flex; align-items: end; background: linear-gradient(110deg,var(--surface-soft) 8%,var(--surface) 18%,var(--surface-soft) 33%); background-size: 250% 100%; animation: shimmer 1.8s linear infinite; }
 .asset-skeleton span { padding: 6px 8px; border-radius: 7px; background: rgb(255 255 255 / .7); color: var(--muted); font-size: 9px; }
+.asset-skeleton.asset-failed { justify-content: space-between; background: #fff8f6; animation: none; }
+.asset-skeleton.asset-failed button { border: 1px solid #e6b8ad; border-radius: 8px; background: white; padding: 7px 10px; color: #9b392b; font-size: 10px; cursor: pointer; }
 .seeding-suite .asset-card { grid-column: span 3; min-height: 470px; }
 .seeding-suite .asset-visual img { min-height: 400px; aspect-ratio: 3 / 4; }
 .single-image-result { width: min(900px, 100%); }
