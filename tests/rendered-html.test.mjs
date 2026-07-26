@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 import { imageOutputUrl } from "../task-backend/image-response.mjs";
+import { imageTaskCount } from "../app/image-task-count.mjs";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -160,4 +161,12 @@ test("accepts common direct and nested image response shapes", () => {
   assert.equal(imageOutputUrl({ output: { images: [{ b64_json: "abc" }] } }), "data:image/png;base64,abc");
   assert.equal(imageOutputUrl({ result: { image_url: "https://example.com/b.png" } }), "https://example.com/b.png");
   assert.equal(imageOutputUrl({ data: [] }), undefined);
+});
+
+test("uses the requested image count for real tasks and placeholders", () => {
+  assert.equal(imageTaskCount("images", "生成跨境电商商品营销套图"), 6);
+  assert.equal(imageTaskCount("images", "只生成一张户外使用场景图"), 1);
+  assert.equal(imageTaskCount("images", "请生成 3 张商品图"), 3);
+  assert.equal(imageTaskCount("seeding", "生成一组种草图"), 4);
+  assert.equal(imageTaskCount("single", "生成八张图片"), 1);
 });

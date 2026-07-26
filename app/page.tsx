@@ -7,6 +7,7 @@ import {
   type ChangeEvent,
   type KeyboardEvent,
 } from "react";
+import { imageTaskCount } from "./image-task-count.mjs";
 
 type Option = {
   id: string;
@@ -67,6 +68,7 @@ type Turn = {
   agentText?: string;
   listing?: ListingData;
   images?: string[];
+  imageTaskCount?: number;
   failedImageSlots?: number[];
   videoUrl?: string;
 };
@@ -214,6 +216,21 @@ const seedingGallery: GalleryItem[] = [
     image: "/product-lifestyle.png",
   },
 ];
+
+function suiteItems(skillId: string, count: number) {
+  const presets = skillId === "china-seeding-image" ? seedingGallery : gallery;
+  if (count === presets.length) return presets;
+  return Array.from({ length: count }, (_, index) => ({
+    id: `${skillId}-${index}`,
+    group: `图片 ${index + 1}`,
+    title: `生成结果 ${index + 1}`,
+    image: "/product-main.png",
+  }));
+}
+
+function progressTotal(turn: Turn) {
+  return turn.imageTaskCount ?? generationCopy[turn.kind].phases.length;
+}
 
 const generationCopy: Record<
   SkillKind,
@@ -506,7 +523,7 @@ function Composer({
               onChange={onFiles}
             />
             <span aria-hidden="true">＋</span>
-            <span>商品图</span>
+            <span>上传图片</span>
           </label>
           <OptionMenu
             label="选择 Skill"
@@ -921,6 +938,7 @@ function ListingResult({
 
 function ImageSuite({
   skillId,
+  taskCount,
   generatedImages = [],
   failedSlots = [],
   onPreview,
@@ -928,6 +946,7 @@ function ImageSuite({
   regenerating,
 }: {
   skillId: string;
+  taskCount: number;
   generatedImages?: string[];
   failedSlots?: number[];
   onPreview: (item: GalleryItem) => void;
@@ -935,7 +954,7 @@ function ImageSuite({
   regenerating: string | null;
 }) {
   const isSeeding = skillId === "china-seeding-image";
-  const items = (isSeeding ? seedingGallery : gallery).map((item, index) => ({
+  const items = suiteItems(skillId, taskCount).map((item, index) => ({
     ...item,
     image: generatedImages[index] ?? item.image,
   }));
@@ -948,7 +967,7 @@ function ImageSuite({
           <span>{isSeeding ? "SEEDING COLLECTION" : "IMAGE COLLECTION"}</span>
           <h2>{title}</h2>
         </div>
-        <p>{isSeeding ? "3:4 种草组图 4 张" : "正方形卖点图 4 张 · 横版 A+ 2 张"}</p>
+        <p>{taskCount} 张图片</p>
       </header>
       <div className="asset-grid" aria-live="polite">
         {items.map((item, index) => {
@@ -986,7 +1005,7 @@ function ImageSuite({
                       ? "正在重做"
                       : failedSlots.includes(index)
                         ? "本张生成失败"
-                        : item.group}
+                        : `第 ${index + 1} 张 · 正在生成`}
                   </span>
                   {failedSlots.includes(index) ? (
                     <button type="button" onClick={() => onRegenerate(item)}>重试本张</button>
@@ -1229,7 +1248,7 @@ function AppSidebar({
           {turns.length ? `当前对话 · ${turns.length} 个任务` : "还没有生成记录"}
         </span>
         {turns.map((turn) => {
-          const total = generationCopy[turn.kind].phases.length;
+          const total = progressTotal(turn);
           return (
             <button
               type="button"
@@ -1242,7 +1261,7 @@ function AppSidebar({
               key={turn.id}
             >
               <strong>{turn.title}</strong>
-              <small>{turn.running ? `${turn.completed} / ${total} 步` : turn.completed === total ? "生成完成" : "已停止"}</small>
+              <small>{turn.running ? `${turn.completed} / ${total}` : turn.completed === total ? "生成完成" : `${turn.completed} / ${total}`}</small>
             </button>
           );
         })}
@@ -1534,7 +1553,7 @@ export default function Home() {
   };
 
   const runImages = async (turn: Turn, upload: Upload, signal: AbortSignal) => {
-    const count = turn.kind === "seeding" ? 4 : turn.kind === "single" ? 1 : 6;
+    const count = turn.imageTaskCount ?? imageTaskCount(turn.kind, turn.prompt);
     patchTurn(turn.id, {
       phase: "正在生成商品图片",
       completed: 0,
@@ -1563,9 +1582,7 @@ export default function Home() {
         patchTurn(turn.id, {
           images: [...results],
           failedImageSlots: [...failedSlots],
-          completed: turn.kind === "single"
-            ? Math.round((done / count) * generationCopy.single.phases.length)
-            : done,
+          completed: done,
           phase: failedSlots.length
             ? `已完成 ${done} / ${count} 张 · ${failedSlots.length} 张失败`
             : `已完成 ${done} / ${count} 张`,
@@ -1582,7 +1599,7 @@ export default function Home() {
       phase: failedSlots.length
         ? `已生成 ${done} / ${count} 张，可单独重试失败图片`
         : "生成完成",
-      completed: failedSlots.length ? done : generationCopy[turn.kind].phases.length,
+      completed: done,
       running: false,
     });
   };
@@ -1664,6 +1681,7 @@ export default function Home() {
       completed: 0,
       running: true,
       phase: generationCopy[selectedKind].phases[0],
+      imageTaskCount: imageTaskCount(selectedKind, taskPrompt) || undefined,
     };
     setTurns((current) => [...current, turn]);
     setActiveTurnId(id);
@@ -1686,10 +1704,10 @@ export default function Home() {
     setRegenerating(item.id);
     showNotice(`正在重新生成「${item.title}」`);
     const presets = turn.kind === "seeding"
-      ? seedingGallery
+      ? suiteItems(turn.skill, turn.imageTaskCount ?? 4)
       : turn.kind === "single"
         ? [singleImageOutputs[turn.skill] ?? singleImageOutputs["amazon-scene-image"]]
-        : gallery;
+        : suiteItems(turn.skill, turn.imageTaskCount ?? 6);
     const slot = Math.max(0, presets.findIndex((preset) => preset.id === item.id));
     try {
       const url = await runImageTask(
@@ -1706,12 +1724,12 @@ export default function Home() {
         const failedImageSlots = (currentTurn.failedImageSlots ?? [])
           .filter((failedSlot) => failedSlot !== slot);
         const done = images.filter(Boolean).length;
-        const total = currentTurn.kind === "seeding" ? 4 : currentTurn.kind === "single" ? 1 : 6;
+        const total = currentTurn.imageTaskCount ?? 1;
         return {
           ...currentTurn,
           images,
           failedImageSlots,
-          completed: done === total ? generationCopy[currentTurn.kind].phases.length : done,
+          completed: done,
           phase: done === total ? "生成完成" : `已生成 ${done} / ${total} 张`,
           error: undefined,
         };
@@ -1786,7 +1804,7 @@ export default function Home() {
           <section className="conversation-stream" aria-label="创作对话">
             {turns.map((turn, index) => {
               const generation = generationCopy[turn.kind];
-              const total = generation.phases.length;
+              const total = progressTotal(turn);
               const ready = turn.completed === total && !turn.running;
               return (
                 <article className="conversation-turn" id={turn.id} key={turn.id} data-testid={`conversation-turn-${index}`}>
@@ -1817,7 +1835,7 @@ export default function Home() {
                           <span>Mercato AI</span>
                           <h2>{skills.find((item) => item.id === turn.skill)?.label ?? generation.title}</h2>
                         </div>
-                        <span>{generation.count}</span>
+                        <span>{turn.imageTaskCount ? `${total} 张图片` : generation.count}</span>
                       </header>
 
                       <div className="generation-status">
@@ -1874,6 +1892,7 @@ export default function Home() {
                         {turn.kind === "images" ? (
                           <ImageSuite
                             skillId={turn.skill}
+                            taskCount={turn.imageTaskCount ?? 6}
                             generatedImages={turn.images}
                             failedSlots={turn.failedImageSlots}
                             onPreview={setPreview}
@@ -1884,6 +1903,7 @@ export default function Home() {
                         {turn.kind === "seeding" ? (
                           <ImageSuite
                             skillId={turn.skill}
+                            taskCount={turn.imageTaskCount ?? 4}
                             generatedImages={turn.images}
                             failedSlots={turn.failedImageSlots}
                             onPreview={setPreview}
