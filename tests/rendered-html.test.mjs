@@ -80,6 +80,12 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /runGeneration/);
   assert.match(page, /visibleAgentText/);
   assert.match(page, /<think>\[\\s\\S\]/);
+  assert.match(page, /AI-generated draft/);
+  assert.match(page, /Review all claims before publishing/);
+  assert.match(page, /featureStats\.map/);
+  assert.match(page, /\^not confirmed\$/i);
+  assert.doesNotMatch(page, /<div><b>20 BAR<\/b>/);
+  assert.doesNotMatch(page, /1,284 ratings/);
   assert.match(page, /fetch\("\/api\/generate"/);
   assert.doesNotMatch(page, /const streamTurn/);
   assert.match(page, /停止生成/);
@@ -126,6 +132,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /\/contents\/generations\/tasks/);
   assert.match(generateRoute, /videoTask\(payload\)/);
   assert.match(generateRoute, /videoUrl: taskField/);
+  assert.match(generateRoute, /Unknown is better than invented/);
+  assert.match(generateRoute, /never as "one-touch operation"/);
   assert.match(generateRoute, /process\.env\.DOLA_API_KEY/);
   assert.doesNotMatch(generateRoute, /DOLA_API_KEY\s*=\s*["'][^"']+["']/);
 });

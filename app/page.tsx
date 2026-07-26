@@ -595,8 +595,12 @@ function ListingResult({
       Brand: data?.brand ?? "Generic",
       "Product type": "To be confirmed",
       "Recommended use": "Everyday use",
-    }),
+    }).filter(([, value]) => !/^not confirmed$/i.test(value.trim())),
   );
+  const brand = data?.brand ?? "Generic";
+  const category = data?.category ?? "Marketplace › Generated product";
+  const color = specs.find(([label]) => label.toLowerCase() === "color")?.[1];
+  const featureStats = specs.slice(0, 3);
   const shownGalleryImage = galleryImage || productImage;
   const productSlug = data?.productUrlSlug ?? "MERCATO-GENERATED";
 
@@ -643,17 +647,11 @@ function ListingResult({
       salePrice,
       listPrice,
     },
-    rating: 4.6,
-    reviewCount: 1284,
     bullets,
     description,
     aPlus: {
       headline: aPlusHeadline,
-      featureStats: [
-        ["20 BAR", "Rich, balanced extraction"],
-        ["3 MIN", "Heat and brew"],
-        ["USB-C", "Charge wherever you go"],
-      ],
+      featureStats,
     },
     specifications: Object.fromEntries(specs),
     images: [productImage, "/product-lifestyle.png", "/product-outdoor.png"],
@@ -703,7 +701,7 @@ function ListingResult({
       </div>
 
       <div className="market-breadcrumb">
-        {data?.category ?? "Marketplace › Generated product"}
+        {category}
       </div>
 
       <div className="market-product">
@@ -741,17 +739,14 @@ function ListingResult({
             data-testid="listing-title-input"
             rows={4}
           />
-          <a href="#brand">Visit the {data?.brand ?? "Brand"} Store</a>
+          <a href="#brand">Visit the {brand} Store</a>
           <div className="rating-row">
-            <b>4.6</b>
-            <span className="stars">★★★★★</span>
-            <a href="#reviews">1,284 ratings</a>
-            <span> | </span>
-            <a href="#questions">142 answered questions</a>
+            <b>AI-generated draft</b>
+            <span>Review all claims before publishing</span>
           </div>
           <div className="badge-row">
-            <b>#1 Best Seller</b>
-            <span>in Portable Espresso Makers</span>
+            <b>Listing preview</b>
+            <span>{category}</span>
           </div>
           <hr />
           <div className="price-line">
@@ -781,13 +776,17 @@ function ListingResult({
             <b>Coupon</b>
             <span>Apply 10% coupon</span>
           </div>
-          <div className="variation-row"><b>Color:</b> Carbon Black</div>
-          <div className="color-swatch">
-            <button type="button" aria-label="Carbon Black">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={productImage} alt="" />
-            </button>
-          </div>
+          {color ? (
+            <>
+              <div className="variation-row"><b>Color:</b> {color}</div>
+              <div className="color-swatch">
+                <button type="button" aria-label={color}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={productImage} alt="" />
+                </button>
+              </div>
+            </>
+          ) : null}
           <h3>{copy.about}</h3>
           <ul>
             {bullets.map((bullet, index) => (
@@ -809,10 +808,9 @@ function ListingResult({
           <div className="buy-price">
             <sup>{price.symbol}</sup>{salePrice}
           </div>
-          <p><a href="#delivery">FREE delivery</a> Wednesday, July 29</p>
-          <p>Or fastest delivery <b>Tomorrow</b>. Order within 7 hrs 21 mins</p>
-          <p className="delivery-location">⌖ Deliver to Shanghai 200000</p>
-          <strong className="stock">In Stock</strong>
+          <p><a href="#delivery">Delivery options</a> configured after publishing</p>
+          <p>Taxes, returns and fulfillment are not connected in this preview.</p>
+          <strong className="stock">Inventory not connected</strong>
           <label>
             Quantity:
             <select defaultValue="1" aria-label="Quantity">
@@ -827,8 +825,8 @@ function ListingResult({
           </button>
           <dl>
             <dt>Ships from</dt><dd>Marketplace</dd>
-            <dt>Sold by</dt><dd>BrewGo Direct</dd>
-            <dt>Returns</dt><dd>30-day refund</dd>
+            <dt>Sold by</dt><dd>{brand}</dd>
+            <dt>Returns</dt><dd>Configure in Seller Central</dd>
             <dt>Payment</dt><dd>Secure transaction</dd>
           </dl>
           <button type="button" className="add-list" onClick={() => onNotice("已加入演示心愿单")}>
@@ -881,9 +879,9 @@ function ListingResult({
         <p className="a-plus-label">From the brand</p>
         <div className="a-plus-hero">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/product-lifestyle.png" alt="BrewGo 旅行咖啡场景" />
+          <img src="/product-lifestyle.png" alt={`${brand} 品牌场景`} />
           <div>
-            <span>BREW WITHOUT BORDERS</span>
+            <span>{brand.toUpperCase()}</span>
             <textarea
               className="editable-field a-plus-title-input"
               value={aPlusHeadline}
@@ -901,11 +899,13 @@ function ListingResult({
             />
           </div>
         </div>
-        <div className="a-plus-features">
-          <div><b>20 BAR</b><span>Rich, balanced extraction</span></div>
-          <div><b>3 MIN</b><span>Heat and brew</span></div>
-          <div><b>USB-C</b><span>Charge wherever you go</span></div>
-        </div>
+        {featureStats.length ? (
+          <div className="a-plus-features">
+            {featureStats.map(([label, value]) => (
+              <div key={label}><b>{label}</b><span>{value}</span></div>
+            ))}
+          </div>
+        ) : null}
       </section>
     </article>
   );

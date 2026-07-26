@@ -132,6 +132,9 @@ Inspect the product image carefully. Distinguish visible facts from assumptions 
 Return only valid JSON, without markdown fences or commentary.
 Write all customer-facing copy in the requested output language.
 Do not invent certifications, medical claims, exact dimensions, materials, battery capacity or performance figures unless supplied by the user.
+Unknown is better than invented. Never infer power source, heating, pressure, compatibility, included accessories or operating mechanism from appearance alone.
+Every bullet and specification must be supported by the uploaded image or user text. Use "Not confirmed" for an important unknown instead of guessing.
+Describe a visible control as "visible control button", never as "one-touch operation" unless the user explicitly supplied that behavior.
 Use this schema:
 {
   "title": "marketplace title",
@@ -142,7 +145,7 @@ Use this schema:
   "bullets": ["five concise benefits"],
   "description": "one persuasive paragraph",
   "aPlusHeadline": "short brand headline",
-  "specifications": {"Product type": "value", "Recommended use": "value"},
+  "specifications": {"Product type": "visible fact", "Recommended use": "reasonable use case", "Other visible attribute": "visible fact or Not confirmed"},
   "productUrlSlug": "UPPERCASE-SLUG"
 }`,
     },
