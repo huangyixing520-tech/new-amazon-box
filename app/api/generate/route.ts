@@ -74,6 +74,24 @@ function upstreamError(payload: unknown, fallback: string) {
   return value.error?.message ?? value.message ?? fallback;
 }
 
+function taskField(payload: unknown, keys: string[]) {
+  if (!payload || typeof payload !== "object") return undefined;
+  for (const [key, value] of Object.entries(payload)) {
+    if (keys.includes(key) && typeof value === "string") return value;
+    const nested = taskField(value, keys);
+    if (nested) return nested;
+  }
+}
+
+function videoTask(payload: unknown) {
+  return {
+    id: taskField(payload, ["id", "task_id"]),
+    status: taskField(payload, ["status", "state"]),
+    videoUrl: taskField(payload, ["video_url", "videoUrl"]),
+    posterUrl: taskField(payload, ["poster_url", "posterUrl", "thumbnail_url"]),
+  };
+}
+
 async function fileDataUrl(file: File) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   let binary = "";
@@ -249,7 +267,7 @@ async function createVideo(form: FormData) {
       response.status,
     );
   }
-  return Response.json(payload);
+  return Response.json(videoTask(payload));
 }
 
 export async function POST(request: Request) {
@@ -282,7 +300,7 @@ export async function GET(request: Request) {
         response.status,
       );
     }
-    return Response.json(payload);
+    return Response.json(videoTask(payload));
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "查询失败");
   }

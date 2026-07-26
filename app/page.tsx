@@ -1329,7 +1329,7 @@ async function responseError(response: Response) {
 }
 
 function parseListingJson(text: string): ListingData {
-  const cleaned = text
+  const cleaned = visibleAgentText(text)
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/, "");
@@ -1341,6 +1341,13 @@ function parseListingJson(text: string): ListingData {
     throw new Error("Agent 返回的 Listing 字段不完整");
   }
   return value;
+}
+
+function visibleAgentText(text: string) {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>\s*/gi, "")
+    .replace(/<think>[\s\S]*$/i, "")
+    .trimStart();
 }
 
 function deepFind(value: unknown, keys: string[]): string | undefined {
@@ -1456,13 +1463,13 @@ export default function Home() {
         const event = JSON.parse(data);
         generated += event.choices?.[0]?.delta?.content ?? "";
       }
-      patchTurn(turn.id, { agentText: generated });
+      patchTurn(turn.id, { agentText: visibleAgentText(generated) });
     }
 
     const listing = parseListingJson(generated);
     patchTurn(turn.id, {
       listing,
-      agentText: generated,
+      agentText: visibleAgentText(generated),
       phase: "生成完成",
       completed: generationCopy.listing.phases.length,
       running: false,
