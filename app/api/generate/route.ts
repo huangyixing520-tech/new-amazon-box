@@ -135,6 +135,7 @@ Do not invent certifications, medical claims, exact dimensions, materials, batte
 Unknown is better than invented. Never infer power source, heating, pressure, compatibility, included accessories or operating mechanism from appearance alone.
 Every bullet and specification must be supported by the uploaded image or user text. Use "Not confirmed" for an important unknown instead of guessing.
 Describe a visible control as "visible control button", never as "one-touch operation" unless the user explicitly supplied that behavior.
+Pricing is an AI merchandising suggestion rather than a product fact. Always return non-empty numeric salePrice and listPrice strings appropriate for the selected market.
 Use this schema:
 {
   "title": "marketplace title",

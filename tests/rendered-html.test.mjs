@@ -79,6 +79,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /输出语言/);
   assert.match(page, /runGeneration/);
   assert.match(page, /visibleAgentText/);
+  assert.match(page, /plainListingText/);
+  assert.match(page, /AI merchandising suggestion/);
   assert.match(page, /<think>\[\\s\\S\]/);
   assert.match(page, /AI-generated draft/);
   assert.match(page, /Review all claims before publishing/);
@@ -134,6 +136,7 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /videoUrl: taskField/);
   assert.match(generateRoute, /Unknown is better than invented/);
   assert.match(generateRoute, /never as "one-touch operation"/);
+  assert.match(generateRoute, /Always return non-empty numeric salePrice/);
   assert.match(generateRoute, /process\.env\.DOLA_API_KEY/);
   assert.doesNotMatch(generateRoute, /DOLA_API_KEY\s*=\s*["'][^"']+["']/);
 });

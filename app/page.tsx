@@ -582,14 +582,20 @@ function ListingResult({
   const copy = listingCopy[language as keyof typeof listingCopy] ?? listingCopy.en;
   const price = prices[region] ?? prices.us;
   const [galleryImage, setGalleryImage] = useState("");
-  const [title, setTitle] = useState(data?.title ?? copy.title);
+  const [title, setTitle] = useState(plainListingText(data?.title, copy.title));
   const [salePrice, setSalePrice] = useState(
-    data?.salePrice ?? `${price.major}${price.minor ? `.${price.minor}` : ""}`,
+    data?.salePrice?.trim() || `${price.major}${price.minor ? `.${price.minor}` : ""}`,
   );
-  const [listPrice, setListPrice] = useState(data?.listPrice ?? price.list.replace(price.symbol, ""));
+  const [listPrice, setListPrice] = useState(
+    data?.listPrice?.trim() || price.list.replace(price.symbol, ""),
+  );
   const [bullets, setBullets] = useState(data?.bullets ?? copy.bullets);
-  const [description, setDescription] = useState(data?.description ?? copy.description);
-  const [aPlusHeadline, setAPlusHeadline] = useState(data?.aPlusHeadline ?? "Your product story, made for this market.");
+  const [description, setDescription] = useState(
+    plainListingText(data?.description, copy.description),
+  );
+  const [aPlusHeadline, setAPlusHeadline] = useState(
+    plainListingText(data?.aPlusHeadline, "Your product story, made for this market."),
+  );
   const [specs, setSpecs] = useState(
     Object.entries(data?.specifications ?? {
       Brand: data?.brand ?? "Generic",
@@ -643,6 +649,7 @@ function ListingResult({
     productUrl: `https://marketplace.example/dp/${productSlug}`,
     title,
     pricing: {
+      type: "AI merchandising suggestion",
       currency: price.symbol,
       salePrice,
       listPrice,
@@ -1348,6 +1355,12 @@ function visibleAgentText(text: string) {
     .replace(/<think>[\s\S]*?<\/think>\s*/gi, "")
     .replace(/<think>[\s\S]*$/i, "")
     .trimStart();
+}
+
+function plainListingText(value: string | undefined, fallback: string) {
+  return (value?.trim() || fallback)
+    .replace(/^\*{1,2}\s*/, "")
+    .replace(/\s*\*{1,2}$/, "");
 }
 
 function deepFind(value: unknown, keys: string[]): string | undefined {
