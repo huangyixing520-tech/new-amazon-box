@@ -23,11 +23,26 @@ type Upload = {
   file?: File;
 };
 
+type GenerationMode = "image" | "video" | "listing";
 type SkillKind = "listing" | "images" | "single" | "seeding" | "video";
 
 type SkillOption = Option & {
+  mode: GenerationMode;
   kind: SkillKind;
   starter: string;
+};
+
+type BrandSettings = {
+  primaryColor: string;
+  fontStyle: string;
+  platform: string;
+};
+
+type SuiteSettings = {
+  aPlusType: string;
+  aPlusCount: number;
+  mainImageCount: number;
+  mainImageRatio: "1:1" | "3:4";
 };
 
 type GalleryItem = {
@@ -36,6 +51,7 @@ type GalleryItem = {
   title: string;
   image: string;
   wide?: boolean;
+  portrait?: boolean;
   crop?: string;
 };
 
@@ -56,10 +72,13 @@ type Turn = {
   id: string;
   title: string;
   prompt: string;
+  mode: GenerationMode;
   skill: string;
   kind: SkillKind;
   region: string;
   language: string;
+  brand: BrandSettings;
+  suite: SuiteSettings;
   productImage: string;
   completed: number;
   running: boolean;
@@ -73,23 +92,24 @@ type Turn = {
   videoUrl?: string;
 };
 
+const modes: Option[] = [
+  { id: "image", label: "图片生成", description: "生成商品图、场景图与电商套图" },
+  { id: "video", label: "视频生成", description: "生成商品视频与带货口播" },
+  { id: "listing", label: "Listing 生成", description: "生成亚马逊商品链接内容" },
+];
+
 const skills: SkillOption[] = [
   {
-    id: "listing",
-    kind: "listing",
-    label: "Amazon Listing",
-    description: "生成完整商品链接、文案与 A+ 详情",
-    starter: "生成完整商品 Listing",
-  },
-  {
     id: "amazon-image-set",
+    mode: "image",
     kind: "images",
-    label: "Amazon A+／卖点套图",
-    description: "生成 A+ 图、卖点图或完整 Amazon 套图",
-    starter: "生成 Amazon A+ 图和卖点套图",
+    label: "商品套图",
+    description: "生成主副图、A+ 图与可选手机 A+ 图",
+    starter: "生成完整 Amazon 商品套图",
   },
   {
     id: "ecommerce-image-set",
+    mode: "image",
     kind: "images",
     label: "跨境电商套图",
     description: "适配 Amazon、TikTok、Shopee 的营销套图",
@@ -97,13 +117,15 @@ const skills: SkillOption[] = [
   },
   {
     id: "amazon-scene-image",
+    mode: "image",
     kind: "single",
-    label: "Amazon 人物场景图",
+    label: "人物场景图",
     description: "生成真人使用或操作商品的生活方式图",
     starter: "生成一张 Amazon 人物使用场景图",
   },
   {
     id: "china-ecommerce-main-image",
+    mode: "image",
     kind: "single",
     label: "国内电商主图",
     description: "生成淘宝、天猫、京东等中文商品主图",
@@ -111,6 +133,7 @@ const skills: SkillOption[] = [
   },
   {
     id: "china-seeding-image",
+    mode: "image",
     kind: "seeding",
     label: "种草组图",
     description: "生成好物分享、安利与合集种草图片",
@@ -118,34 +141,187 @@ const skills: SkillOption[] = [
   },
   {
     id: "white-background-image",
+    mode: "image",
     kind: "single",
-    label: "商品白底精修",
+    label: "商品白底图",
     description: "抠图换纯白背景并精修商品质感",
     starter: "生成一张平台规范的商品白底图",
   },
   {
-    id: "video",
+    id: "video-replica",
+    mode: "video",
     kind: "video",
-    label: "商品视频",
-    description: "生成商品短视频与镜头脚本",
-    starter: "生成一支 15 秒商品短视频",
+    label: "视频复刻",
+    description: "参考描述复刻节奏、镜头与商品展示方式",
+    starter: "复刻一支 15 秒商品展示视频",
+  },
+  {
+    id: "talking-product-video",
+    mode: "video",
+    kind: "video",
+    label: "带货口播",
+    description: "生成带货口播结构与商品演示画面",
+    starter: "生成一支 15 秒商品带货口播视频",
+  },
+  {
+    id: "amazon-listing",
+    mode: "listing",
+    kind: "listing",
+    label: "亚马逊 Listing",
+    description: "生成标题、卖点、描述、定价与 A+ 文案",
+    starter: "生成完整亚马逊商品 Listing",
+  },
+  {
+    id: "listing-replica",
+    mode: "listing",
+    kind: "listing",
+    label: "链接复刻",
+    description: "参考用户提供的链接结构生成同类 Listing",
+    starter: "参考我提供的商品链接结构生成 Listing",
   },
 ];
 
+const skillsByMode = (mode: GenerationMode) =>
+  skills.filter((item) => item.mode === mode);
+
 const regions: Option[] = [
-  { id: "us", label: "美国站" },
-  { id: "uk", label: "英国站" },
-  { id: "de", label: "德国站" },
-  { id: "jp", label: "日本站" },
-  { id: "sea", label: "东南亚" },
+  { id: "us", label: "🇺🇸 US（美国）" },
+  { id: "cn", label: "🇨🇳 CN（中国）" },
+  { id: "eu", label: "🇪🇺 EU（欧洲）" },
+  { id: "jp", label: "🇯🇵 JP（日本）" },
+  { id: "br", label: "🇧🇷 BR（巴西）" },
+  { id: "kr", label: "🇰🇷 KR（韩国）" },
+  { id: "tha", label: "🇹🇭 THA（泰国）" },
+  { id: "ru", label: "🇷🇺 RU（俄罗斯）" },
+  { id: "uk", label: "🇬🇧 UK（英国）" },
+  { id: "in", label: "🇮🇳 IN（印度）" },
+  { id: "phl", label: "🇵🇭 PHL（菲律宾）" },
+  { id: "id", label: "🇮🇩 ID（印尼）" },
+  { id: "mys", label: "🇲🇾 MYS（马来西亚）" },
+  { id: "vnm", label: "🇻🇳 VNM（越南）" },
+  { id: "mx", label: "🇲🇽 MX（墨西哥）" },
+  { id: "latam", label: "🌎 LATAM（拉美）" },
+  { id: "gcc", label: "🌍 GCC（中东）" },
+  { id: "other", label: "🌐 其他地区" },
 ];
 
 const languages: Option[] = [
-  { id: "en", label: "English" },
-  { id: "de", label: "Deutsch" },
-  { id: "jp", label: "日本語" },
-  { id: "zh", label: "简体中文" },
+  { id: "en", label: "英语" },
+  { id: "zh", label: "中文" },
+  { id: "ja", label: "日语" },
+  { id: "ru", label: "俄语" },
+  { id: "it", label: "意大利语" },
+  { id: "fr", label: "法语" },
+  { id: "es", label: "西班牙语" },
+  { id: "de", label: "德语" },
+  { id: "ko", label: "韩语" },
+  { id: "th", label: "泰语" },
+  { id: "pt", label: "葡萄牙语" },
+  { id: "ms", label: "马来语" },
+  { id: "nl", label: "荷兰语" },
+  { id: "pl", label: "波兰语" },
+  { id: "sv", label: "瑞典语" },
+  { id: "tr", label: "土耳其语" },
+  { id: "other", label: "其他语言" },
 ];
+
+const platforms: Option[] = [
+  { id: "amazon", label: "亚马逊" },
+  { id: "tiktok-shop", label: "TikTok Shop" },
+  { id: "shopee", label: "Shopee" },
+  { id: "temu", label: "Temu" },
+];
+
+const fontStyles: Option[] = [
+  { id: "auto", label: "智能字体风格", description: "根据商品智能设定" },
+  { id: "geometric", label: "几何无衬线体", description: "科技产品、现代家居等" },
+  { id: "neo-grotesk", label: "硬朗无衬线体", description: "五金工具、户外用品等" },
+  { id: "elegant", label: "优雅衬线体", description: "化妆品、复古、高奢等" },
+  { id: "rounded", label: "圆润童趣字体", description: "母婴玩具、休闲零食等" },
+  { id: "handwritten", label: "俏皮手写风格", description: "文创手作、节日礼品等" },
+];
+
+const aPlusTypes: Option[] = [
+  { id: "advanced", label: "高级 A+" },
+  { id: "standard", label: "普通 A+" },
+  { id: "advanced-mobile", label: "高级 + 手机 A+" },
+];
+
+const aPlusCounts: Option[] = Array.from({ length: 6 }, (_, count) => ({
+  id: String(count),
+  label: `${count} 张`,
+}));
+
+const mainImageCounts: Option[] = Array.from({ length: 8 }, (_, index) => ({
+  id: String(index + 1),
+  label: `${index + 1} 张`,
+}));
+
+const mainImageRatios: Option[] = [
+  { id: "1:1", label: "1:1" },
+  { id: "3:4", label: "3:4" },
+];
+
+const defaultBrandSettings: BrandSettings = {
+  primaryColor: "#111111",
+  fontStyle: "auto",
+  platform: "amazon",
+};
+
+const defaultSuiteSettings: SuiteSettings = {
+  aPlusType: "advanced",
+  aPlusCount: 5,
+  mainImageCount: 5,
+  mainImageRatio: "1:1",
+};
+
+function isImageSuiteSkill(skillId: string) {
+  return ["amazon-image-set", "ecommerce-image-set"].includes(skillId);
+}
+
+function hasSuiteSettings(skillId: string) {
+  return isImageSuiteSkill(skillId) || skillId === "amazon-listing";
+}
+
+function explicitImageCount(prompt: string) {
+  const chineseNumbers: Record<string, number> = {
+    一: 1,
+    两: 2,
+    二: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+  };
+  const match =
+    prompt.match(/([1-8一两二三四五六七八])\s*(?:张|幅)(?:图|图片)?/) ??
+    prompt.match(/\b([1-8])\s*(?:images?|pictures?)\b/i);
+  return match ? Number(match[1]) || chineseNumbers[match[1]] : undefined;
+}
+
+function suiteTaskCount(skillId: string, suite: SuiteSettings, prompt: string) {
+  const explicit = explicitImageCount(prompt);
+  if (explicit) return explicit;
+  if (!hasSuiteSettings(skillId)) return 0;
+  const mobileCount = suite.aPlusType === "advanced-mobile" ? suite.aPlusCount : 0;
+  return suite.mainImageCount + suite.aPlusCount + mobileCount;
+}
+
+function suiteSlot(
+  suite: SuiteSettings,
+  slot: number,
+): { type: "main" | "a-plus" | "a-plus-mobile"; index: number } {
+  if (slot < suite.mainImageCount) return { type: "main", index: slot };
+  if (slot < suite.mainImageCount + suite.aPlusCount) {
+    return { type: "a-plus", index: slot - suite.mainImageCount };
+  }
+  return {
+    type: "a-plus-mobile",
+    index: slot - suite.mainImageCount - suite.aPlusCount,
+  };
+}
 
 const gallery: GalleryItem[] = [
   {
@@ -217,7 +393,36 @@ const seedingGallery: GalleryItem[] = [
   },
 ];
 
-function suiteItems(skillId: string, count: number) {
+function suiteItems(
+  skillId: string,
+  count: number,
+  suite: SuiteSettings = defaultSuiteSettings,
+) {
+  if (hasSuiteSettings(skillId)) {
+    return Array.from({ length: count }, (_, index) => {
+      const slot = suiteSlot(suite, index);
+      const isAPlus = slot.type === "a-plus";
+      const isMobile = slot.type === "a-plus-mobile";
+      return {
+        id: `${skillId}-${slot.type}-${slot.index}`,
+        group: isMobile
+          ? `手机 A+ ${slot.index + 1} · 2:3`
+          : isAPlus
+            ? `A+ 图 ${slot.index + 1} · 3:2`
+            : `主副图 ${slot.index + 1} · ${suite.mainImageRatio}`,
+        title: isMobile
+          ? `手机 A+ 图 ${slot.index + 1}`
+          : isAPlus
+            ? `A+ 图 ${slot.index + 1}`
+            : slot.index === 0
+              ? "商品主图"
+              : `商品副图 ${slot.index}`,
+        image: index < gallery.length ? gallery[index].image : "/product-main.png",
+        wide: isAPlus,
+        portrait: slot.type === "main" && suite.mainImageRatio === "3:4",
+      };
+    });
+  }
   const presets = skillId === "china-seeding-image" ? seedingGallery : gallery;
   if (count === presets.length) return presets;
   return Array.from({ length: count }, (_, index) => ({
@@ -229,6 +434,9 @@ function suiteItems(skillId: string, count: number) {
 }
 
 function progressTotal(turn: Turn) {
+  if (turn.kind === "listing" && turn.imageTaskCount) {
+    return turn.imageTaskCount + 1;
+  }
   return turn.imageTaskCount ?? generationCopy[turn.kind].phases.length;
 }
 
@@ -292,7 +500,7 @@ const listingCopy = {
     description:
       "Ihr Café-Ritual für unterwegs. BrewGo verbindet präzisen Druck, schnelles Aufheizen und ein kompaktes Design für frischen Espresso an jedem Ort.",
   },
-  jp: {
+  ja: {
     title:
       "BrewGo ポータブルエスプレッソメーカー 自動加熱 USB-C充電 20気圧 コーヒー粉・カプセル対応 旅行・オフィス・キャンプ用",
     about: "この商品について",
@@ -331,12 +539,11 @@ const prices: Record<string, { symbol: string; major: string; minor: string; lis
 };
 
 const conversationTitle = "便携咖啡机创作";
-const promptIdeas = [
-  "亚马逊商品链接",
-  "一套商品主副图",
-  "A+ 卖点套图",
-  "15 秒商品视频",
-];
+const promptIdeasByMode: Record<GenerationMode, string[]> = {
+  image: ["一套商品主副图", "A+ 卖点套图", "一张商品白底图"],
+  video: ["15 秒商品视频", "一支带货口播视频"],
+  listing: ["亚马逊商品链接", "同类商品链接结构"],
+};
 
 function OptionMenu({
   label,
@@ -347,6 +554,7 @@ function OptionMenu({
   onChange,
   prefix,
   rich = false,
+  accent = false,
   testId,
 }: {
   label: string;
@@ -357,12 +565,13 @@ function OptionMenu({
   onChange: (value: string) => void;
   prefix?: string;
   rich?: boolean;
+  accent?: boolean;
   testId: string;
 }) {
   const selected = options.find((option) => option.id === value) ?? options[0];
 
   return (
-    <div className={`option-menu ${rich ? "option-menu-rich" : ""}`}>
+    <div className={`option-menu ${rich ? "option-menu-rich" : ""} ${accent ? "option-menu-accent" : ""}`}>
       <button
         type="button"
         className="option-trigger"
@@ -406,42 +615,56 @@ function Composer({
   compact = false,
   prompt,
   uploads,
+  mode,
   skill,
   region,
   language,
+  brand,
+  suite,
   disabled,
   onPrompt,
   onFiles,
   onRemove,
   onSend,
+  onMode,
   onSkill,
   onRegion,
   onLanguage,
+  onBrand,
+  onSuite,
 }: {
   compact?: boolean;
   prompt: string;
   uploads: Upload[];
+  mode: GenerationMode;
   skill: string;
   region: string;
   language: string;
+  brand: BrandSettings;
+  suite: SuiteSettings;
   disabled: boolean;
   onPrompt: (value: string) => void;
   onFiles: (event: ChangeEvent<HTMLInputElement>) => void;
   onRemove: (id: string) => void;
   onSend: () => void;
+  onMode: (value: GenerationMode) => void;
   onSkill: (value: string) => void;
   onRegion: (value: string) => void;
   onLanguage: (value: string) => void;
+  onBrand: (value: BrandSettings) => void;
+  onSuite: (value: SuiteSettings) => void;
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [promptIdea, setPromptIdea] = useState(0);
-  const [promptIdeaText, setPromptIdeaText] = useState(promptIdeas[0]);
+  const [promptIdeaText, setPromptIdeaText] = useState(promptIdeasByMode[mode][0]);
   const [deletingPromptIdea, setDeletingPromptIdea] = useState(false);
+  const modeSkills = skillsByMode(mode);
 
   useEffect(() => {
     if (compact || prompt) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
+    const promptIdeas = promptIdeasByMode[mode];
     const fullIdea = promptIdeas[promptIdea];
     const delay = deletingPromptIdea
       ? promptIdeaText.length
@@ -465,7 +688,7 @@ function Composer({
       }
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [compact, deletingPromptIdea, prompt, promptIdea, promptIdeaText]);
+  }, [compact, deletingPromptIdea, mode, prompt, promptIdea, promptIdeaText]);
 
   const submitOnShortcut = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !disabled) {
@@ -526,8 +749,36 @@ function Composer({
             <span>上传图片</span>
           </label>
           <OptionMenu
-            label="选择 Skill"
-            options={skills}
+            label="选择生成模式"
+            options={modes}
+            value={mode}
+            open={openMenu === "mode"}
+            onOpen={() => setOpenMenu(openMenu === "mode" ? null : "mode")}
+            onChange={(value) => {
+              onMode(value as GenerationMode);
+              setOpenMenu(null);
+            }}
+            accent
+            testId="mode-trigger"
+          />
+          <div className="brand-gene-control">
+            <button
+              type="button"
+              className="option-trigger brand-gene-trigger"
+              aria-expanded={openMenu === "brand-gene"}
+              aria-controls={compact ? "compact-brand-gene-panel" : "brand-gene-panel"}
+              data-testid="brand-gene-trigger"
+              onClick={() => setOpenMenu(openMenu === "brand-gene" ? null : "brand-gene")}
+            >
+              <span>品牌基因</span>
+              <span className="chevron" aria-hidden="true">
+                {openMenu === "brand-gene" ? "⌃" : "⌄"}
+              </span>
+            </button>
+          </div>
+          <OptionMenu
+            label={`${modes.find((item) => item.id === mode)?.label ?? "生成"} Skill`}
+            options={modeSkills}
             value={skill}
             open={openMenu === "skill"}
             onOpen={() => setOpenMenu(openMenu === "skill" ? null : "skill")}
@@ -539,30 +790,64 @@ function Composer({
             rich
             testId="skill-trigger"
           />
-          <OptionMenu
-            label="销售地区"
-            options={regions}
-            value={region}
-            open={openMenu === "region"}
-            onOpen={() => setOpenMenu(openMenu === "region" ? null : "region")}
-            onChange={(value) => {
-              onRegion(value);
-              setOpenMenu(null);
-            }}
-            testId="region-trigger"
-          />
-          <OptionMenu
-            label="输出语言"
-            options={languages}
-            value={language}
-            open={openMenu === "language"}
-            onOpen={() => setOpenMenu(openMenu === "language" ? null : "language")}
-            onChange={(value) => {
-              onLanguage(value);
-              setOpenMenu(null);
-            }}
-            testId="language-trigger"
-          />
+          {hasSuiteSettings(skill) ? (
+            <>
+              <OptionMenu
+                label="A+ 类型"
+                options={aPlusTypes}
+                value={suite.aPlusType}
+                open={openMenu === "a-plus-type"}
+                onOpen={() => setOpenMenu(openMenu === "a-plus-type" ? null : "a-plus-type")}
+                onChange={(value) => {
+                  onSuite({ ...suite, aPlusType: value });
+                  setOpenMenu(null);
+                }}
+                prefix="A+ 类型"
+                testId="a-plus-type-trigger"
+              />
+              <OptionMenu
+                label="A+ 图数量"
+                options={aPlusCounts}
+                value={String(suite.aPlusCount)}
+                open={openMenu === "a-plus-count"}
+                onOpen={() => setOpenMenu(openMenu === "a-plus-count" ? null : "a-plus-count")}
+                onChange={(value) => {
+                  onSuite({ ...suite, aPlusCount: Number(value) });
+                  setOpenMenu(null);
+                }}
+                prefix="A+ 图"
+                testId="a-plus-count-trigger"
+              />
+              <OptionMenu
+                label="主副图数量"
+                options={mainImageCounts}
+                value={String(suite.mainImageCount)}
+                open={openMenu === "main-image-count"}
+                onOpen={() => setOpenMenu(openMenu === "main-image-count" ? null : "main-image-count")}
+                onChange={(value) => {
+                  onSuite({ ...suite, mainImageCount: Number(value) });
+                  setOpenMenu(null);
+                }}
+                prefix="主副图"
+                testId="main-image-count-trigger"
+              />
+              <OptionMenu
+                label="主副图比例"
+                options={mainImageRatios}
+                value={suite.mainImageRatio}
+                open={openMenu === "main-image-ratio"}
+                onOpen={() => setOpenMenu(
+                  openMenu === "main-image-ratio" ? null : "main-image-ratio",
+                )}
+                onChange={(value) => {
+                  onSuite({ ...suite, mainImageRatio: value as "1:1" | "3:4" });
+                  setOpenMenu(null);
+                }}
+                prefix="主副图比例"
+                testId="main-image-ratio-trigger"
+              />
+            </>
+          ) : null}
         </div>
 
         <div className="composer-actions">
@@ -578,6 +863,94 @@ function Composer({
           </button>
         </div>
       </div>
+
+      {openMenu === "brand-gene" ? (
+        <section
+          className="brand-gene-panel"
+          id={compact ? "compact-brand-gene-panel" : "brand-gene-panel"}
+          data-testid="brand-gene-panel"
+          aria-label="品牌基因设置"
+        >
+          <label className="brand-field color-field">
+            <span>品牌主色</span>
+            <div>
+              <input
+                type="color"
+                value={brand.primaryColor}
+                aria-label="选择品牌主色"
+                data-testid="brand-color-picker"
+                onChange={(event) => onBrand({ ...brand, primaryColor: event.target.value })}
+              />
+              <input
+                type="text"
+                value={brand.primaryColor.toUpperCase()}
+                aria-label="品牌主色十六进制"
+                data-testid="brand-color-text"
+                maxLength={7}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (/^#[0-9a-f]{6}$/i.test(value)) {
+                    onBrand({ ...brand, primaryColor: value });
+                  }
+                }}
+              />
+            </div>
+          </label>
+          <label className="brand-field">
+            <span>字体风格</span>
+            <select
+              value={brand.fontStyle}
+              data-testid="font-style-select"
+              onChange={(event) => onBrand({ ...brand, fontStyle: event.target.value })}
+            >
+              {fontStyles.map((option) => (
+                <option value={option.id} key={option.id}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="brand-field">
+            <span>销售国家/地区</span>
+            <select
+              value={region}
+              data-testid="region-trigger"
+              onChange={(event) => onRegion(event.target.value)}
+            >
+              {regions.map((option) => (
+                <option value={option.id} key={option.id}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="brand-field">
+            <span>生成内容语言</span>
+            <select
+              value={language}
+              data-testid="language-trigger"
+              onChange={(event) => onLanguage(event.target.value)}
+            >
+              {languages.map((option) => (
+                <option value={option.id} key={option.id}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="brand-field">
+            <span>发布平台</span>
+            <select
+              value={brand.platform}
+              data-testid="platform-select"
+              onChange={(event) => onBrand({ ...brand, platform: event.target.value })}
+            >
+              {platforms.map((option) => (
+                <option value={option.id} key={option.id}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <p className="brand-gene-summary">
+            {platforms.find((item) => item.id === brand.platform)?.label} ·{" "}
+            {regions.find((item) => item.id === region)?.label} ·{" "}
+            {languages.find((item) => item.id === language)?.label}
+          </p>
+        </section>
+      ) : null}
     </section>
   );
 }
@@ -587,6 +960,8 @@ function ListingResult({
   language,
   region,
   data,
+  generatedImages = [],
+  suite,
   ready,
   onNotice,
 }: {
@@ -594,6 +969,8 @@ function ListingResult({
   language: string;
   region: string;
   data?: ListingData;
+  generatedImages?: string[];
+  suite: SuiteSettings;
   ready: boolean;
   onNotice: (text: string) => void;
 }) {
@@ -625,7 +1002,19 @@ function ListingResult({
   const category = data?.category ?? "Marketplace › Generated product";
   const color = specs.find(([label]) => label.toLowerCase() === "color")?.[1];
   const featureStats = specs.slice(0, 3);
-  const shownGalleryImage = galleryImage || productImage;
+  const generatedMainImages = generatedImages
+    .slice(0, suite.mainImageCount)
+    .filter(Boolean);
+  const generatedAPlusImages = generatedImages
+    .slice(suite.mainImageCount, suite.mainImageCount + suite.aPlusCount)
+    .filter(Boolean);
+  const generatedMobileAPlusImages = generatedImages
+    .slice(suite.mainImageCount + suite.aPlusCount)
+    .filter(Boolean);
+  const listingImages = generatedMainImages.length
+    ? generatedMainImages
+    : [productImage, "/product-lifestyle.png", "/product-outdoor.png"];
+  const shownGalleryImage = galleryImage || listingImages[0];
   const productSlug = data?.productUrlSlug ?? "MERCATO-GENERATED";
 
   if (!ready) {
@@ -677,9 +1066,11 @@ function ListingResult({
     aPlus: {
       headline: aPlusHeadline,
       featureStats,
+      images: generatedAPlusImages,
+      mobileImages: generatedMobileAPlusImages,
     },
     specifications: Object.fromEntries(specs),
-    images: [productImage, "/product-lifestyle.png", "/product-outdoor.png"],
+    images: listingImages,
     generatedBy: "Mercato AI",
   }, null, 2);
   const downloadHref = `data:application/json;charset=utf-8,${encodeURIComponent(listingJson)}`;
@@ -732,7 +1123,7 @@ function ListingResult({
       <div className="market-product">
         <div className="market-gallery">
           <div className="thumbnail-rail" aria-label="商品图片">
-            {[productImage, "/product-lifestyle.png", "/product-outdoor.png"].map(
+            {listingImages.map(
               (image, index) => (
                 <button
                   type="button"
@@ -807,7 +1198,7 @@ function ListingResult({
               <div className="color-swatch">
                 <button type="button" aria-label={color}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={productImage} alt="" />
+                  <img src={listingImages[0]} alt="" />
                 </button>
               </div>
             </>
@@ -904,7 +1295,10 @@ function ListingResult({
         <p className="a-plus-label">From the brand</p>
         <div className="a-plus-hero">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/product-lifestyle.png" alt={`${brand} 品牌场景`} />
+          <img
+            src={generatedAPlusImages[0] ?? "/product-lifestyle.png"}
+            alt={`${brand} 品牌场景`}
+          />
           <div>
             <span>{brand.toUpperCase()}</span>
             <textarea
@@ -931,6 +1325,22 @@ function ListingResult({
             ))}
           </div>
         ) : null}
+        {generatedAPlusImages.length > 1 ? (
+          <div className="listing-a-plus-gallery" aria-label="生成的 A+ 图片">
+            {generatedAPlusImages.slice(1).map((image, index) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={image} alt={`A+ 图片 ${index + 2}`} key={`${image}-${index}`} />
+            ))}
+          </div>
+        ) : null}
+        {generatedMobileAPlusImages.length ? (
+          <div className="listing-mobile-a-plus" aria-label="生成的手机 A+ 图片">
+            {generatedMobileAPlusImages.map((image, index) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={image} alt={`手机 A+ 图片 ${index + 1}`} key={`${image}-${index}`} />
+            ))}
+          </div>
+        ) : null}
       </section>
     </article>
   );
@@ -939,6 +1349,7 @@ function ListingResult({
 function ImageSuite({
   skillId,
   taskCount,
+  suite,
   generatedImages = [],
   failedSlots = [],
   onPreview,
@@ -947,6 +1358,7 @@ function ImageSuite({
 }: {
   skillId: string;
   taskCount: number;
+  suite?: SuiteSettings;
   generatedImages?: string[];
   failedSlots?: number[];
   onPreview: (item: GalleryItem) => void;
@@ -954,7 +1366,7 @@ function ImageSuite({
   regenerating: string | null;
 }) {
   const isSeeding = skillId === "china-seeding-image";
-  const items = suiteItems(skillId, taskCount).map((item, index) => ({
+  const items = suiteItems(skillId, taskCount, suite).map((item, index) => ({
     ...item,
     image: generatedImages[index] ?? item.image,
   }));
@@ -974,7 +1386,9 @@ function ImageSuite({
           const ready = Boolean(generatedImages[index]) && regenerating !== item.id;
           return (
             <article
-              className={`asset-card ${item.wide ? "asset-wide" : ""}`}
+              className={`asset-card ${item.wide ? "asset-wide" : ""} ${
+                item.portrait ? "asset-portrait" : ""
+              }`}
               key={item.id}
               data-testid={`image-card-${index}`}
             >
@@ -1407,9 +1821,12 @@ export default function Home() {
   const [screen, setScreen] = useState<"home" | "studio">("home");
   const [prompt, setPrompt] = useState("");
   const [uploads, setUploads] = useState<Upload[]>([]);
-  const [skill, setSkill] = useState("listing");
+  const [mode, setMode] = useState<GenerationMode>("image");
+  const [skill, setSkill] = useState("amazon-image-set");
   const [region, setRegion] = useState("us");
   const [language, setLanguage] = useState("en");
+  const [brand, setBrand] = useState<BrandSettings>(defaultBrandSettings);
+  const [suite, setSuite] = useState<SuiteSettings>(defaultSuiteSettings);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
   const [preview, setPreview] = useState<GalleryItem | null>(null);
@@ -1418,7 +1835,9 @@ export default function Home() {
   const controllers = useRef<Map<string, AbortController>>(new Map());
   const turnCounter = useRef(0);
 
-  const selectedSkill = skills.find((item) => item.id === skill) ?? skills[0];
+  const modeSkills = skillsByMode(mode);
+  const selectedSkill =
+    modeSkills.find((item) => item.id === skill) ?? modeSkills[0];
   const selectedKind = selectedSkill.kind;
   const productImage = uploads[0]?.url ?? "/product-main.png";
   const activeTurn = turns.find((turn) => turn.id === activeTurnId) ?? turns[turns.length - 1];
@@ -1435,7 +1854,20 @@ export default function Home() {
 
   const addSample = () => {
     setUploads([{ id: "sample", name: "便携咖啡机示例图", url: "/product-main.png" }]);
-    setPrompt("为这款便携咖啡机生成完整跨境电商内容");
+    setPrompt(selectedSkill.starter);
+  };
+
+  const changeMode = (nextMode: GenerationMode) => {
+    const nextSkill = skillsByMode(nextMode)[0];
+    setMode(nextMode);
+    setSkill(nextSkill.id);
+    setPrompt("");
+    if (nextMode === "video") {
+      setBrand((current) => ({ ...current, platform: "tiktok-shop" }));
+    }
+    if (nextMode === "listing") {
+      setBrand((current) => ({ ...current, platform: "amazon" }));
+    }
   };
 
   const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
@@ -1469,11 +1901,34 @@ export default function Home() {
   ) => {
     const form = new FormData();
     form.set("action", action);
+    form.set("mode", turn.mode);
     form.set("skill", turn.skill);
     form.set("region", turn.region);
     form.set("language", turn.language);
+    form.set("platform", turn.brand.platform);
+    form.set("brandColor", turn.brand.primaryColor);
+    form.set("fontStyle", turn.brand.fontStyle);
+    form.set("aPlusType", turn.suite.aPlusType);
+    form.set("aPlusCount", String(turn.suite.aPlusCount));
+    form.set("mainImageCount", String(turn.suite.mainImageCount));
+    form.set("mainImageRatio", turn.suite.mainImageRatio);
+    form.set("brandContext", JSON.stringify({
+      primaryColor: turn.brand.primaryColor,
+      fontStyle: turn.brand.fontStyle,
+      market: regions.find((item) => item.id === turn.region)?.label ?? turn.region,
+      language: languages.find((item) => item.id === turn.language)?.label ?? turn.language,
+      platform: platforms.find((item) => item.id === turn.brand.platform)?.label
+        ?? turn.brand.platform,
+    }));
     form.set("prompt", turn.prompt);
-    if (slot !== undefined) form.set("slot", String(slot));
+    if (slot !== undefined) {
+      form.set("slot", String(slot));
+      if (hasSuiteSettings(turn.skill)) {
+        const slotConfig = suiteSlot(turn.suite, slot);
+        form.set("slotType", slotConfig.type);
+        form.set("slotIndex", String(slotConfig.index));
+      }
+    }
     const file = await uploadAsFile(upload);
     form.set("image", file, file.name);
     return form;
@@ -1512,7 +1967,15 @@ export default function Home() {
   };
 
   const runListing = async (turn: Turn, upload: Upload, signal: AbortSignal) => {
-    patchTurn(turn.id, { phase: "正在理解商品图片", completed: 1 });
+    const suiteImageCount = turn.skill === "amazon-listing"
+      ? turn.imageTaskCount ?? 0
+      : 0;
+    patchTurn(turn.id, {
+      phase: "正在理解商品图片",
+      completed: suiteImageCount ? 0 : 1,
+      images: suiteImageCount ? [] : turn.images,
+      failedImageSlots: suiteImageCount ? [] : turn.failedImageSlots,
+    });
     const response = await fetch("/api/generate", {
       method: "POST",
       body: await generationForm(turn, upload, "listing"),
@@ -1524,7 +1987,10 @@ export default function Home() {
     const decoder = new TextDecoder();
     let pending = "";
     let generated = "";
-    patchTurn(turn.id, { phase: "正在流式生成 Listing", completed: 2 });
+    patchTurn(turn.id, {
+      phase: "正在流式生成 Listing",
+      completed: suiteImageCount ? 0 : 2,
+    });
 
     while (true) {
       const { done, value } = await reader.read();
@@ -1543,11 +2009,66 @@ export default function Home() {
     }
 
     const listing = parseListingJson(generated);
+    if (!suiteImageCount) {
+      patchTurn(turn.id, {
+        listing,
+        agentText: visibleAgentText(generated),
+        phase: "生成完成",
+        completed: generationCopy.listing.phases.length,
+        running: false,
+      });
+      return;
+    }
+
     patchTurn(turn.id, {
       listing,
       agentText: visibleAgentText(generated),
-      phase: "生成完成",
-      completed: generationCopy.listing.phases.length,
+      phase: `Listing 已完成，正在生成 0 / ${suiteImageCount} 张套图`,
+      completed: 1,
+    });
+
+    const results = new Array<string>(suiteImageCount);
+    const failedSlots: number[] = [];
+    let nextSlot = 0;
+    let firstError = "";
+
+    const worker = async () => {
+      while (nextSlot < suiteImageCount) {
+        const slot = nextSlot++;
+        try {
+          results[slot] = await runImageTask(
+            await generationForm(turn, upload, "image", slot),
+            signal,
+          );
+        } catch (error) {
+          if ((error as Error).name === "AbortError") throw error;
+          failedSlots.push(slot);
+          firstError ||= error instanceof Error ? error.message : "图片生成失败";
+        }
+        const done = results.filter(Boolean).length;
+        patchTurn(turn.id, {
+          images: [...results],
+          failedImageSlots: [...failedSlots],
+          completed: 1 + done,
+          phase: failedSlots.length
+            ? `Listing 已完成 · 套图 ${done} / ${suiteImageCount} 张 · ${failedSlots.length} 张失败`
+            : `Listing 已完成 · 套图 ${done} / ${suiteImageCount} 张`,
+        });
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(2, suiteImageCount) }, worker),
+    );
+    const done = results.filter(Boolean).length;
+    if (!done) throw new Error(firstError || "Listing 文案已完成，但套图生成失败");
+    patchTurn(turn.id, {
+      images: results,
+      failedImageSlots: failedSlots,
+      phase: failedSlots.length
+        ? `Listing 与 ${done} / ${suiteImageCount} 张套图已完成`
+        : "生成完成",
+      completed: 1 + done,
       running: false,
     });
   };
@@ -1669,19 +2190,25 @@ export default function Home() {
     if (!uploads.length) return;
     const id = `turn-${turnCounter.current += 1}`;
     const taskPrompt = prompt.trim() || selectedSkill.starter;
+    const configuredImageCount = hasSuiteSettings(selectedSkill.id)
+      ? suiteTaskCount(selectedSkill.id, suite, taskPrompt)
+      : imageTaskCount(selectedKind, taskPrompt);
     const turn: Turn = {
       id,
       title: taskPrompt.slice(0, 22),
       prompt: taskPrompt,
+      mode,
       skill: selectedSkill.id,
       kind: selectedKind,
       region,
       language,
+      brand: { ...brand },
+      suite: { ...suite },
       productImage,
       completed: 0,
       running: true,
       phase: generationCopy[selectedKind].phases[0],
-      imageTaskCount: imageTaskCount(selectedKind, taskPrompt) || undefined,
+      imageTaskCount: configuredImageCount || undefined,
     };
     setTurns((current) => [...current, turn]);
     setActiveTurnId(id);
@@ -1704,10 +2231,10 @@ export default function Home() {
     setRegenerating(item.id);
     showNotice(`正在重新生成「${item.title}」`);
     const presets = turn.kind === "seeding"
-      ? suiteItems(turn.skill, turn.imageTaskCount ?? 4)
+      ? suiteItems(turn.skill, turn.imageTaskCount ?? 4, turn.suite)
       : turn.kind === "single"
         ? [singleImageOutputs[turn.skill] ?? singleImageOutputs["amazon-scene-image"]]
-        : suiteItems(turn.skill, turn.imageTaskCount ?? 6);
+        : suiteItems(turn.skill, turn.imageTaskCount ?? 6, turn.suite);
     const slot = Math.max(0, presets.findIndex((preset) => preset.id === item.id));
     try {
       const url = await runImageTask(
@@ -1805,7 +2332,9 @@ export default function Home() {
             {turns.map((turn, index) => {
               const generation = generationCopy[turn.kind];
               const total = progressTotal(turn);
-              const ready = turn.completed === total && !turn.running;
+              const ready = turn.kind === "listing"
+                ? Boolean(turn.listing)
+                : turn.completed === total && !turn.running;
               return (
                 <article className="conversation-turn" id={turn.id} key={turn.id} data-testid={`conversation-turn-${index}`}>
                   <div className="user-message">
@@ -1819,9 +2348,17 @@ export default function Home() {
                         <span>你</span>
                         <p>{turn.prompt}</p>
                         <div className="request-tags">
+                          <span>{modes.find((item) => item.id === turn.mode)?.label}</span>
                           <span>{skills.find((item) => item.id === turn.skill)?.label}</span>
                           <span>{regions.find((item) => item.id === turn.region)?.label}</span>
                           <span>{languages.find((item) => item.id === turn.language)?.label}</span>
+                          {hasSuiteSettings(turn.skill) ? (
+                            <span>
+                              主副图 {turn.suite.mainImageCount} · A+ {turn.suite.aPlusCount}
+                              {" · "}{turn.suite.mainImageRatio}
+                              {turn.suite.aPlusType === "advanced-mobile" ? " · 含手机 A+" : ""}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -1835,7 +2372,13 @@ export default function Home() {
                           <span>Mercato AI</span>
                           <h2>{skills.find((item) => item.id === turn.skill)?.label ?? generation.title}</h2>
                         </div>
-                        <span>{turn.imageTaskCount ? `${total} 张图片` : generation.count}</span>
+                        <span>
+                          {turn.kind === "listing" && turn.imageTaskCount
+                            ? `1 个 Listing + ${turn.imageTaskCount} 张图片`
+                            : turn.imageTaskCount
+                              ? `${total} 张图片`
+                              : generation.count}
+                        </span>
                       </header>
 
                       <div className="generation-status">
@@ -1885,6 +2428,8 @@ export default function Home() {
                             language={turn.language}
                             region={turn.region}
                             data={turn.listing}
+                            generatedImages={turn.images}
+                            suite={turn.suite}
                             ready={ready}
                             onNotice={showNotice}
                           />
@@ -1893,6 +2438,7 @@ export default function Home() {
                           <ImageSuite
                             skillId={turn.skill}
                             taskCount={turn.imageTaskCount ?? 6}
+                            suite={turn.suite}
                             generatedImages={turn.images}
                             failedSlots={turn.failedImageSlots}
                             onPreview={setPreview}
@@ -1904,6 +2450,7 @@ export default function Home() {
                           <ImageSuite
                             skillId={turn.skill}
                             taskCount={turn.imageTaskCount ?? 4}
+                            suite={turn.suite}
                             generatedImages={turn.images}
                             failedSlots={turn.failedImageSlots}
                             onPreview={setPreview}
@@ -1939,20 +2486,27 @@ export default function Home() {
 
           <div className="studio-composer">
             <Composer
+              key={`studio-composer-${mode}`}
               compact
               prompt={prompt}
               uploads={uploads}
+              mode={mode}
               skill={skill}
               region={region}
               language={language}
+              brand={brand}
+              suite={suite}
               disabled={!uploads.length}
               onPrompt={setPrompt}
               onFiles={handleFiles}
               onRemove={removeUpload}
               onSend={startGeneration}
+              onMode={changeMode}
               onSkill={setSkill}
               onRegion={setRegion}
               onLanguage={setLanguage}
+              onBrand={setBrand}
+              onSuite={setSuite}
             />
           </div>
         </section>
@@ -2004,19 +2558,26 @@ export default function Home() {
               <button type="button" className="sample-button" data-testid="sample-product" onClick={addSample}>使用示例商品</button>
             </div>
             <Composer
+              key={`home-composer-${mode}`}
               prompt={prompt}
               uploads={uploads}
+              mode={mode}
               skill={skill}
               region={region}
               language={language}
+              brand={brand}
+              suite={suite}
               disabled={!uploads.length}
               onPrompt={setPrompt}
               onFiles={handleFiles}
               onRemove={removeUpload}
               onSend={startGeneration}
+              onMode={changeMode}
               onSkill={setSkill}
               onRegion={setRegion}
               onLanguage={setLanguage}
+              onBrand={setBrand}
+              onSuite={setSuite}
             />
             {turns.length ? (
               <button type="button" className="resume-conversation" onClick={() => openStudio()}>
