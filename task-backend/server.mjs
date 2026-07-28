@@ -12,7 +12,20 @@ const TASK_TTL_MS = 24 * 60 * 60 * 1000;
 function errorMessage(payload, fallback) {
   if (!payload || typeof payload !== "object") return fallback;
   if (typeof payload.error === "string") return payload.error;
-  return payload.error?.message ?? payload.message ?? fallback;
+  if (payload.error?.message) return payload.error.message;
+  if (typeof payload.message === "string") {
+    try {
+      const nested = JSON.parse(payload.message);
+      return errorMessage(nested, payload.message);
+    } catch {
+      return payload.message;
+    }
+  }
+  return fallback;
+}
+
+function retryableImageError(message) {
+  return /(?:429|负载已饱和|稍后再试|overload|rate.?limit|too many requests)/i.test(message);
 }
 
 function authorized(requestToken, expectedToken) {
@@ -51,6 +64,12 @@ export function createTaskServer(options = {}) {
     token: options.token ?? process.env.TASK_BACKEND_TOKEN,
     model: options.model ?? process.env.IMAGE_MODEL ?? "yunwu/gpt-image-2",
     concurrency: Math.max(1, Number(options.concurrency ?? process.env.TASK_CONCURRENCY ?? 2)),
+    retryDelays: options.retryDelays ?? String(
+      process.env.IMAGE_RETRY_DELAYS_MS ?? "5000,15000,30000",
+    )
+      .split(",")
+      .map(Number)
+      .filter((delay) => Number.isFinite(delay) && delay >= 0),
   };
   const tasksDir = join(config.dataDir, "tasks");
   const inputsDir = join(config.dataDir, "inputs");
@@ -87,17 +106,30 @@ export function createTaskServer(options = {}) {
         new Blob([bytes], { type: task.imageType || "image/png" }),
         task.imageName || "product.png",
       );
-      const response = await fetch(`${config.baseUrl}/images/edits`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${config.apiKey}` },
-        body: request,
-        signal: AbortSignal.timeout(10 * 60 * 1000),
-      });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(errorMessage(payload, `图片生成失败 (${response.status})`));
+      let url;
+      for (let attempt = 0; attempt <= config.retryDelays.length; attempt += 1) {
+        const response = await fetch(`${config.baseUrl}/images/edits`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${config.apiKey}` },
+          body: request,
+          signal: AbortSignal.timeout(10 * 60 * 1000),
+        });
+        const payload = await response.json().catch(() => null);
+        url = response.ok ? imageOutputUrl(payload) : undefined;
+        if (url) break;
+
+        const message = errorMessage(
+          payload,
+          response.ok
+            ? "图片服务已响应，但没有返回可用图片"
+            : `图片生成失败 (${response.status})`,
+        );
+        const retryDelay = config.retryDelays[attempt];
+        if (!retryableImageError(message) || retryDelay === undefined) {
+          throw new Error(message);
+        }
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
       }
-      const url = imageOutputUrl(payload);
       if (!url) throw new Error("图片服务已响应，但没有返回可用图片");
       task.status = "succeeded";
       task.url = url;

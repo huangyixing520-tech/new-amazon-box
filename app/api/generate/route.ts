@@ -53,6 +53,51 @@ const imagePrompts: Record<string, string[]> = {
   ],
 };
 
+const mainImagePrompts = [
+  "Amazon-compliant square hero image, pure white background, centered product, accurate shape and color, realistic soft shadow, no text",
+  "Square ecommerce feature image showing the product's clearest visible benefit with a focused commercial composition",
+  "Square lifestyle image showing the product in believable everyday use",
+  "Square detail image emphasizing visible materials, construction and craftsmanship",
+  "Square scale and portability image with a clean marketplace composition",
+  "Square accessory or usage-step image using only details supported by the reference product",
+  "Square alternative lifestyle image for a second realistic use case",
+  "Square premium closing image with the product as the clear focal point",
+];
+
+const aPlusPrompts = [
+  "Wide Amazon A+ brand banner with a premium product story composition and clean negative space",
+  "Wide Amazon A+ benefit banner focused on the strongest visible product advantage",
+  "Wide Amazon A+ lifestyle banner showing a believable use environment",
+  "Wide Amazon A+ craftsmanship banner with refined macro product details",
+  "Wide Amazon A+ closing banner with cohesive brand atmosphere and a clear product focal point",
+];
+
+const mobileAPlusPrompts = [
+  "Vertical mobile Amazon A+ brand banner derived from the desktop brand story with a phone-first composition",
+  "Vertical mobile Amazon A+ benefit banner with one clear product advantage and generous safe margins",
+  "Vertical mobile Amazon A+ lifestyle banner with a believable use environment",
+  "Vertical mobile Amazon A+ craftsmanship banner with refined macro product details",
+  "Vertical mobile Amazon A+ closing banner with cohesive brand atmosphere and a clear product focal point",
+];
+
+function formContext(form: FormData) {
+  const region = String(form.get("region") ?? "us");
+  const language = String(form.get("language") ?? "en");
+  const platform = String(form.get("platform") ?? "amazon");
+  const brandColor = String(form.get("brandColor") ?? "#111111");
+  const fontStyle = String(form.get("fontStyle") ?? "auto");
+  return {
+    region,
+    language,
+    platform,
+    brandColor,
+    fontStyle,
+    text: `Sales market: ${regionNames[region] ?? region}. Output language: ${
+      languageNames[language] ?? language
+    }. Publishing platform: ${platform}. Brand primary color: ${brandColor}. Typography direction: ${fontStyle}.`,
+  };
+}
+
 function apiKey() {
   const value = process.env.DOLA_API_KEY;
   if (!value) throw new Error("DOLA_API_KEY 尚未配置");
@@ -108,16 +153,15 @@ async function fileDataUrl(file: File) {
 }
 
 async function listingMessages(form: FormData) {
-  const skill = String(form.get("skill") ?? "listing");
-  const region = String(form.get("region") ?? "us");
-  const language = String(form.get("language") ?? "en");
+  const skill = String(form.get("skill") ?? "amazon-listing");
+  const context = formContext(form);
   const prompt = String(form.get("prompt") ?? "");
   const image = form.get("image");
   const imageName = image instanceof File ? image.name : "uploaded product image";
   const userText = `[FORM]
+Generation mode: Listing generation
 Skill: ${skill}
-Sales market: ${regionNames[region] ?? region}
-Output language: ${languageNames[language] ?? language}
+${context.text}
 Uploaded image: ${imageName}
 
 [USER INPUT]
@@ -184,7 +228,7 @@ async function createListing(form: FormData) {
   if (!response.ok || !response.body) {
     const payload = await response.json().catch(() => null);
     return jsonError(
-      upstreamError(payload, `Agent 请求失败 (${response.status})`),
+      upstreamError(payload, `Listing 请求失败 (${response.status})`),
       response.status,
     );
   }
@@ -194,7 +238,7 @@ async function createListing(form: FormData) {
     headers: {
       "Content-Type": response.headers.get("content-type") ?? "text/event-stream",
       "Cache-Control": "no-cache",
-      "X-Mercato-Agent-Architecture": "route-execute",
+      "X-Mercato-Generation-Architecture": "direct-mode-skill",
     },
   });
 }
@@ -205,18 +249,31 @@ async function createImage(form: FormData) {
 
   const skill = String(form.get("skill") ?? "amazon-scene-image");
   const slot = Math.max(0, Number(form.get("slot") ?? 0));
+  const slotIndex = Math.max(0, Number(form.get("slotIndex") ?? slot));
+  const rawSlotType = String(form.get("slotType") ?? "");
+  const slotType = ["main", "a-plus", "a-plus-mobile"].includes(rawSlotType)
+    ? rawSlotType
+    : "";
   const prompt = String(form.get("prompt") ?? "");
-  const preset = imagePrompts[skill]?.[slot] ?? imagePrompts["amazon-scene-image"][0];
+  const context = formContext(form);
+  const preset = slotType === "main"
+    ? mainImagePrompts[slotIndex % mainImagePrompts.length]
+    : slotType === "a-plus"
+      ? aPlusPrompts[slotIndex % aPlusPrompts.length]
+      : slotType === "a-plus-mobile"
+        ? mobileAPlusPrompts[slotIndex % mobileAPlusPrompts.length]
+        : imagePrompts[skill]?.[slot] ?? imagePrompts["amazon-scene-image"][0];
   const request = new FormData();
   request.set(
     "prompt",
-    `${preset}. Preserve the uploaded product's identity, silhouette, proportions, colors, logo and functional details. ${prompt}`.trim(),
+    `${preset}. ${context.text} Preserve the uploaded product's identity, silhouette, proportions, colors, logo and visible functional details. Do not combine multiple layouts into a collage. Create exactly one finished image for this single task. ${prompt}`.trim(),
   );
   request.set(
     "size",
-    skill === "china-seeding-image"
+    slotType === "a-plus-mobile" || skill === "china-seeding-image"
       ? "1024x1536"
-      : slot >= 4 && ["amazon-image-set", "ecommerce-image-set"].includes(skill)
+      : slotType === "a-plus"
+        || (slot >= 4 && ["amazon-image-set", "ecommerce-image-set"].includes(skill))
         ? "1536x1024"
         : process.env.IMAGE_DEFAULT_SQUARE_SIZE ?? "1024x1024",
   );
@@ -244,6 +301,11 @@ async function createVideo(form: FormData) {
   if (!(image instanceof File)) return jsonError("请上传商品图片", 400);
   const dataUrl = await fileDataUrl(image);
   const prompt = String(form.get("prompt") ?? "");
+  const skill = String(form.get("skill") ?? "video-replica");
+  const context = formContext(form);
+  const skillDirection = skill === "talking-product-video"
+    ? "Create a direct-response product demonstration with a natural presenter-led sales rhythm, clear product handling and believable spoken-delivery pacing."
+    : "Create a polished visual recreation based on the user's requested pacing, shot language and product presentation style.";
   const response = await fetch(`${BASE_URL}/contents/generations/tasks`, {
     method: "POST",
     headers: {
@@ -259,7 +321,9 @@ async function createVideo(form: FormData) {
       content: [
         {
           type: "text",
-          text: `${prompt || "Create a polished 15-second ecommerce product video."} Keep the exact product identity. No subtitles, overlays, prices, watermarks or newly generated visible text.`,
+          text: `${skillDirection} ${context.text} ${
+            prompt || "Create a polished 15-second ecommerce product video."
+          } Keep the exact product identity. No subtitles, overlays, prices, watermarks or newly generated visible text.`,
         },
         {
           type: "image_url",
