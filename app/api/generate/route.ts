@@ -1,3 +1,10 @@
+import {
+  authErrorResponse,
+  ensureIdentitySchema,
+  userApiKey,
+} from "../../lib/auth";
+import type { D1Binding } from "../../lib/runtime";
+
 const BASE_URL =
   process.env.DOLA_BASE_URL?.replace(/\/$/, "") ??
   "https://api.dolaio.cn/aigateway/cisco/v1";
@@ -133,12 +140,6 @@ function formContext(form: FormData) {
   };
 }
 
-function apiKey() {
-  const value = process.env.DOLA_API_KEY;
-  if (!value) throw new Error("DOLA_API_KEY 尚未配置");
-  return value;
-}
-
 function taskBackend() {
   const url = process.env.TASK_BACKEND_URL?.replace(/\/$/, "");
   const token = process.env.TASK_BACKEND_TOKEN;
@@ -250,11 +251,11 @@ Use this schema:
   ];
 }
 
-async function createListing(form: FormData) {
+async function createListing(form: FormData, apiKey: string) {
   const response = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey()}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -283,7 +284,32 @@ async function createListing(form: FormData) {
   });
 }
 
-async function createImage(form: FormData) {
+async function recordTask(
+  db: D1Binding,
+  taskId: string,
+  userId: string,
+  kind: "image" | "video",
+) {
+  await ensureIdentitySchema(db);
+  await db.prepare(`
+    INSERT OR REPLACE INTO generation_tasks (id, user_id, kind, created_at)
+    VALUES (?, ?, ?, ?)
+  `).bind(taskId, userId, kind, new Date().toISOString()).run();
+}
+
+async function ownsTask(db: D1Binding, taskId: string, userId: string) {
+  await ensureIdentitySchema(db);
+  return Boolean(await db.prepare(
+    "SELECT id FROM generation_tasks WHERE id = ? AND user_id = ?",
+  ).bind(taskId, userId).first<{ id: string }>());
+}
+
+async function createImage(
+  form: FormData,
+  apiKey: string,
+  userId: string,
+  db: D1Binding,
+) {
   const image = form.get("image");
   if (!(image instanceof File)) return jsonError("请上传商品图片", 400);
 
@@ -325,7 +351,10 @@ async function createImage(form: FormData) {
   const backend = taskBackend();
   const response = await fetch(`${backend.url}/v1/image-tasks`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${backend.token}` },
+    headers: {
+      Authorization: `Bearer ${backend.token}`,
+      "X-Mercato-Upstream-Key": apiKey,
+    },
     body: request,
   });
   const payload = await response.json().catch(() => null);
@@ -335,10 +364,18 @@ async function createImage(form: FormData) {
       response.status,
     );
   }
+  const taskId = taskField(payload, ["id", "task_id"]);
+  if (!taskId) return jsonError("图片任务后台没有返回任务 ID", 502);
+  await recordTask(db, taskId, userId, "image");
   return Response.json(payload, { status: 202 });
 }
 
-async function createVideo(form: FormData) {
+async function createVideo(
+  form: FormData,
+  apiKey: string,
+  userId: string,
+  db: D1Binding,
+) {
   const image = form.get("image");
   if (!(image instanceof File)) return jsonError("请上传商品图片", 400);
   const dataUrl = await fileDataUrl(image);
@@ -351,7 +388,7 @@ async function createVideo(form: FormData) {
   const response = await fetch(`${BASE_URL}/contents/generations/tasks`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey()}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -382,29 +419,49 @@ async function createVideo(form: FormData) {
       response.status,
     );
   }
-  return Response.json(videoTask(payload));
+  const task = videoTask(payload);
+  if (!task.id) return jsonError("视频服务没有返回任务 ID", 502);
+  await recordTask(db, task.id, userId, "video");
+  return Response.json(task);
 }
 
 export async function POST(request: Request) {
   try {
+    const {
+      user,
+      apiKey,
+      DB,
+    } = await userApiKey(request);
     const form = await request.formData();
     const action = String(form.get("action") ?? "");
-    if (action === "listing") return await createListing(form);
-    if (action === "image") return await createImage(form);
-    if (action === "video") return await createVideo(form);
+    if (action === "listing") return await createListing(form, apiKey);
+    if (action === "image") {
+      return await createImage(form, apiKey, user.id, DB);
+    }
+    if (action === "video") {
+      return await createVideo(form, apiKey, user.id, DB);
+    }
     return jsonError("未知生成类型", 400);
   } catch (error) {
-    return jsonError(error instanceof Error ? error.message : "生成失败");
+    return authErrorResponse(error);
   }
 }
 
 export async function GET(request: Request) {
   try {
+    const {
+      user,
+      apiKey,
+      DB,
+    } = await userApiKey(request);
     const search = new URL(request.url).searchParams;
     const imageTaskId = search.get("imageTaskId");
     if (imageTaskId) {
       if (!/^[a-f0-9-]+$/.test(imageTaskId)) {
         return jsonError("无效的图片任务 ID", 400);
+      }
+      if (!(await ownsTask(DB, imageTaskId, user.id))) {
+        return jsonError("任务不存在", 404);
       }
       const backend = taskBackend();
       const response = await fetch(
@@ -428,9 +485,12 @@ export async function GET(request: Request) {
     if (!taskId || !/^[A-Za-z0-9._:-]+$/.test(taskId)) {
       return jsonError("无效的视频任务 ID", 400);
     }
+    if (!(await ownsTask(DB, taskId, user.id))) {
+      return jsonError("任务不存在", 404);
+    }
     const response = await fetch(
       `${BASE_URL}/contents/generations/tasks/${encodeURIComponent(taskId)}`,
-      { headers: { Authorization: `Bearer ${apiKey()}` } },
+      { headers: { Authorization: `Bearer ${apiKey}` } },
     );
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
@@ -441,6 +501,6 @@ export async function GET(request: Request) {
     }
     return Response.json(videoTask(payload));
   } catch (error) {
-    return jsonError(error instanceof Error ? error.message : "查询失败");
+    return authErrorResponse(error);
   }
 }

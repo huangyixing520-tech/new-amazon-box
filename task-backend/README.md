@@ -5,12 +5,13 @@ asynchronous task API.
 
 Required environment variables:
 
-- `DOLA_API_KEY`
 - `TASK_BACKEND_TOKEN`
+- `USER_KEY_ENCRYPTION_SECRET` (at least 32 random characters)
 
 Optional environment variables:
 
 - `DOLA_BASE_URL` (defaults to `https://api.dolaio.cn/aigateway/cisco/v1`)
+- `DOLA_API_KEY` (fallback only for legacy or internal tasks)
 - `IMAGE_MODEL` (defaults to `yunwu/gpt-image-2`)
 - `TASK_CONCURRENCY` (defaults to `2`)
 - `DATA_DIR` (defaults to `./data`; use `/data` with a Railway volume)

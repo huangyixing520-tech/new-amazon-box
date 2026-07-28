@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -134,4 +134,58 @@ test("retries a logical 429 returned with HTTP 200", async (context) => {
   assert.equal(completed.status, "succeeded");
   assert.equal(completed.url, "https://example.com/generated.png");
   assert.equal(upstreamCalls, 2);
+});
+
+test("uses a per-user key without exposing or persisting it in plaintext", async (context) => {
+  const dataDir = await mkdtemp(join(tmpdir(), "mercato-task-user-key-"));
+  context.after(() => rm(dataDir, { recursive: true, force: true }));
+
+  const upstream = createServer((request, response) => {
+    assert.equal(request.headers.authorization, "Bearer user-specific-key");
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ data: [{ url: "https://example.com/user.png" }] }));
+  });
+  const upstreamPort = await listen(upstream);
+  context.after(() => upstream.close());
+
+  const backend = createTaskServer({
+    dataDir,
+    baseUrl: `http://127.0.0.1:${upstreamPort}`,
+    token: "backend-test",
+    userKeyEncryptionSecret: "test-encryption-secret-with-at-least-32-characters",
+    retryDelays: [],
+  });
+  const backendPort = await listen(backend);
+  context.after(() => backend.close());
+
+  const form = new FormData();
+  form.set("prompt", "One image only");
+  form.set("image", new File(["product"], "product.png", { type: "image/png" }));
+  const created = await fetch(`http://127.0.0.1:${backendPort}/v1/image-tasks`, {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer backend-test",
+      "X-Mercato-Upstream-Key": "user-specific-key",
+    },
+    body: form,
+  }).then((response) => response.json());
+
+  const persisted = await readFile(
+    join(dataDir, "tasks", `${created.id}.json`),
+    "utf8",
+  );
+  assert.equal(persisted.includes("user-specific-key"), false);
+  assert.equal(JSON.stringify(created).includes("user-specific-key"), false);
+
+  let completed;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    completed = await fetch(
+      `http://127.0.0.1:${backendPort}/v1/image-tasks/${created.id}`,
+      { headers: { Authorization: "Bearer backend-test" } },
+    ).then((response) => response.json());
+    if (completed.status === "succeeded") break;
+  }
+  assert.equal(completed.status, "succeeded");
+  assert.equal(completed.url, "https://example.com/user.png");
 });

@@ -1,5 +1,12 @@
 import { createServer } from "node:http";
-import { timingSafeEqual, randomUUID } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+  randomUUID,
+  timingSafeEqual,
+} from "node:crypto";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { join } from "node:path";
@@ -44,6 +51,49 @@ function json(response, status, payload) {
   response.end(body);
 }
 
+function encryptionKey(secret) {
+  return createHash("sha256").update(secret).digest();
+}
+
+function encryptUpstreamKey(value, secret) {
+  if (!secret) throw new Error("USER_KEY_ENCRYPTION_SECRET 尚未配置");
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", encryptionKey(secret), iv);
+  const encrypted = Buffer.concat([
+    cipher.update(value, "utf8"),
+    cipher.final(),
+  ]);
+  return [
+    "v1",
+    iv.toString("base64url"),
+    cipher.getAuthTag().toString("base64url"),
+    encrypted.toString("base64url"),
+  ].join(".");
+}
+
+function decryptUpstreamKey(value, secret) {
+  const [version, ivValue, tagValue, encryptedValue] = String(value).split(".");
+  if (
+    version !== "v1" ||
+    !ivValue ||
+    !tagValue ||
+    !encryptedValue ||
+    !secret
+  ) {
+    throw new Error("用户 API Key 密文无效");
+  }
+  const decipher = createDecipheriv(
+    "aes-256-gcm",
+    encryptionKey(secret),
+    Buffer.from(ivValue, "base64url"),
+  );
+  decipher.setAuthTag(Buffer.from(tagValue, "base64url"));
+  return Buffer.concat([
+    decipher.update(Buffer.from(encryptedValue, "base64url")),
+    decipher.final(),
+  ]).toString("utf8");
+}
+
 function publicTask(task) {
   return {
     id: task.id,
@@ -61,6 +111,9 @@ export function createTaskServer(options = {}) {
     baseUrl: (options.baseUrl ?? process.env.DOLA_BASE_URL ??
       "https://api.dolaio.cn/aigateway/cisco/v1").replace(/\/$/, ""),
     apiKey: options.apiKey ?? process.env.DOLA_API_KEY,
+    userKeyEncryptionSecret:
+      options.userKeyEncryptionSecret ??
+      process.env.USER_KEY_ENCRYPTION_SECRET,
     token: options.token ?? process.env.TASK_BACKEND_TOKEN,
     model: options.model ?? process.env.IMAGE_MODEL ?? "yunwu/gpt-image-2",
     concurrency: Math.max(1, Number(options.concurrency ?? process.env.TASK_CONCURRENCY ?? 2)),
@@ -96,6 +149,13 @@ export function createTaskServer(options = {}) {
     await saveTask(task);
     try {
       const bytes = await readFile(inputPath(id));
+      const upstreamKey = task.encryptedUpstreamKey
+        ? decryptUpstreamKey(
+            task.encryptedUpstreamKey,
+            config.userKeyEncryptionSecret,
+          )
+        : config.apiKey;
+      if (!upstreamKey) throw new Error("任务没有可用的模型 API Key");
       const request = new FormData();
       request.set("model", config.model);
       request.set("prompt", task.prompt);
@@ -110,7 +170,7 @@ export function createTaskServer(options = {}) {
       for (let attempt = 0; attempt <= config.retryDelays.length; attempt += 1) {
         const response = await fetch(`${config.baseUrl}/images/edits`, {
           method: "POST",
-          headers: { Authorization: `Bearer ${config.apiKey}` },
+          headers: { Authorization: `Bearer ${upstreamKey}` },
           body: request,
           signal: AbortSignal.timeout(10 * 60 * 1000),
         });
@@ -195,7 +255,7 @@ export function createTaskServer(options = {}) {
       if (request.method === "GET" && url.pathname === "/health") {
         return json(response, 200, { ok: true, active, queued: pending.length });
       }
-      if (!config.apiKey || !config.token) {
+      if (!config.token) {
         return json(response, 503, { error: "后台密钥尚未配置" });
       }
       if (!authorized(request.headers.authorization, config.token)) {
@@ -210,6 +270,18 @@ export function createTaskServer(options = {}) {
       }
       if (request.method !== "POST" || url.pathname !== "/v1/image-tasks") {
         return json(response, 404, { error: "Not found" });
+      }
+      const suppliedUpstreamKey = request.headers["x-mercato-upstream-key"];
+      const upstreamKey = Array.isArray(suppliedUpstreamKey)
+        ? suppliedUpstreamKey[0]
+        : suppliedUpstreamKey;
+      if (!upstreamKey && !config.apiKey) {
+        return json(response, 503, { error: "任务没有可用的模型 API Key" });
+      }
+      if (upstreamKey && !config.userKeyEncryptionSecret) {
+        return json(response, 503, {
+          error: "USER_KEY_ENCRYPTION_SECRET 尚未配置",
+        });
       }
       const contentLength = Number(request.headers["content-length"] ?? 0);
       if (contentLength > MAX_UPLOAD_BYTES) {
@@ -237,6 +309,9 @@ export function createTaskServer(options = {}) {
         quality: String(form.get("quality") ?? "medium"),
         imageName: image.name,
         imageType: image.type,
+        encryptedUpstreamKey: upstreamKey
+          ? encryptUpstreamKey(upstreamKey, config.userKeyEncryptionSecret)
+          : undefined,
         createdAt: now,
         updatedAt: now,
       };

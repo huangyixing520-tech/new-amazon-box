@@ -17,6 +17,7 @@ import {
   Plus,
   X,
 } from "@phosphor-icons/react";
+import AccountPanel, { type ClientSession } from "./account-panel";
 import { imageTaskCount } from "./image-task-count.mjs";
 
 type Option = {
@@ -1626,6 +1627,8 @@ function AppSidebar({
   onNewConversation,
   onRename,
   onDelete,
+  session,
+  onAccount,
 }: {
   screen: "home" | "studio" | "assets";
   conversations: Conversation[];
@@ -1637,9 +1640,10 @@ function AppSidebar({
   onNewConversation: () => void;
   onRename: (conversationId: string, title: string) => void;
   onDelete: (conversationId: string) => void;
+  session: ClientSession;
+  onAccount: () => void;
 }) {
   const latestConversation = conversations[conversations.length - 1];
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     conversationId: string;
     x: number;
@@ -1661,13 +1665,6 @@ function AppSidebar({
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [contextMenu]);
-
-  useEffect(() => {
-    if (!userMenuOpen) return;
-    const close = () => setUserMenuOpen(false);
-    window.addEventListener("click", close);
-    return () => window.removeEventListener("click", close);
-  }, [userMenuOpen]);
 
   return (
     <aside className="studio-sidebar">
@@ -1779,34 +1776,36 @@ function AppSidebar({
         </div>
       ) : null}
       <div className="sidebar-account">
-        {userMenuOpen ? (
-          <div className="account-menu" role="menu" data-testid="account-menu">
-            <div className="account-menu-head">
-              <span className="avatar" aria-hidden="true">Y</span>
-              <div><strong>我的账户</strong><small>Mercato 创作者</small></div>
-            </div>
-            {["个人资料", "设置", "外观", "帮助与支持"].map((item) => (
-              <button type="button" role="menuitem" key={item}>{item}<span>›</span></button>
-            ))}
-            <button type="button" role="menuitem" className="sign-out">退出登录</button>
-          </div>
-        ) : null}
         <button
           type="button"
           className="sidebar-user"
           aria-label="个人账户"
-          aria-haspopup="menu"
-          aria-expanded={userMenuOpen}
-          onClick={(event) => {
-            event.stopPropagation();
-            setUserMenuOpen((open) => !open);
-          }}
+          aria-haspopup="dialog"
+          onClick={onAccount}
           data-testid="account-trigger"
         >
-          <span className="avatar" aria-hidden="true">Y</span>
+          {session?.user.pictureUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              className="avatar account-avatar-image"
+              src={session.user.pictureUrl}
+              alt=""
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <span className="avatar" aria-hidden="true">
+              {session?.user.name.slice(0, 1).toUpperCase() ?? "Y"}
+            </span>
+          )}
           <span>
-            <strong>我的账户</strong>
-            <small>个人设置</small>
+            <strong>{session?.user.name ?? "我的账户"}</strong>
+            <small>
+              {session
+                ? session.hasApiKey
+                  ? "API Key 已配置"
+                  : "请配置 API Key"
+                : "使用 Google 登录"}
+            </small>
           </span>
         </button>
       </div>
@@ -2090,6 +2089,9 @@ export default function Home() {
   const [assets, setAssets] = useState<AssetRecord[]>([]);
   const [regenerating, setRegenerating] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const [session, setSession] = useState<ClientSession>(null);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const controllers = useRef<Map<string, AbortController>>(new Map());
   const turnCounter = useRef(0);
   const conversationCounter = useRef(0);
@@ -2112,11 +2114,27 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    void fetch("/api/auth/session", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : { user: null })
+      .then((payload) => {
+        setSession(payload.user ? payload : null);
+        setSessionReady(true);
+      })
+      .catch(() => setSessionReady(true));
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
     void fetch("/api/assets", { cache: "no-store" })
       .then((response) => response.ok ? response.json() : { assets: [] })
       .then((payload) => setAssets(payload.assets ?? []))
       .catch(() => undefined);
-  }, []);
+  }, [session]);
+
+  const updateSession = (nextSession: ClientSession) => {
+    setSession(nextSession);
+    if (!nextSession) setAssets([]);
+  };
 
   const showNotice = (text: string) => {
     setNotice(text);
@@ -2524,6 +2542,16 @@ export default function Home() {
 
   const startGeneration = () => {
     if (!uploads.length) return;
+    if (!sessionReady || !session) {
+      setAccountOpen(true);
+      showNotice("请先使用 Google 登录");
+      return;
+    }
+    if (!session.hasApiKey) {
+      setAccountOpen(true);
+      showNotice("请先在账号管理中配置 API Key");
+      return;
+    }
     const id = `turn-${turnCounter.current += 1}`;
     const taskPrompt = prompt.trim() || selectedSkill.starter;
     const conversationId =
@@ -2767,6 +2795,8 @@ export default function Home() {
           onNewConversation={openNewConversation}
           onRename={renameConversation}
           onDelete={deleteConversation}
+          session={session}
+          onAccount={() => setAccountOpen(true)}
         />
 
         <section className="studio-main conversation-main">
@@ -2967,6 +2997,14 @@ export default function Home() {
           />
         ) : null}
 
+        {accountOpen ? (
+          <AccountPanel
+            session={session}
+            onSession={updateSession}
+            onClose={() => setAccountOpen(false)}
+          />
+        ) : null}
+
         {notice ? <div className="toast" role="status" data-testid="toast">{notice}</div> : null}
       </main>
     );
@@ -2986,6 +3024,8 @@ export default function Home() {
           onNewConversation={openNewConversation}
           onRename={renameConversation}
           onDelete={deleteConversation}
+          session={session}
+          onAccount={() => setAccountOpen(true)}
         />
         <section className="studio-main assets-main">
           <AssetLibrary
@@ -3013,6 +3053,13 @@ export default function Home() {
             onClose={() => setPreview(null)}
           />
         ) : null}
+        {accountOpen ? (
+          <AccountPanel
+            session={session}
+            onSession={updateSession}
+            onClose={() => setAccountOpen(false)}
+          />
+        ) : null}
         {notice ? <div className="toast" role="status" data-testid="toast">{notice}</div> : null}
       </main>
     );
@@ -3031,6 +3078,8 @@ export default function Home() {
         onNewConversation={openNewConversation}
         onRename={renameConversation}
         onDelete={deleteConversation}
+        session={session}
+        onAccount={() => setAccountOpen(true)}
       />
       <section className="home-workspace" id="create">
         <div className="home-stage">
@@ -3071,6 +3120,13 @@ export default function Home() {
           </div>
         </div>
       </section>
+      {accountOpen ? (
+        <AccountPanel
+          session={session}
+          onSession={updateSession}
+          onClose={() => setAccountOpen(false)}
+        />
+      ) : null}
     </main>
   );
 }

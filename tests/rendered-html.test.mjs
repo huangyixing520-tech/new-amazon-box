@@ -49,7 +49,17 @@ test("server-renders the Mercato creation workspace", async () => {
 });
 
 test("ships the complete generation flow and its assets", async () => {
-  const [page, layout, styles, packageJson, generateRoute, assetRoute, taskBackend] = await Promise.all([
+  const [
+    page,
+    layout,
+    styles,
+    packageJson,
+    generateRoute,
+    assetRoute,
+    taskBackend,
+    accountPanel,
+    authLibrary,
+  ] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
@@ -57,6 +67,8 @@ test("ships the complete generation flow and its assets", async () => {
     readFile(new URL("../app/api/generate/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/assets/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../task-backend/server.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../app/account-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/auth.ts", import.meta.url), "utf8"),
     access(new URL("../public/product-main.png", import.meta.url)),
     access(new URL("../public/product-lifestyle.png", import.meta.url)),
     access(new URL("../public/product-outdoor.png", import.meta.url)),
@@ -140,8 +152,10 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /对话已删除/);
   assert.match(page, /prefix="技能"/);
   assert.match(page, /account-trigger/);
-  assert.match(page, /account-menu/);
-  assert.match(page, /帮助与支持/);
+  assert.match(accountPanel, /使用 Google 账号登录/);
+  assert.match(accountPanel, /添加 API Key|替换 API Key/);
+  assert.match(accountPanel, /\/api\/auth\/google/);
+  assert.match(accountPanel, /\/api\/account\/api-key/);
   assert.match(page, /让 Mercato 帮我生成/);
   assert.match(page, /promptIdeas/);
   assert.match(page, /setPromptIdeaText/);
@@ -191,18 +205,26 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /Portuguese/);
   assert.match(generateRoute, /never as "one-touch operation"/);
   assert.match(generateRoute, /Always return non-empty numeric salePrice/);
-  assert.match(generateRoute, /process\.env\.DOLA_API_KEY/);
+  assert.match(generateRoute, /userApiKey\(request\)/);
+  assert.doesNotMatch(generateRoute, /process\.env\.DOLA_API_KEY/);
   assert.doesNotMatch(generateRoute, /DOLA_API_KEY\s*=\s*["'][^"']+["']/);
   assert.match(generateRoute, /process\.env\.TASK_BACKEND_URL/);
   assert.match(generateRoute, /process\.env\.TASK_BACKEND_TOKEN/);
   assert.match(generateRoute, /imageTaskId/);
   assert.match(assetRoute, /GENERATED_ASSETS/);
-  assert.match(assetRoute, /ORDER BY created_at DESC/);
+  assert.match(assetRoute, /asset_owners/);
+  assert.match(assetRoute, /ORDER BY a\.created_at DESC/);
+  assert.match(authLibrary, /API_KEY_ENCRYPTION_SECRET/);
+  assert.match(authLibrary, /AES-GCM/);
+  assert.match(authLibrary, /HttpOnly/);
+  assert.match(authLibrary, /email_verified/);
   assert.match(taskBackend, /status: "queued"/);
   assert.match(taskBackend, /status = "running"/);
   assert.match(taskBackend, /status = "succeeded"/);
   assert.match(taskBackend, /status = "failed"/);
   assert.match(taskBackend, /TASK_CONCURRENCY/);
+  assert.match(taskBackend, /USER_KEY_ENCRYPTION_SECRET/);
+  assert.match(taskBackend, /x-mercato-upstream-key/);
 });
 
 test("accepts common direct and nested image response shapes", () => {
