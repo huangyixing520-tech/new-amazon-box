@@ -7,9 +7,9 @@ Amazon Listing content.
 
 - `app/`: public Mercato web app and server routes
 - Google Identity Services: user sign-in
-- Cloudflare D1: user profiles, encrypted API-key metadata, task ownership, and
-  asset ownership
-- Cloudflare R2: generated image and video files
+- Cloudflare D1/R2 on Sites, or SQLite plus a persistent filesystem volume on
+  Railway: user profiles, encrypted API-key metadata, task ownership, and
+  generated assets
 - `task-backend/`: persistent Railway worker for asynchronous image jobs
 - Dola-compatible API: LLM, image, and video model gateway
 
@@ -29,8 +29,9 @@ cp .env.example .env.local
 npm run dev
 ```
 
-The D1 and R2 bindings are declared in `.openai/hosting.json`. Local bindings
-are simulated by the project Vite configuration.
+The D1 and R2 bindings are declared in `.openai/hosting.json`. When those
+bindings are unavailable (local production or Railway), Mercato automatically
+uses SQLite and local object storage under `MERCATO_DATA_DIR`.
 
 ## Required production configuration
 
@@ -41,6 +42,10 @@ The web site requires:
 - `API_KEY_ENCRYPTION_SECRET`
 - `TASK_BACKEND_URL`
 - `TASK_BACKEND_TOKEN`
+
+For a public Railway deployment, mount a persistent volume at `/data` and set
+`MERCATO_DATA_DIR=/data`. `railway.json` contains the production build, start,
+health-check, and restart policy.
 
 The Railway task service requires:
 

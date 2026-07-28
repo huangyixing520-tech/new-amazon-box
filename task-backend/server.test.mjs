@@ -12,6 +12,12 @@ function listen(server) {
   });
 }
 
+function close(server) {
+  return new Promise((resolve, reject) => {
+    server.close((error) => error ? reject(error) : resolve());
+  });
+}
+
 test("returns immediately, runs the image job, and exposes its result", async (context) => {
   const dataDir = await mkdtemp(join(tmpdir(), "mercato-task-"));
   context.after(() => rm(dataDir, { recursive: true, force: true }));
@@ -24,7 +30,7 @@ test("returns immediately, runs the image job, and exposes its result", async (c
     response.end(JSON.stringify({ data: [{ b64_json: "generated-image" }] }));
   });
   const upstreamPort = await listen(upstream);
-  context.after(() => upstream.close());
+  context.after(() => close(upstream));
 
   const backend = createTaskServer({
     dataDir,
@@ -34,7 +40,7 @@ test("returns immediately, runs the image job, and exposes its result", async (c
     concurrency: 1,
   });
   const backendPort = await listen(backend);
-  context.after(() => backend.close());
+  context.after(() => close(backend));
 
   const form = new FormData();
   form.set("prompt", "Keep the product exact");
@@ -74,7 +80,7 @@ test("protects task endpoints while keeping health public", async (context) => {
     token: "backend-test",
   });
   const port = await listen(backend);
-  context.after(() => backend.close());
+  context.after(() => close(backend));
 
   assert.equal((await fetch(`http://127.0.0.1:${port}/health`)).status, 200);
   assert.equal((await fetch(`http://127.0.0.1:${port}/v1/image-tasks/not-found`)).status, 401);
@@ -102,7 +108,7 @@ test("retries a logical 429 returned with HTTP 200", async (context) => {
     ));
   });
   const upstreamPort = await listen(upstream);
-  context.after(() => upstream.close());
+  context.after(() => close(upstream));
 
   const backend = createTaskServer({
     dataDir,
@@ -112,7 +118,7 @@ test("retries a logical 429 returned with HTTP 200", async (context) => {
     retryDelays: [1],
   });
   const backendPort = await listen(backend);
-  context.after(() => backend.close());
+  context.after(() => close(backend));
 
   const form = new FormData();
   form.set("image", new File(["product"], "product.png", { type: "image/png" }));
@@ -146,7 +152,7 @@ test("uses a per-user key without exposing or persisting it in plaintext", async
     response.end(JSON.stringify({ data: [{ url: "https://example.com/user.png" }] }));
   });
   const upstreamPort = await listen(upstream);
-  context.after(() => upstream.close());
+  context.after(() => close(upstream));
 
   const backend = createTaskServer({
     dataDir,
@@ -156,7 +162,7 @@ test("uses a per-user key without exposing or persisting it in plaintext", async
     retryDelays: [],
   });
   const backendPort = await listen(backend);
-  context.after(() => backend.close());
+  context.after(() => close(backend));
 
   const form = new FormData();
   form.set("prompt", "One image only");
