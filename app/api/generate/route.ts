@@ -6,17 +6,43 @@ const VIDEO_MODEL = process.env.VIDEO_MODEL ?? "novai/seedance-2.0-mini";
 
 const languageNames: Record<string, string> = {
   en: "English",
+  zh: "Chinese",
+  ja: "Japanese",
+  ru: "Russian",
+  it: "Italian",
+  fr: "French",
+  es: "Spanish",
   de: "German",
-  jp: "Japanese",
-  zh: "Simplified Chinese",
+  ko: "Korean",
+  th: "Thai",
+  pt: "Portuguese",
+  ms: "Malay",
+  nl: "Dutch",
+  pl: "Polish",
+  sv: "Swedish",
+  tr: "Turkish",
+  other: "the user-selected language",
 };
 
 const regionNames: Record<string, string> = {
-  us: "Amazon US",
-  uk: "Amazon UK",
-  de: "Amazon Germany",
-  jp: "Amazon Japan",
-  sea: "Southeast Asia",
+  us: "United States",
+  cn: "China",
+  eu: "European Union",
+  jp: "Japan",
+  br: "Brazil",
+  kr: "South Korea",
+  tha: "Thailand",
+  ru: "Russia",
+  uk: "United Kingdom",
+  in: "India",
+  phl: "Philippines",
+  id: "Indonesia",
+  mys: "Malaysia",
+  vnm: "Vietnam",
+  mx: "Mexico",
+  latam: "Latin America",
+  gcc: "Gulf Cooperation Council / Middle East",
+  other: "the user-selected market",
 };
 
 const imagePrompts: Record<string, string[]> = {
@@ -54,14 +80,14 @@ const imagePrompts: Record<string, string[]> = {
 };
 
 const mainImagePrompts = [
-  "Amazon-compliant square hero image, pure white background, centered product, accurate shape and color, realistic soft shadow, no text",
-  "Square ecommerce feature image showing the product's clearest visible benefit with a focused commercial composition",
-  "Square lifestyle image showing the product in believable everyday use",
-  "Square detail image emphasizing visible materials, construction and craftsmanship",
-  "Square scale and portability image with a clean marketplace composition",
-  "Square accessory or usage-step image using only details supported by the reference product",
-  "Square alternative lifestyle image for a second realistic use case",
-  "Square premium closing image with the product as the clear focal point",
+  "Amazon-compliant ecommerce hero image, pure white background, centered product, accurate shape and color, realistic soft shadow, no text",
+  "Ecommerce feature image showing the product's clearest visible benefit with a focused commercial composition",
+  "Lifestyle image showing the product in believable everyday use",
+  "Detail image emphasizing visible materials, construction and craftsmanship",
+  "Scale and portability image with a clean marketplace composition",
+  "Accessory or usage-step image using only details supported by the reference product",
+  "Alternative lifestyle image for a second realistic use case",
+  "Premium closing image with the product as the clear focal point",
 ];
 
 const aPlusPrompts = [
@@ -86,15 +112,24 @@ function formContext(form: FormData) {
   const platform = String(form.get("platform") ?? "amazon");
   const brandColor = String(form.get("brandColor") ?? "#111111");
   const fontStyle = String(form.get("fontStyle") ?? "auto");
+  const aPlusType = String(form.get("aPlusType") ?? "advanced");
+  const aPlusCount = Math.max(0, Number(form.get("aPlusCount") ?? 0));
+  const mainImageCount = Math.max(0, Number(form.get("mainImageCount") ?? 0));
+  const mainImageRatio = String(form.get("mainImageRatio") ?? "1:1");
   return {
     region,
     language,
     platform,
     brandColor,
     fontStyle,
-    text: `Sales market: ${regionNames[region] ?? region}. Output language: ${
+    aPlusType,
+    aPlusCount,
+    mainImageCount,
+    mainImageRatio,
+    brandText: `Sales market: ${regionNames[region] ?? region}. Output language: ${
       languageNames[language] ?? language
     }. Publishing platform: ${platform}. Brand primary color: ${brandColor}. Typography direction: ${fontStyle}.`,
+    generationText: `Main and secondary images: ${mainImageCount}. Main and secondary image ratio: ${mainImageRatio}. A+ type: ${aPlusType}. A+ images: ${aPlusCount}.`,
   };
 }
 
@@ -161,8 +196,13 @@ async function listingMessages(form: FormData) {
   const userText = `[FORM]
 Generation mode: Listing generation
 Skill: ${skill}
-${context.text}
 Uploaded image: ${imageName}
+
+[BRAND GENE]
+${context.brandText}
+
+[GENERATION SETTINGS]
+${context.generationText}
 
 [USER INPUT]
 ${prompt || "Create a complete marketplace listing from the supplied product information."}
@@ -266,11 +306,13 @@ async function createImage(form: FormData) {
   const request = new FormData();
   request.set(
     "prompt",
-    `${preset}. ${context.text} Preserve the uploaded product's identity, silhouette, proportions, colors, logo and visible functional details. Do not combine multiple layouts into a collage. Create exactly one finished image for this single task. ${prompt}`.trim(),
+    `${preset}. ${context.brandText} ${context.generationText} Preserve the uploaded product's identity, silhouette, proportions, colors, logo and visible functional details. Do not combine multiple layouts into a collage. Create exactly one finished image for this single task. ${prompt}`.trim(),
   );
   request.set(
     "size",
-    slotType === "a-plus-mobile" || skill === "china-seeding-image"
+    slotType === "a-plus-mobile"
+      || skill === "china-seeding-image"
+      || (slotType === "main" && context.mainImageRatio === "3:4")
       ? "1024x1536"
       : slotType === "a-plus"
         || (slot >= 4 && ["amazon-image-set", "ecommerce-image-set"].includes(skill))
@@ -321,7 +363,7 @@ async function createVideo(form: FormData) {
       content: [
         {
           type: "text",
-          text: `${skillDirection} ${context.text} ${
+          text: `${skillDirection} ${context.brandText} ${
             prompt || "Create a polished 15-second ecommerce product video."
           } Keep the exact product identity. No subtitles, overlays, prices, watermarks or newly generated visible text.`,
         },

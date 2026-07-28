@@ -42,6 +42,7 @@ type SuiteSettings = {
   aPlusType: string;
   aPlusCount: number;
   mainImageCount: number;
+  mainImageRatio: "1:1" | "3:4";
 };
 
 type GalleryItem = {
@@ -50,6 +51,7 @@ type GalleryItem = {
   title: string;
   image: string;
   wide?: boolean;
+  portrait?: boolean;
   crop?: string;
 };
 
@@ -183,18 +185,44 @@ const skillsByMode = (mode: GenerationMode) =>
   skills.filter((item) => item.mode === mode);
 
 const regions: Option[] = [
-  { id: "us", label: "美国站" },
-  { id: "uk", label: "英国站" },
-  { id: "de", label: "德国站" },
-  { id: "jp", label: "日本站" },
-  { id: "sea", label: "东南亚" },
+  { id: "us", label: "🇺🇸 US（美国）" },
+  { id: "cn", label: "🇨🇳 CN（中国）" },
+  { id: "eu", label: "🇪🇺 EU（欧洲）" },
+  { id: "jp", label: "🇯🇵 JP（日本）" },
+  { id: "br", label: "🇧🇷 BR（巴西）" },
+  { id: "kr", label: "🇰🇷 KR（韩国）" },
+  { id: "tha", label: "🇹🇭 THA（泰国）" },
+  { id: "ru", label: "🇷🇺 RU（俄罗斯）" },
+  { id: "uk", label: "🇬🇧 UK（英国）" },
+  { id: "in", label: "🇮🇳 IN（印度）" },
+  { id: "phl", label: "🇵🇭 PHL（菲律宾）" },
+  { id: "id", label: "🇮🇩 ID（印尼）" },
+  { id: "mys", label: "🇲🇾 MYS（马来西亚）" },
+  { id: "vnm", label: "🇻🇳 VNM（越南）" },
+  { id: "mx", label: "🇲🇽 MX（墨西哥）" },
+  { id: "latam", label: "🌎 LATAM（拉美）" },
+  { id: "gcc", label: "🌍 GCC（中东）" },
+  { id: "other", label: "🌐 其他地区" },
 ];
 
 const languages: Option[] = [
-  { id: "en", label: "English" },
-  { id: "de", label: "Deutsch" },
-  { id: "jp", label: "日本語" },
-  { id: "zh", label: "简体中文" },
+  { id: "en", label: "英语" },
+  { id: "zh", label: "中文" },
+  { id: "ja", label: "日语" },
+  { id: "ru", label: "俄语" },
+  { id: "it", label: "意大利语" },
+  { id: "fr", label: "法语" },
+  { id: "es", label: "西班牙语" },
+  { id: "de", label: "德语" },
+  { id: "ko", label: "韩语" },
+  { id: "th", label: "泰语" },
+  { id: "pt", label: "葡萄牙语" },
+  { id: "ms", label: "马来语" },
+  { id: "nl", label: "荷兰语" },
+  { id: "pl", label: "波兰语" },
+  { id: "sv", label: "瑞典语" },
+  { id: "tr", label: "土耳其语" },
+  { id: "other", label: "其他语言" },
 ];
 
 const platforms: Option[] = [
@@ -229,6 +257,11 @@ const mainImageCounts: Option[] = Array.from({ length: 8 }, (_, index) => ({
   label: `${index + 1} 张`,
 }));
 
+const mainImageRatios: Option[] = [
+  { id: "1:1", label: "1:1" },
+  { id: "3:4", label: "3:4" },
+];
+
 const defaultBrandSettings: BrandSettings = {
   primaryColor: "#111111",
   fontStyle: "auto",
@@ -239,10 +272,15 @@ const defaultSuiteSettings: SuiteSettings = {
   aPlusType: "advanced",
   aPlusCount: 5,
   mainImageCount: 5,
+  mainImageRatio: "1:1",
 };
 
-function isSuiteSkill(skillId: string) {
+function isImageSuiteSkill(skillId: string) {
   return ["amazon-image-set", "ecommerce-image-set"].includes(skillId);
+}
+
+function hasSuiteSettings(skillId: string) {
+  return isImageSuiteSkill(skillId) || skillId === "amazon-listing";
 }
 
 function explicitImageCount(prompt: string) {
@@ -266,7 +304,7 @@ function explicitImageCount(prompt: string) {
 function suiteTaskCount(skillId: string, suite: SuiteSettings, prompt: string) {
   const explicit = explicitImageCount(prompt);
   if (explicit) return explicit;
-  if (!isSuiteSkill(skillId)) return 0;
+  if (!hasSuiteSettings(skillId)) return 0;
   const mobileCount = suite.aPlusType === "advanced-mobile" ? suite.aPlusCount : 0;
   return suite.mainImageCount + suite.aPlusCount + mobileCount;
 }
@@ -360,7 +398,7 @@ function suiteItems(
   count: number,
   suite: SuiteSettings = defaultSuiteSettings,
 ) {
-  if (isSuiteSkill(skillId)) {
+  if (hasSuiteSettings(skillId)) {
     return Array.from({ length: count }, (_, index) => {
       const slot = suiteSlot(suite, index);
       const isAPlus = slot.type === "a-plus";
@@ -371,7 +409,7 @@ function suiteItems(
           ? `手机 A+ ${slot.index + 1} · 2:3`
           : isAPlus
             ? `A+ 图 ${slot.index + 1} · 3:2`
-            : `主副图 ${slot.index + 1} · 1:1`,
+            : `主副图 ${slot.index + 1} · ${suite.mainImageRatio}`,
         title: isMobile
           ? `手机 A+ 图 ${slot.index + 1}`
           : isAPlus
@@ -381,6 +419,7 @@ function suiteItems(
               : `商品副图 ${slot.index}`,
         image: index < gallery.length ? gallery[index].image : "/product-main.png",
         wide: isAPlus,
+        portrait: slot.type === "main" && suite.mainImageRatio === "3:4",
       };
     });
   }
@@ -395,6 +434,9 @@ function suiteItems(
 }
 
 function progressTotal(turn: Turn) {
+  if (turn.kind === "listing" && turn.imageTaskCount) {
+    return turn.imageTaskCount + 1;
+  }
   return turn.imageTaskCount ?? generationCopy[turn.kind].phases.length;
 }
 
@@ -458,7 +500,7 @@ const listingCopy = {
     description:
       "Ihr Café-Ritual für unterwegs. BrewGo verbindet präzisen Druck, schnelles Aufheizen und ein kompaktes Design für frischen Espresso an jedem Ort.",
   },
-  jp: {
+  ja: {
     title:
       "BrewGo ポータブルエスプレッソメーカー 自動加熱 USB-C充電 20気圧 コーヒー粉・カプセル対応 旅行・オフィス・キャンプ用",
     about: "この商品について",
@@ -748,7 +790,7 @@ function Composer({
             rich
             testId="skill-trigger"
           />
-          {isSuiteSkill(skill) ? (
+          {hasSuiteSettings(skill) ? (
             <>
               <OptionMenu
                 label="A+ 类型"
@@ -788,6 +830,21 @@ function Composer({
                 }}
                 prefix="主副图"
                 testId="main-image-count-trigger"
+              />
+              <OptionMenu
+                label="主副图比例"
+                options={mainImageRatios}
+                value={suite.mainImageRatio}
+                open={openMenu === "main-image-ratio"}
+                onOpen={() => setOpenMenu(
+                  openMenu === "main-image-ratio" ? null : "main-image-ratio",
+                )}
+                onChange={(value) => {
+                  onSuite({ ...suite, mainImageRatio: value as "1:1" | "3:4" });
+                  setOpenMenu(null);
+                }}
+                prefix="主副图比例"
+                testId="main-image-ratio-trigger"
               />
             </>
           ) : null}
@@ -903,6 +960,8 @@ function ListingResult({
   language,
   region,
   data,
+  generatedImages = [],
+  suite,
   ready,
   onNotice,
 }: {
@@ -910,6 +969,8 @@ function ListingResult({
   language: string;
   region: string;
   data?: ListingData;
+  generatedImages?: string[];
+  suite: SuiteSettings;
   ready: boolean;
   onNotice: (text: string) => void;
 }) {
@@ -941,7 +1002,19 @@ function ListingResult({
   const category = data?.category ?? "Marketplace › Generated product";
   const color = specs.find(([label]) => label.toLowerCase() === "color")?.[1];
   const featureStats = specs.slice(0, 3);
-  const shownGalleryImage = galleryImage || productImage;
+  const generatedMainImages = generatedImages
+    .slice(0, suite.mainImageCount)
+    .filter(Boolean);
+  const generatedAPlusImages = generatedImages
+    .slice(suite.mainImageCount, suite.mainImageCount + suite.aPlusCount)
+    .filter(Boolean);
+  const generatedMobileAPlusImages = generatedImages
+    .slice(suite.mainImageCount + suite.aPlusCount)
+    .filter(Boolean);
+  const listingImages = generatedMainImages.length
+    ? generatedMainImages
+    : [productImage, "/product-lifestyle.png", "/product-outdoor.png"];
+  const shownGalleryImage = galleryImage || listingImages[0];
   const productSlug = data?.productUrlSlug ?? "MERCATO-GENERATED";
 
   if (!ready) {
@@ -993,9 +1066,11 @@ function ListingResult({
     aPlus: {
       headline: aPlusHeadline,
       featureStats,
+      images: generatedAPlusImages,
+      mobileImages: generatedMobileAPlusImages,
     },
     specifications: Object.fromEntries(specs),
-    images: [productImage, "/product-lifestyle.png", "/product-outdoor.png"],
+    images: listingImages,
     generatedBy: "Mercato AI",
   }, null, 2);
   const downloadHref = `data:application/json;charset=utf-8,${encodeURIComponent(listingJson)}`;
@@ -1048,7 +1123,7 @@ function ListingResult({
       <div className="market-product">
         <div className="market-gallery">
           <div className="thumbnail-rail" aria-label="商品图片">
-            {[productImage, "/product-lifestyle.png", "/product-outdoor.png"].map(
+            {listingImages.map(
               (image, index) => (
                 <button
                   type="button"
@@ -1123,7 +1198,7 @@ function ListingResult({
               <div className="color-swatch">
                 <button type="button" aria-label={color}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={productImage} alt="" />
+                  <img src={listingImages[0]} alt="" />
                 </button>
               </div>
             </>
@@ -1220,7 +1295,10 @@ function ListingResult({
         <p className="a-plus-label">From the brand</p>
         <div className="a-plus-hero">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/product-lifestyle.png" alt={`${brand} 品牌场景`} />
+          <img
+            src={generatedAPlusImages[0] ?? "/product-lifestyle.png"}
+            alt={`${brand} 品牌场景`}
+          />
           <div>
             <span>{brand.toUpperCase()}</span>
             <textarea
@@ -1244,6 +1322,22 @@ function ListingResult({
           <div className="a-plus-features">
             {featureStats.map(([label, value]) => (
               <div key={label}><b>{label}</b><span>{value}</span></div>
+            ))}
+          </div>
+        ) : null}
+        {generatedAPlusImages.length > 1 ? (
+          <div className="listing-a-plus-gallery" aria-label="生成的 A+ 图片">
+            {generatedAPlusImages.slice(1).map((image, index) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={image} alt={`A+ 图片 ${index + 2}`} key={`${image}-${index}`} />
+            ))}
+          </div>
+        ) : null}
+        {generatedMobileAPlusImages.length ? (
+          <div className="listing-mobile-a-plus" aria-label="生成的手机 A+ 图片">
+            {generatedMobileAPlusImages.map((image, index) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={image} alt={`手机 A+ 图片 ${index + 1}`} key={`${image}-${index}`} />
             ))}
           </div>
         ) : null}
@@ -1292,7 +1386,9 @@ function ImageSuite({
           const ready = Boolean(generatedImages[index]) && regenerating !== item.id;
           return (
             <article
-              className={`asset-card ${item.wide ? "asset-wide" : ""}`}
+              className={`asset-card ${item.wide ? "asset-wide" : ""} ${
+                item.portrait ? "asset-portrait" : ""
+              }`}
               key={item.id}
               data-testid={`image-card-${index}`}
             >
@@ -1815,10 +1911,19 @@ export default function Home() {
     form.set("aPlusType", turn.suite.aPlusType);
     form.set("aPlusCount", String(turn.suite.aPlusCount));
     form.set("mainImageCount", String(turn.suite.mainImageCount));
+    form.set("mainImageRatio", turn.suite.mainImageRatio);
+    form.set("brandContext", JSON.stringify({
+      primaryColor: turn.brand.primaryColor,
+      fontStyle: turn.brand.fontStyle,
+      market: regions.find((item) => item.id === turn.region)?.label ?? turn.region,
+      language: languages.find((item) => item.id === turn.language)?.label ?? turn.language,
+      platform: platforms.find((item) => item.id === turn.brand.platform)?.label
+        ?? turn.brand.platform,
+    }));
     form.set("prompt", turn.prompt);
     if (slot !== undefined) {
       form.set("slot", String(slot));
-      if (isSuiteSkill(turn.skill)) {
+      if (hasSuiteSettings(turn.skill)) {
         const slotConfig = suiteSlot(turn.suite, slot);
         form.set("slotType", slotConfig.type);
         form.set("slotIndex", String(slotConfig.index));
@@ -1862,7 +1967,15 @@ export default function Home() {
   };
 
   const runListing = async (turn: Turn, upload: Upload, signal: AbortSignal) => {
-    patchTurn(turn.id, { phase: "正在理解商品图片", completed: 1 });
+    const suiteImageCount = turn.skill === "amazon-listing"
+      ? turn.imageTaskCount ?? 0
+      : 0;
+    patchTurn(turn.id, {
+      phase: "正在理解商品图片",
+      completed: suiteImageCount ? 0 : 1,
+      images: suiteImageCount ? [] : turn.images,
+      failedImageSlots: suiteImageCount ? [] : turn.failedImageSlots,
+    });
     const response = await fetch("/api/generate", {
       method: "POST",
       body: await generationForm(turn, upload, "listing"),
@@ -1874,7 +1987,10 @@ export default function Home() {
     const decoder = new TextDecoder();
     let pending = "";
     let generated = "";
-    patchTurn(turn.id, { phase: "正在流式生成 Listing", completed: 2 });
+    patchTurn(turn.id, {
+      phase: "正在流式生成 Listing",
+      completed: suiteImageCount ? 0 : 2,
+    });
 
     while (true) {
       const { done, value } = await reader.read();
@@ -1893,11 +2009,66 @@ export default function Home() {
     }
 
     const listing = parseListingJson(generated);
+    if (!suiteImageCount) {
+      patchTurn(turn.id, {
+        listing,
+        agentText: visibleAgentText(generated),
+        phase: "生成完成",
+        completed: generationCopy.listing.phases.length,
+        running: false,
+      });
+      return;
+    }
+
     patchTurn(turn.id, {
       listing,
       agentText: visibleAgentText(generated),
-      phase: "生成完成",
-      completed: generationCopy.listing.phases.length,
+      phase: `Listing 已完成，正在生成 0 / ${suiteImageCount} 张套图`,
+      completed: 1,
+    });
+
+    const results = new Array<string>(suiteImageCount);
+    const failedSlots: number[] = [];
+    let nextSlot = 0;
+    let firstError = "";
+
+    const worker = async () => {
+      while (nextSlot < suiteImageCount) {
+        const slot = nextSlot++;
+        try {
+          results[slot] = await runImageTask(
+            await generationForm(turn, upload, "image", slot),
+            signal,
+          );
+        } catch (error) {
+          if ((error as Error).name === "AbortError") throw error;
+          failedSlots.push(slot);
+          firstError ||= error instanceof Error ? error.message : "图片生成失败";
+        }
+        const done = results.filter(Boolean).length;
+        patchTurn(turn.id, {
+          images: [...results],
+          failedImageSlots: [...failedSlots],
+          completed: 1 + done,
+          phase: failedSlots.length
+            ? `Listing 已完成 · 套图 ${done} / ${suiteImageCount} 张 · ${failedSlots.length} 张失败`
+            : `Listing 已完成 · 套图 ${done} / ${suiteImageCount} 张`,
+        });
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(2, suiteImageCount) }, worker),
+    );
+    const done = results.filter(Boolean).length;
+    if (!done) throw new Error(firstError || "Listing 文案已完成，但套图生成失败");
+    patchTurn(turn.id, {
+      images: results,
+      failedImageSlots: failedSlots,
+      phase: failedSlots.length
+        ? `Listing 与 ${done} / ${suiteImageCount} 张套图已完成`
+        : "生成完成",
+      completed: 1 + done,
       running: false,
     });
   };
@@ -2019,7 +2190,7 @@ export default function Home() {
     if (!uploads.length) return;
     const id = `turn-${turnCounter.current += 1}`;
     const taskPrompt = prompt.trim() || selectedSkill.starter;
-    const configuredImageCount = isSuiteSkill(selectedSkill.id)
+    const configuredImageCount = hasSuiteSettings(selectedSkill.id)
       ? suiteTaskCount(selectedSkill.id, suite, taskPrompt)
       : imageTaskCount(selectedKind, taskPrompt);
     const turn: Turn = {
@@ -2161,7 +2332,9 @@ export default function Home() {
             {turns.map((turn, index) => {
               const generation = generationCopy[turn.kind];
               const total = progressTotal(turn);
-              const ready = turn.completed === total && !turn.running;
+              const ready = turn.kind === "listing"
+                ? Boolean(turn.listing)
+                : turn.completed === total && !turn.running;
               return (
                 <article className="conversation-turn" id={turn.id} key={turn.id} data-testid={`conversation-turn-${index}`}>
                   <div className="user-message">
@@ -2179,9 +2352,10 @@ export default function Home() {
                           <span>{skills.find((item) => item.id === turn.skill)?.label}</span>
                           <span>{regions.find((item) => item.id === turn.region)?.label}</span>
                           <span>{languages.find((item) => item.id === turn.language)?.label}</span>
-                          {isSuiteSkill(turn.skill) ? (
+                          {hasSuiteSettings(turn.skill) ? (
                             <span>
                               主副图 {turn.suite.mainImageCount} · A+ {turn.suite.aPlusCount}
+                              {" · "}{turn.suite.mainImageRatio}
                               {turn.suite.aPlusType === "advanced-mobile" ? " · 含手机 A+" : ""}
                             </span>
                           ) : null}
@@ -2198,7 +2372,13 @@ export default function Home() {
                           <span>Mercato AI</span>
                           <h2>{skills.find((item) => item.id === turn.skill)?.label ?? generation.title}</h2>
                         </div>
-                        <span>{turn.imageTaskCount ? `${total} 张图片` : generation.count}</span>
+                        <span>
+                          {turn.kind === "listing" && turn.imageTaskCount
+                            ? `1 个 Listing + ${turn.imageTaskCount} 张图片`
+                            : turn.imageTaskCount
+                              ? `${total} 张图片`
+                              : generation.count}
+                        </span>
                       </header>
 
                       <div className="generation-status">
@@ -2248,6 +2428,8 @@ export default function Home() {
                             language={turn.language}
                             region={turn.region}
                             data={turn.listing}
+                            generatedImages={turn.images}
+                            suite={turn.suite}
                             ready={ready}
                             onNotice={showNotice}
                           />
