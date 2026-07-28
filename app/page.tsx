@@ -7,6 +7,16 @@ import {
   type ChangeEvent,
   type KeyboardEvent,
 } from "react";
+import {
+  ArrowUp,
+  CaretDown,
+  CaretUp,
+  ChatCircle,
+  House,
+  Images,
+  Plus,
+  X,
+} from "@phosphor-icons/react";
 import { imageTaskCount } from "./image-task-count.mjs";
 
 type Option = {
@@ -70,6 +80,8 @@ type ListingData = {
 
 type Turn = {
   id: string;
+  conversationId: string;
+  createdAt: string;
   title: string;
   prompt: string;
   mode: GenerationMode;
@@ -90,6 +102,28 @@ type Turn = {
   imageTaskCount?: number;
   failedImageSlots?: number[];
   videoUrl?: string;
+};
+
+type Conversation = {
+  id: string;
+  title: string;
+  createdAt: string;
+};
+
+type PreviewState = GalleryItem & {
+  turnId: string;
+  slot: number;
+};
+
+type AssetRecord = {
+  id: string;
+  type: "image" | "video";
+  title: string;
+  prompt: string;
+  url: string;
+  conversationId: string;
+  turnId: string;
+  createdAt: string;
 };
 
 const modes: Option[] = [
@@ -247,7 +281,7 @@ const aPlusTypes: Option[] = [
   { id: "advanced-mobile", label: "高级 + 手机 A+" },
 ];
 
-const aPlusCounts: Option[] = Array.from({ length: 6 }, (_, count) => ({
+const aPlusCounts: Option[] = Array.from({ length: 9 }, (_, count) => ({
   id: String(count),
   label: `${count} 张`,
 }));
@@ -582,7 +616,7 @@ function OptionMenu({
       >
         <span>{prefix ? <b className="option-prefix">{prefix}：</b> : null}{selected.label}</span>
         <span className="chevron" aria-hidden="true">
-          {open ? "⌃" : "⌄"}
+          {open ? <CaretUp weight="bold" /> : <CaretDown weight="bold" />}
         </span>
       </button>
       {open ? (
@@ -745,7 +779,7 @@ function Composer({
               data-testid="file-input"
               onChange={onFiles}
             />
-            <span aria-hidden="true">＋</span>
+            <Plus aria-hidden="true" weight="bold" />
             <span>上传图片</span>
           </label>
           <OptionMenu
@@ -772,7 +806,9 @@ function Composer({
             >
               <span>品牌基因</span>
               <span className="chevron" aria-hidden="true">
-                {openMenu === "brand-gene" ? "⌃" : "⌄"}
+                {openMenu === "brand-gene"
+                  ? <CaretUp weight="bold" />
+                  : <CaretDown weight="bold" />}
               </span>
             </button>
           </div>
@@ -819,19 +855,6 @@ function Composer({
                 testId="a-plus-count-trigger"
               />
               <OptionMenu
-                label="主副图数量"
-                options={mainImageCounts}
-                value={String(suite.mainImageCount)}
-                open={openMenu === "main-image-count"}
-                onOpen={() => setOpenMenu(openMenu === "main-image-count" ? null : "main-image-count")}
-                onChange={(value) => {
-                  onSuite({ ...suite, mainImageCount: Number(value) });
-                  setOpenMenu(null);
-                }}
-                prefix="主副图"
-                testId="main-image-count-trigger"
-              />
-              <OptionMenu
                 label="主副图比例"
                 options={mainImageRatios}
                 value={suite.mainImageRatio}
@@ -846,6 +869,19 @@ function Composer({
                 prefix="主副图比例"
                 testId="main-image-ratio-trigger"
               />
+              <OptionMenu
+                label="主副图数量"
+                options={mainImageCounts}
+                value={String(suite.mainImageCount)}
+                open={openMenu === "main-image-count"}
+                onOpen={() => setOpenMenu(openMenu === "main-image-count" ? null : "main-image-count")}
+                onChange={(value) => {
+                  onSuite({ ...suite, mainImageCount: Number(value) });
+                  setOpenMenu(null);
+                }}
+                prefix="主副图"
+                testId="main-image-count-trigger"
+              />
             </>
           ) : null}
         </div>
@@ -859,7 +895,7 @@ function Composer({
             disabled={disabled}
             onClick={onSend}
           >
-            ↑
+            <ArrowUp aria-hidden="true" weight="bold" />
           </button>
         </div>
       </div>
@@ -1361,7 +1397,7 @@ function ImageSuite({
   suite?: SuiteSettings;
   generatedImages?: string[];
   failedSlots?: number[];
-  onPreview: (item: GalleryItem) => void;
+  onPreview: (item: GalleryItem, slot: number) => void;
   onRegenerate: (item: GalleryItem) => void;
   regenerating: string | null;
 }) {
@@ -1397,7 +1433,7 @@ function ImageSuite({
                   <button
                     type="button"
                     className="asset-visual"
-                    onClick={() => onPreview(item)}
+                    onClick={() => onPreview(item, index)}
                     aria-label={`预览 ${item.title}`}
                     data-testid={`preview-image-${index}`}
                   >
@@ -1466,7 +1502,7 @@ function SingleImageResult({
   skillId: string;
   generatedImage?: string;
   ready: boolean;
-  onPreview: (item: GalleryItem) => void;
+  onPreview: (item: GalleryItem, slot: number) => void;
   onRegenerate: (item: GalleryItem) => void;
   regenerating: string | null;
 }) {
@@ -1490,7 +1526,7 @@ function SingleImageResult({
             <button
               type="button"
               className="single-asset-visual"
-              onClick={() => onPreview(item)}
+              onClick={() => onPreview(item, 0)}
               aria-label={`预览 ${item.title}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1581,27 +1617,31 @@ function VideoResult({
 
 function AppSidebar({
   screen,
+  conversations,
   turns,
-  activeTurnId,
+  activeConversationId,
   onHome,
-  onStudio,
-  onNewTask,
+  onConversation,
+  onAssets,
+  onNewConversation,
   onRename,
   onDelete,
 }: {
-  screen: "home" | "studio";
+  screen: "home" | "studio" | "assets";
+  conversations: Conversation[];
   turns: Turn[];
-  activeTurnId: string | null;
+  activeConversationId: string | null;
   onHome: () => void;
-  onStudio: (turnId?: string) => void;
-  onNewTask: () => void;
-  onRename: (turnId: string, title: string) => void;
-  onDelete: (turnId: string) => void;
+  onConversation: (conversationId?: string) => void;
+  onAssets: () => void;
+  onNewConversation: () => void;
+  onRename: (conversationId: string, title: string) => void;
+  onDelete: (conversationId: string) => void;
 }) {
-  const latestTurn = turns[turns.length - 1];
+  const latestConversation = conversations[conversations.length - 1];
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
-    turnId: string;
+    conversationId: string;
     x: number;
     y: number;
   } | null>(null);
@@ -1641,41 +1681,60 @@ function AppSidebar({
         <span>MERCATO</span>
       </button>
       <nav className="workspace-links" aria-label="工作区导航">
-        <button type="button" className={screen === "home" ? "active" : ""} onClick={onHome}>⌂ 首页</button>
+        <button type="button" className={screen === "home" ? "active" : ""} onClick={onHome}>
+          <House aria-hidden="true" weight="bold" />首页
+        </button>
         <button
           type="button"
           className={screen === "studio" ? "active" : ""}
-          disabled={!turns.length}
-          onClick={() => onStudio(turns[0]?.id)}
+          disabled={!conversations.length}
+          onClick={() => onConversation(activeConversationId ?? latestConversation?.id)}
         >
-          ◉ 当前对话
+          <ChatCircle aria-hidden="true" weight="fill" />当前对话
         </button>
-        <button type="button" disabled={!turns.length} onClick={() => onStudio(latestTurn?.id)}>◇ 最近结果</button>
+        <button type="button" className={screen === "assets" ? "active" : ""} onClick={onAssets}>
+          <Images aria-hidden="true" weight="bold" />最近结果
+        </button>
       </nav>
-      {screen === "studio" ? (
-        <button className="new-chat" type="button" onClick={onNewTask}>
-          ＋ 添加新任务
+      {screen !== "home" ? (
+        <button className="new-chat" type="button" onClick={onNewConversation}>
+          <Plus aria-hidden="true" weight="bold" />添加新对话
         </button>
       ) : null}
-      <nav className="conversation-list" aria-label="当前对话任务">
+      <nav className="conversation-list" aria-label="全部对话">
         <span className="nav-caption">
-          {turns.length ? `当前对话 · ${turns.length} 个任务` : "还没有生成记录"}
+          {conversations.length ? `全部对话 · ${conversations.length}` : "还没有生成记录"}
         </span>
-        {turns.map((turn) => {
-          const total = progressTotal(turn);
+        {conversations.map((conversation) => {
+          const conversationTurns = turns.filter(
+            (turn) => turn.conversationId === conversation.id,
+          );
+          const runningCount = conversationTurns.filter((turn) => turn.running).length;
           return (
             <button
               type="button"
-              className={screen === "studio" && turn.id === activeTurnId ? "conversation-active" : ""}
-              onClick={() => onStudio(turn.id)}
+              className={
+                screen === "studio" && conversation.id === activeConversationId
+                  ? "conversation-active"
+                  : ""
+              }
+              onClick={() => onConversation(conversation.id)}
               onContextMenu={(event) => {
                 event.preventDefault();
-                setContextMenu({ turnId: turn.id, x: event.clientX, y: event.clientY });
+                setContextMenu({
+                  conversationId: conversation.id,
+                  x: event.clientX,
+                  y: event.clientY,
+                });
               }}
-              key={turn.id}
+              key={conversation.id}
             >
-              <strong>{turn.title}</strong>
-              <small>{turn.running ? `${turn.completed} / ${total}` : turn.completed === total ? "生成完成" : `${turn.completed} / ${total}`}</small>
+              <strong>{conversation.title}</strong>
+              <small>
+                {runningCount
+                  ? `${runningCount} 个任务生成中`
+                  : `${conversationTurns.length} 个任务`}
+              </small>
             </button>
           );
         })}
@@ -1691,9 +1750,13 @@ function AppSidebar({
             type="button"
             role="menuitem"
             onClick={() => {
-              const turn = turns.find((item) => item.id === contextMenu.turnId);
-              const title = window.prompt("重命名对话", turn?.title ?? "");
-              if (title?.trim()) onRename(contextMenu.turnId, title.trim());
+              const conversation = conversations.find(
+                (item) => item.id === contextMenu.conversationId,
+              );
+              const title = window.prompt("重命名对话", conversation?.title ?? "");
+              if (title?.trim()) {
+                onRename(contextMenu.conversationId, title.trim());
+              }
             }}
           >
             重命名
@@ -1703,9 +1766,11 @@ function AppSidebar({
             role="menuitem"
             className="danger"
             onClick={() => {
-              const turn = turns.find((item) => item.id === contextMenu.turnId);
-              if (window.confirm(`确定删除「${turn?.title ?? "这个任务"}」吗？`)) {
-                onDelete(contextMenu.turnId);
+              const conversation = conversations.find(
+                (item) => item.id === contextMenu.conversationId,
+              );
+              if (window.confirm(`确定删除「${conversation?.title ?? "这个对话"}」吗？`)) {
+                onDelete(contextMenu.conversationId);
               }
             }}
           >
@@ -1746,6 +1811,195 @@ function AppSidebar({
         </button>
       </div>
     </aside>
+  );
+}
+
+function assetDateLabel(value: string) {
+  const date = new Date(value);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const sameDay = (left: Date, right: Date) =>
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate();
+  if (sameDay(date, today)) return "今天";
+  if (sameDay(date, yesterday)) return "昨天";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "long",
+    day: "numeric",
+  }).format(date);
+}
+
+function AssetLibrary({
+  assets,
+  onPreview,
+}: {
+  assets: AssetRecord[];
+  onPreview: (asset: AssetRecord) => void;
+}) {
+  const [filter, setFilter] = useState<"all" | "image" | "video">("all");
+  const visibleAssets =
+    filter === "all" ? assets : assets.filter((asset) => asset.type === filter);
+  const groups = visibleAssets.reduce<Record<string, AssetRecord[]>>(
+    (result, asset) => {
+      const label = assetDateLabel(asset.createdAt);
+      result[label] ??= [];
+      result[label].push(asset);
+      return result;
+    },
+    {},
+  );
+
+  return (
+    <section className="asset-library" data-testid="asset-library">
+      <header className="asset-library-head">
+        <div>
+          <h1>最近结果</h1>
+          <p>所有生成结果会自动保存，并按日期整理。</p>
+        </div>
+        <span>{assets.length} 个资产</span>
+      </header>
+      <div className="asset-filterbar" aria-label="资产类型">
+        <button
+          type="button"
+          className={filter === "all" ? "active" : undefined}
+          onClick={() => setFilter("all")}
+        >
+          全部
+        </button>
+        <button
+          type="button"
+          className={filter === "image" ? "active" : undefined}
+          onClick={() => setFilter("image")}
+        >
+          图片
+        </button>
+        <button
+          type="button"
+          className={filter === "video" ? "active" : undefined}
+          onClick={() => setFilter("video")}
+        >
+          视频
+        </button>
+      </div>
+      {visibleAssets.length ? (
+        Object.entries(groups).map(([label, group]) => (
+          <section className="asset-date-group" key={label}>
+            <h2>{label}</h2>
+            <div className="asset-library-grid">
+              {group.map((asset) => (
+                <article className="library-card" key={asset.id}>
+                  {asset.type === "video" ? (
+                    <video
+                      src={asset.url}
+                      muted
+                      playsInline
+                      controls
+                      aria-label={asset.title}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onPreview(asset)}
+                      aria-label={`预览 ${asset.title}`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={asset.url} alt={asset.title} />
+                    </button>
+                  )}
+                  <footer>
+                    <strong>{asset.title}</strong>
+                    <span>{asset.type === "video" ? "视频" : "图片"}</span>
+                  </footer>
+                </article>
+              ))}
+            </div>
+          </section>
+        ))
+      ) : (
+        <div className="asset-empty">
+          <Images aria-hidden="true" weight="duotone" />
+          <h2>{assets.length ? "没有这个类型的资产" : "还没有生成资产"}</h2>
+          <p>
+            {assets.length
+              ? "切换其他类型，或继续生成新的内容。"
+              : "完成第一张图片或视频后，会自动出现在这里。"}
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PreviewModal({
+  preview,
+  prompt,
+  generating,
+  onPrompt,
+  onSubmit,
+  onClose,
+}: {
+  preview: PreviewState;
+  prompt: string;
+  generating: boolean;
+  onPrompt: (value: string) => void;
+  onSubmit: () => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  return (
+    <div
+      className="preview-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`预览 ${preview.title}`}
+      data-testid="preview-modal"
+      onClick={(event) => {
+        if (event.currentTarget === event.target) onClose();
+      }}
+    >
+      <button type="button" className="preview-close" onClick={onClose} aria-label="关闭预览">
+        <X aria-hidden="true" weight="bold" />
+      </button>
+      <div className="preview-content">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={preview.image} alt={preview.title} />
+        <footer>
+          <div><span>{preview.group}</span><strong>{preview.title}</strong></div>
+          <a href={preview.image} download>下载原图</a>
+        </footer>
+        <form
+          className="preview-composer"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit();
+          }}
+        >
+          <textarea
+            value={prompt}
+            onChange={(event) => onPrompt(event.target.value)}
+            placeholder="描述你希望如何修改这张图，例如：背景改成户外露营场景，保留商品外观"
+            aria-label="继续修改图片"
+            rows={2}
+          />
+          <button
+            type="submit"
+            disabled={!prompt.trim() || generating}
+            aria-label="生成修改后的图片"
+          >
+            <ArrowUp aria-hidden="true" weight="bold" />
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -1818,7 +2072,7 @@ function deepFind(value: unknown, keys: string[]): string | undefined {
 }
 
 export default function Home() {
-  const [screen, setScreen] = useState<"home" | "studio">("home");
+  const [screen, setScreen] = useState<"home" | "studio" | "assets">("home");
   const [prompt, setPrompt] = useState("");
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [mode, setMode] = useState<GenerationMode>("image");
@@ -1827,29 +2081,94 @@ export default function Home() {
   const [language, setLanguage] = useState("en");
   const [brand, setBrand] = useState<BrandSettings>(defaultBrandSettings);
   const [suite, setSuite] = useState<SuiteSettings>(defaultSuiteSettings);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
-  const [preview, setPreview] = useState<GalleryItem | null>(null);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [previewPrompt, setPreviewPrompt] = useState("");
+  const [previewGenerating, setPreviewGenerating] = useState(false);
+  const [assets, setAssets] = useState<AssetRecord[]>([]);
   const [regenerating, setRegenerating] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const controllers = useRef<Map<string, AbortController>>(new Map());
   const turnCounter = useRef(0);
+  const conversationCounter = useRef(0);
 
   const modeSkills = skillsByMode(mode);
   const selectedSkill =
     modeSkills.find((item) => item.id === skill) ?? modeSkills[0];
   const selectedKind = selectedSkill.kind;
   const productImage = uploads[0]?.url ?? "/product-main.png";
-  const activeTurn = turns.find((turn) => turn.id === activeTurnId) ?? turns[turns.length - 1];
+  const activeConversation =
+    conversations.find((item) => item.id === activeConversationId) ??
+    conversations[conversations.length - 1];
+  const activeTurns = turns.filter(
+    (turn) => turn.conversationId === activeConversation?.id,
+  );
 
   useEffect(() => () => {
     controllers.current.forEach((controller) => controller.abort());
     controllers.current.clear();
   }, []);
 
+  useEffect(() => {
+    void fetch("/api/assets", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : { assets: [] })
+      .then((payload) => setAssets(payload.assets ?? []))
+      .catch(() => undefined);
+  }, []);
+
   const showNotice = (text: string) => {
     setNotice(text);
     window.setTimeout(() => setNotice(""), 2200);
+  };
+
+  const storeAsset = async (
+    turn: Turn,
+    sourceUrl: string,
+    type: "image" | "video",
+    title: string,
+  ) => {
+    const temporaryId = `local-${crypto.randomUUID()}`;
+    const createdAt = new Date().toISOString();
+    const optimistic: AssetRecord = {
+      id: temporaryId,
+      type,
+      title,
+      prompt: turn.prompt,
+      url: sourceUrl,
+      conversationId: turn.conversationId,
+      turnId: turn.id,
+      createdAt,
+    };
+    setAssets((current) => [optimistic, ...current]);
+    try {
+      const response = await fetch("/api/assets", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sourceUrl,
+          type,
+          title,
+          prompt: turn.prompt,
+          conversationId: turn.conversationId,
+          turnId: turn.id,
+          createdAt,
+        }),
+      });
+      if (!response.ok) return;
+      const payload = await response.json();
+      setAssets((current) =>
+        current.map((asset) => asset.id === temporaryId ? payload.asset : asset),
+      );
+    } catch {
+      // The generated result remains available in this session when persistence is offline.
+    }
+  };
+
+  const openPreview = (turn: Turn, item: GalleryItem, slot: number) => {
+    setPreview({ ...item, turnId: turn.id, slot });
+    setPreviewPrompt("");
   };
 
   const addSample = () => {
@@ -2040,6 +2359,13 @@ export default function Home() {
             await generationForm(turn, upload, "image", slot),
             signal,
           );
+          void storeAsset(
+            turn,
+            results[slot],
+            "image",
+            suiteItems(turn.skill, suiteImageCount, turn.suite)[slot]?.title ??
+              `Listing 图片 ${slot + 1}`,
+          );
         } catch (error) {
           if ((error as Error).name === "AbortError") throw error;
           failedSlots.push(slot);
@@ -2094,6 +2420,15 @@ export default function Home() {
             await generationForm(turn, upload, "image", slot),
             signal,
           );
+          void storeAsset(
+            turn,
+            results[slot],
+            "image",
+            (turn.kind === "single"
+              ? singleImageOutputs[turn.skill]?.title
+              : suiteItems(turn.skill, count, turn.suite)[slot]?.title) ??
+              `生成图片 ${slot + 1}`,
+          );
         } catch (error) {
           if ((error as Error).name === "AbortError") throw error;
           failedSlots.push(slot);
@@ -2147,6 +2482,7 @@ export default function Home() {
       const videoUrl = deepFind(payload, ["video_url", "videoUrl", "url"]);
       const status = deepFind(payload, ["status", "state"])?.toLowerCase();
       if (videoUrl && ["succeeded", "success", "completed", "done"].includes(status ?? "completed")) {
+        void storeAsset(turn, videoUrl, "video", turn.title);
         patchTurn(turn.id, {
           videoUrl,
           phase: "生成完成",
@@ -2190,11 +2526,35 @@ export default function Home() {
     if (!uploads.length) return;
     const id = `turn-${turnCounter.current += 1}`;
     const taskPrompt = prompt.trim() || selectedSkill.starter;
+    const conversationId =
+      activeConversationId ??
+      `conversation-${conversationCounter.current += 1}`;
+    if (!activeConversationId) {
+      setConversations((current) => [
+        ...current,
+        {
+          id: conversationId,
+          title: taskPrompt.slice(0, 22),
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      setActiveConversationId(conversationId);
+    } else {
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === conversationId && conversation.title === "新对话"
+            ? { ...conversation, title: taskPrompt.slice(0, 22) }
+            : conversation,
+        ),
+      );
+    }
     const configuredImageCount = hasSuiteSettings(selectedSkill.id)
       ? suiteTaskCount(selectedSkill.id, suite, taskPrompt)
       : imageTaskCount(selectedKind, taskPrompt);
     const turn: Turn = {
       id,
+      conversationId,
+      createdAt: new Date().toISOString(),
       title: taskPrompt.slice(0, 22),
       prompt: taskPrompt,
       mode,
@@ -2211,7 +2571,6 @@ export default function Home() {
       imageTaskCount: configuredImageCount || undefined,
     };
     setTurns((current) => [...current, turn]);
-    setActiveTurnId(id);
     setScreen("studio");
     setPrompt("");
     window.setTimeout(() => {
@@ -2244,6 +2603,7 @@ export default function Home() {
           url: turn.productImage,
         }, "image", slot),
       );
+      void storeAsset(turn, url, "image", item.title);
       setTurns((current) => current.map((currentTurn) => {
         if (currentTurn.id !== turn.id) return currentTurn;
         const images = [...(currentTurn.images ?? [])];
@@ -2269,41 +2629,126 @@ export default function Home() {
     }
   };
 
-  const openStudio = (turnId?: string) => {
-    if (!turns.length) return;
-    const targetTurnId = turnId ?? turns[turns.length - 1].id;
-    setActiveTurnId(targetTurnId);
+  const editPreviewImage = async () => {
+    if (!preview || !previewPrompt.trim() || previewGenerating) return;
+    const existingTurn = turns.find((item) => item.id === preview.turnId);
+    const fallbackConversationId =
+      activeConversationId ??
+      conversations[conversations.length - 1]?.id ??
+      `conversation-${conversationCounter.current += 1}`;
+    const turn: Turn = existingTurn ?? {
+      id: `edit-${turnCounter.current += 1}`,
+      conversationId: fallbackConversationId,
+      createdAt: new Date().toISOString(),
+      title: preview.title,
+      prompt: previewPrompt.trim(),
+      mode: "image",
+      skill: selectedSkill.mode === "image" ? selectedSkill.id : "amazon-image-set",
+      kind: selectedSkill.mode === "image" ? selectedSkill.kind : "images",
+      region,
+      language,
+      brand: { ...brand },
+      suite: { ...suite },
+      productImage: preview.image,
+      completed: 1,
+      running: false,
+      phase: "生成完成",
+      imageTaskCount: 1,
+      images: [preview.image],
+    };
+    setPreviewGenerating(true);
+    try {
+      const editedTurn = { ...turn, prompt: previewPrompt.trim() };
+      const url = await runImageTask(
+        await generationForm(
+          editedTurn,
+          {
+            id: `${preview.id}-edit`,
+            name: "reference-image.png",
+            url: preview.image,
+          },
+          "image",
+          preview.slot,
+        ),
+      );
+      if (existingTurn) {
+        setTurns((current) =>
+          current.map((currentTurn) => {
+            if (currentTurn.id !== turn.id) return currentTurn;
+            const images = [...(currentTurn.images ?? [])];
+            images[preview.slot] = url;
+            return { ...currentTurn, images };
+          }),
+        );
+      }
+      void storeAsset(editedTurn, url, "image", `${preview.title} · 改图`);
+      setPreview((current) => current ? { ...current, image: url } : current);
+      setPreviewPrompt("");
+      showNotice("图片已按新要求更新");
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "改图失败");
+    } finally {
+      setPreviewGenerating(false);
+    }
+  };
+
+  const openConversation = (conversationId?: string) => {
+    if (!conversations.length) return;
+    const targetConversationId =
+      conversationId ?? conversations[conversations.length - 1].id;
+    setActiveConversationId(targetConversationId);
     setScreen("studio");
     window.setTimeout(() => {
-      document.getElementById(targetTurnId)?.scrollIntoView({
+      document.getElementById("conversation-top")?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
     }, 0);
   };
 
-  const renameTurn = (turnId: string, title: string) => {
-    setTurns((current) =>
-      current.map((turn) => turn.id === turnId ? { ...turn, title } : turn),
+  const renameConversation = (conversationId: string, title: string) => {
+    setConversations((current) =>
+      current.map((conversation) =>
+        conversation.id === conversationId
+          ? { ...conversation, title }
+          : conversation,
+      ),
     );
     showNotice("对话已重命名");
   };
 
-  const deleteTurn = (turnId: string) => {
-    controllers.current.get(turnId)?.abort();
-    controllers.current.delete(turnId);
-    const remaining = turns.filter((turn) => turn.id !== turnId);
-    setTurns(remaining);
-    if (!remaining.length) {
-      setActiveTurnId(null);
+  const deleteConversation = (conversationId: string) => {
+    turns
+      .filter((turn) => turn.conversationId === conversationId)
+      .forEach((turn) => {
+        controllers.current.get(turn.id)?.abort();
+        controllers.current.delete(turn.id);
+      });
+    const remainingConversations = conversations.filter(
+      (conversation) => conversation.id !== conversationId,
+    );
+    setConversations(remainingConversations);
+    setTurns((current) =>
+      current.filter((turn) => turn.conversationId !== conversationId),
+    );
+    if (!remainingConversations.length) {
+      setActiveConversationId(null);
       setScreen("home");
-    } else if (activeTurnId === turnId) {
-      setActiveTurnId(remaining[remaining.length - 1].id);
+    } else if (activeConversationId === conversationId) {
+      setActiveConversationId(
+        remainingConversations[remainingConversations.length - 1].id,
+      );
     }
     showNotice("对话已删除");
   };
 
-  const openNewTask = () => {
+  const openNewConversation = () => {
+    const id = `conversation-${conversationCounter.current += 1}`;
+    setConversations((current) => [
+      ...current,
+      { id, title: "新对话", createdAt: new Date().toISOString() },
+    ]);
+    setActiveConversationId(id);
     setScreen("home");
     window.setTimeout(() => document.getElementById("main-prompt")?.focus(), 0);
   };
@@ -2313,23 +2758,25 @@ export default function Home() {
       <main className="studio" data-testid="studio">
         <AppSidebar
           screen={screen}
+          conversations={conversations}
           turns={turns}
-          activeTurnId={activeTurnId}
+          activeConversationId={activeConversationId}
           onHome={() => setScreen("home")}
-          onStudio={openStudio}
-          onNewTask={openNewTask}
-          onRename={renameTurn}
-          onDelete={deleteTurn}
+          onConversation={openConversation}
+          onAssets={() => setScreen("assets")}
+          onNewConversation={openNewConversation}
+          onRename={renameConversation}
+          onDelete={deleteConversation}
         />
 
         <section className="studio-main conversation-main">
           <header className="studio-header" id="conversation-top">
-            <h1>{activeTurn?.title ?? conversationTitle}</h1>
-            <span className="output-type">{turns.length} 个任务</span>
+            <h1>{activeConversation?.title ?? conversationTitle}</h1>
+            <span className="output-type">{activeTurns.length} 个任务</span>
           </header>
 
           <section className="conversation-stream" aria-label="创作对话">
-            {turns.map((turn, index) => {
+            {activeTurns.map((turn, index) => {
               const generation = generationCopy[turn.kind];
               const total = progressTotal(turn);
               const ready = turn.kind === "listing"
@@ -2345,7 +2792,6 @@ export default function Home() {
                         <img src={turn.productImage} alt="用户上传的商品" />
                       </div>
                       <div className="message-copy">
-                        <span>你</span>
                         <p>{turn.prompt}</p>
                         <div className="request-tags">
                           <span>{modes.find((item) => item.id === turn.mode)?.label}</span>
@@ -2369,7 +2815,6 @@ export default function Home() {
                     <div className="assistant-content">
                       <header className="assistant-head">
                         <div>
-                          <span>Mercato AI</span>
                           <h2>{skills.find((item) => item.id === turn.skill)?.label ?? generation.title}</h2>
                         </div>
                         <span>
@@ -2441,7 +2886,7 @@ export default function Home() {
                             suite={turn.suite}
                             generatedImages={turn.images}
                             failedSlots={turn.failedImageSlots}
-                            onPreview={setPreview}
+                            onPreview={(item, slot) => openPreview(turn, item, slot)}
                             onRegenerate={(item) => void regenerate(turn, item)}
                             regenerating={regenerating}
                           />
@@ -2453,7 +2898,7 @@ export default function Home() {
                             suite={turn.suite}
                             generatedImages={turn.images}
                             failedSlots={turn.failedImageSlots}
-                            onPreview={setPreview}
+                            onPreview={(item, slot) => openPreview(turn, item, slot)}
                             onRegenerate={(item) => void regenerate(turn, item)}
                             regenerating={regenerating}
                           />
@@ -2463,7 +2908,7 @@ export default function Home() {
                             skillId={turn.skill}
                             generatedImage={turn.images?.[0]}
                             ready={ready}
-                            onPreview={setPreview}
+                            onPreview={(item, slot) => openPreview(turn, item, slot)}
                             onRegenerate={(item) => void regenerate(turn, item)}
                             regenerating={regenerating}
                           />
@@ -2512,25 +2957,62 @@ export default function Home() {
         </section>
 
         {preview ? (
-          <div
-            className="preview-backdrop"
-            role="dialog"
-            aria-modal="true"
-            aria-label={`预览 ${preview.title}`}
-            data-testid="preview-modal"
-          >
-            <button type="button" className="preview-close" onClick={() => setPreview(null)} aria-label="关闭预览">×</button>
-            <div className="preview-content">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={preview.image} alt={preview.title} />
-              <footer>
-                <div><span>{preview.group}</span><strong>{preview.title}</strong></div>
-                <a href={preview.image} download>下载原图</a>
-              </footer>
-            </div>
-          </div>
+          <PreviewModal
+            preview={preview}
+            prompt={previewPrompt}
+            generating={previewGenerating}
+            onPrompt={setPreviewPrompt}
+            onSubmit={() => void editPreviewImage()}
+            onClose={() => setPreview(null)}
+          />
         ) : null}
 
+        {notice ? <div className="toast" role="status" data-testid="toast">{notice}</div> : null}
+      </main>
+    );
+  }
+
+  if (screen === "assets") {
+    return (
+      <main className="studio" data-testid="assets-screen">
+        <AppSidebar
+          screen={screen}
+          conversations={conversations}
+          turns={turns}
+          activeConversationId={activeConversationId}
+          onHome={() => setScreen("home")}
+          onConversation={openConversation}
+          onAssets={() => setScreen("assets")}
+          onNewConversation={openNewConversation}
+          onRename={renameConversation}
+          onDelete={deleteConversation}
+        />
+        <section className="studio-main assets-main">
+          <AssetLibrary
+            assets={assets}
+            onPreview={(asset) => {
+              setPreview({
+                id: asset.id,
+                group: "生成资产",
+                title: asset.title,
+                image: asset.url,
+                turnId: "",
+                slot: 0,
+              });
+              setPreviewPrompt("");
+            }}
+          />
+        </section>
+        {preview ? (
+          <PreviewModal
+            preview={preview}
+            prompt={previewPrompt}
+            generating={previewGenerating}
+            onPrompt={setPreviewPrompt}
+            onSubmit={() => void editPreviewImage()}
+            onClose={() => setPreview(null)}
+          />
+        ) : null}
         {notice ? <div className="toast" role="status" data-testid="toast">{notice}</div> : null}
       </main>
     );
@@ -2540,13 +3022,15 @@ export default function Home() {
     <main className="studio home-shell">
       <AppSidebar
         screen={screen}
+        conversations={conversations}
         turns={turns}
-        activeTurnId={activeTurnId}
+        activeConversationId={activeConversationId}
         onHome={() => setScreen("home")}
-        onStudio={openStudio}
-        onNewTask={openNewTask}
-        onRename={renameTurn}
-        onDelete={deleteTurn}
+        onConversation={openConversation}
+        onAssets={() => setScreen("assets")}
+        onNewConversation={openNewConversation}
+        onRename={renameConversation}
+        onDelete={deleteConversation}
       />
       <section className="home-workspace" id="create">
         <div className="home-stage">
@@ -2579,9 +3063,9 @@ export default function Home() {
               onBrand={setBrand}
               onSuite={setSuite}
             />
-            {turns.length ? (
-              <button type="button" className="resume-conversation" onClick={() => openStudio()}>
-                返回当前对话 · {turns.length} 个任务
+            {activeTurns.length ? (
+              <button type="button" className="resume-conversation" onClick={() => openConversation()}>
+                返回当前对话 · {activeTurns.length} 个任务
               </button>
             ) : null}
           </div>

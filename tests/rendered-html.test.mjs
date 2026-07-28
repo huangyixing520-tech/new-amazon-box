@@ -49,12 +49,13 @@ test("server-renders the Mercato creation workspace", async () => {
 });
 
 test("ships the complete generation flow and its assets", async () => {
-  const [page, layout, styles, packageJson, generateRoute, taskBackend] = await Promise.all([
+  const [page, layout, styles, packageJson, generateRoute, assetRoute, taskBackend] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../app/api/generate/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/assets/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../task-backend/server.mjs", import.meta.url), "utf8"),
     access(new URL("../public/product-main.png", import.meta.url)),
     access(new URL("../public/product-lifestyle.png", import.meta.url)),
@@ -131,7 +132,7 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /download-listing/);
   assert.match(page, /conversation-turn/);
   assert.match(page, /const conversationTitle = "便携咖啡机创作"/);
-  assert.match(page, /<strong>\{turn\.title\}<\/strong>/);
+  assert.match(page, /<strong>\{conversation\.title\}<\/strong>/);
   assert.match(page, /screen === "studio"/);
   assert.doesNotMatch(page, /持续创作 · 结果不会覆盖|studio-kicker/);
   assert.match(page, /conversation-context-menu/);
@@ -150,8 +151,14 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /<h1>一张商品图，生成亚马逊链接<\/h1>/);
   assert.doesNotMatch(page, /一张商品图，<br \/>生成亚马逊链接/);
   assert.match(page, /<span className="brand-mark" aria-hidden="true">♥<\/span>/);
-  assert.match(page, /\n            ↑\n/);
-  assert.doesNotMatch(page, /\n            ↗\n/);
+  assert.match(page, /<ArrowUp aria-hidden="true" weight="bold" \/>/);
+  assert.match(page, /添加新对话/);
+  assert.match(page, /asset-library/);
+  assert.match(page, /所有生成结果会自动保存，并按日期整理/);
+  assert.match(page, /继续修改图片/);
+  assert.doesNotMatch(page, /添加新任务/);
+  assert.doesNotMatch(page, /<span>你<\/span>/);
+  assert.doesNotMatch(page, /<span>Mercato AI<\/span>/);
   assert.match(layout, /generateMetadata/);
   assert.match(layout, /summary_large_image/);
   assert.match(styles, /--accent: #c9f33e/);
@@ -189,6 +196,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /process\.env\.TASK_BACKEND_URL/);
   assert.match(generateRoute, /process\.env\.TASK_BACKEND_TOKEN/);
   assert.match(generateRoute, /imageTaskId/);
+  assert.match(assetRoute, /GENERATED_ASSETS/);
+  assert.match(assetRoute, /ORDER BY created_at DESC/);
   assert.match(taskBackend, /status: "queued"/);
   assert.match(taskBackend, /status = "running"/);
   assert.match(taskBackend, /status = "succeeded"/);
