@@ -212,7 +212,7 @@ test("ships the complete generation flow and its assets", async () => {
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   assert.doesNotMatch(page, /SkeletonPreview|codex-preview/);
   assert.match(generateRoute, /MiniMax-M3/);
-  assert.match(taskBackend, /process\.env\.IMAGE_MODEL \?\? "yunwu\/gpt-image-2"/);
+  assert.match(taskBackend, /process\.env\.IMAGE_MODEL \?\? "gpt-image-2"/);
   assert.match(taskBackend, /const MAX_IMAGE_RETRIES = 18/);
   assert.match(taskBackend, /const IMAGE_RETRY_INTERVAL_MS = 10_000/);
   assert.match(generateRoute, /novai\/seedance-2\.0-mini/);

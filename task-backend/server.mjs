@@ -126,7 +126,7 @@ export function createTaskServer(options = {}) {
       options.userKeyEncryptionSecret ??
       process.env.USER_KEY_ENCRYPTION_SECRET,
     token: options.token ?? process.env.TASK_BACKEND_TOKEN,
-    model: options.model ?? process.env.IMAGE_MODEL ?? "yunwu/gpt-image-2",
+    model: options.model ?? process.env.IMAGE_MODEL ?? "gpt-image-2",
     concurrency: Math.max(1, Number(options.concurrency ?? process.env.TASK_CONCURRENCY ?? 2)),
     retryDelays: configuredRetryDelays
       .map(Number)
