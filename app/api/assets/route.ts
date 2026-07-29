@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import sharp from "sharp";
 import {
   authErrorResponse,
   requireUser,
@@ -92,6 +93,8 @@ export async function POST(request: Request) {
       createdAt?: string;
       role?: "input" | "output";
       slot?: number;
+      outputWidth?: number;
+      outputHeight?: number;
     };
     if (
       !body.sourceUrl ||
@@ -122,8 +125,27 @@ export async function POST(request: Request) {
     const id = crypto.randomUUID();
     const objectKey = `generated/${user.id}/${body.conversationId}/${id}`;
     const createdAt = body.createdAt || new Date().toISOString();
-    const { buffer, mimeType } = await sourceBytes(body.sourceUrl);
-    await GENERATED_ASSETS.put(objectKey, buffer, {
+    const source = await sourceBytes(body.sourceUrl);
+    const outputWidth = Number(body.outputWidth);
+    const outputHeight = Number(body.outputHeight);
+    const shouldResize =
+      body.type === "image" &&
+      role === "output" &&
+      Number.isInteger(outputWidth) &&
+      Number.isInteger(outputHeight) &&
+      outputWidth > 0 &&
+      outputHeight > 0;
+    const storedBytes = shouldResize
+      ? await sharp(Buffer.from(source.buffer))
+          .resize(outputWidth, outputHeight, {
+            fit: "cover",
+            position: "centre",
+          })
+          .png()
+          .toBuffer()
+      : new Uint8Array(source.buffer);
+    const mimeType = shouldResize ? "image/png" : source.mimeType;
+    await GENERATED_ASSETS.put(objectKey, storedBytes, {
       httpMetadata: { contentType: mimeType },
     });
     await DB.batch([

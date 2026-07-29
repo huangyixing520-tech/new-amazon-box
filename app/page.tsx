@@ -19,6 +19,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import AccountPanel, { type ClientSession } from "./account-panel";
+import { imageOutputSpec } from "./image-output-spec.mjs";
 import { imageTaskCount } from "./image-task-count.mjs";
 
 type Option = {
@@ -368,6 +369,20 @@ function suiteSlot(
   return {
     type: "a-plus-mobile",
     index: slot - suite.mainImageCount - suite.aPlusCount,
+  };
+}
+
+function suiteOutputDimensions(suite: SuiteSettings, slot: number) {
+  const slotConfig = suiteSlot(suite, slot);
+  const spec = imageOutputSpec({
+    slotType: slotConfig.type,
+    slotIndex: slotConfig.index,
+    aPlusType: suite.aPlusType,
+    mainImageRatio: suite.mainImageRatio,
+  });
+  return {
+    width: spec.outputWidth,
+    height: spec.outputHeight,
   };
 }
 
@@ -890,6 +905,7 @@ function BrandColorPicker({
 
 function Composer({
   compact = false,
+  minimized = false,
   prompt,
   uploads,
   mode,
@@ -909,8 +925,10 @@ function Composer({
   onLanguage,
   onBrand,
   onSuite,
+  onExpand,
 }: {
   compact?: boolean;
+  minimized?: boolean;
   prompt: string;
   uploads: Upload[];
   mode: GenerationMode;
@@ -930,6 +948,7 @@ function Composer({
   onLanguage: (value: string) => void;
   onBrand: (value: BrandSettings) => void;
   onSuite: (value: SuiteSettings) => void;
+  onExpand?: () => void;
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [openBrandMenu, setOpenBrandMenu] = useState<string | null>(null);
@@ -1042,6 +1061,52 @@ function Composer({
     setDraggingFiles(false);
     onFiles(Array.from(event.dataTransfer.files));
   };
+
+  if (minimized) {
+    return (
+      <section
+        className="composer composer-compact composer-minimized"
+        data-testid="minimized-composer"
+        onDragEnter={beginFileDrag}
+        onDragOver={continueFileDrag}
+        onDragLeave={endFileDrag}
+        onDrop={dropFiles}
+      >
+        <div className="minimized-upload-strip" aria-label={`${uploads.length} 张参考图片`}>
+          {uploads.slice(0, 3).map((upload, index) => (
+            <span className="minimized-upload-thumb" key={upload.id}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={upload.url} alt={`参考图片 ${index + 1}`} />
+            </span>
+          ))}
+          {uploads.length > 3 ? <small>+{uploads.length - 3}</small> : null}
+        </div>
+        <textarea
+          id="conversation-prompt"
+          data-testid="conversation-input-minimized"
+          value={prompt}
+          rows={1}
+          aria-label="继续发送新任务"
+          placeholder="继续描述你想生成或修改的内容"
+          onFocus={onExpand}
+          onClick={onExpand}
+          onChange={(event) => onPrompt(event.target.value)}
+          onKeyDown={submitOnShortcut}
+        />
+        <button
+          type="button"
+          className="send-button"
+          aria-label="发送新任务"
+          data-testid="conversation-send-minimized"
+          disabled={sendDisabled}
+          title={suiteSelectionEmpty ? "请至少选择 1 张主副图或 A+ 图" : undefined}
+          onClick={onSend}
+        >
+          <ArrowUp aria-hidden="true" weight="bold" />
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section
@@ -2565,6 +2630,7 @@ export default function Home() {
   const [session, setSession] = useState<ClientSession>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [studioComposerMinimized, setStudioComposerMinimized] = useState(false);
   const controllers = useRef<Map<string, AbortController>>(new Map());
   const persistenceTimers = useRef<Map<string, number>>(new Map());
   const turnsRef = useRef<Turn[]>([]);
@@ -2588,6 +2654,17 @@ export default function Home() {
     persistenceTimers.current.forEach((timer) => window.clearTimeout(timer));
     persistenceTimers.current.clear();
   }, []);
+
+  useEffect(() => {
+    if (screen !== "studio") return;
+    const minimizeComposer = () => setStudioComposerMinimized(true);
+    window.addEventListener("wheel", minimizeComposer, { passive: true });
+    window.addEventListener("touchmove", minimizeComposer, { passive: true });
+    return () => {
+      window.removeEventListener("wheel", minimizeComposer);
+      window.removeEventListener("touchmove", minimizeComposer);
+    };
+  }, [screen]);
 
   useEffect(() => {
     void fetch("/api/auth/session", { cache: "no-store" })
@@ -2727,6 +2804,7 @@ export default function Home() {
     title: string,
     slot = 0,
     role: "input" | "output" = "output",
+    dimensions?: { width: number; height: number },
   ) => {
     const temporaryId = `local-${crypto.randomUUID()}`;
     const createdAt = new Date().toISOString();
@@ -2759,6 +2837,8 @@ export default function Home() {
           role,
           slot,
           createdAt,
+          outputWidth: dimensions?.width,
+          outputHeight: dimensions?.height,
         }),
       });
       if (!response.ok) throw new Error(await responseError(response));
@@ -3021,6 +3101,8 @@ export default function Home() {
             suiteItems(turn.skill, suiteImageCount, turn.suite)[slot]?.title ??
               `Listing 图片 ${slot + 1}`,
             slot,
+            "output",
+            suiteOutputDimensions(turn.suite, slot),
           );
           if (!stored) throw new Error("图片已生成，但没有保存到资产库");
           results[slot] = stored.url;
@@ -3097,6 +3179,10 @@ export default function Home() {
               : suiteItems(turn.skill, count, turn.suite)[slot]?.title) ??
               `生成图片 ${slot + 1}`,
             slot,
+            "output",
+            hasSuiteSettings(turn.skill)
+              ? suiteOutputDimensions(turn.suite, slot)
+              : undefined,
           );
           if (!stored) throw new Error("图片已生成，但没有保存到资产库");
           results[slot] = stored.url;
@@ -3296,6 +3382,7 @@ export default function Home() {
     const nextTurns = [...turnsRef.current, turn];
     turnsRef.current = nextTurns;
     setTurns(nextTurns);
+    setStudioComposerMinimized(false);
     setScreen("studio");
     setPrompt("");
     try {
@@ -3369,7 +3456,17 @@ export default function Home() {
           slot,
         ),
       );
-      const stored = await storeAsset(turn, url, "image", item.title, slot);
+      const stored = await storeAsset(
+        turn,
+        url,
+        "image",
+        item.title,
+        slot,
+        "output",
+        hasSuiteSettings(turn.skill)
+          ? suiteOutputDimensions(turn.suite, slot)
+          : undefined,
+      );
       if (!stored) throw new Error("图片已生成，但没有保存到资产库");
       const nextTurns = turnsRef.current.map((currentTurn) => {
         if (currentTurn.id !== turn.id) return currentTurn;
@@ -3449,6 +3546,10 @@ export default function Home() {
         "image",
         `${preview.title} · 改图`,
         preview.slot,
+        "output",
+        hasSuiteSettings(editedTurn.skill)
+          ? suiteOutputDimensions(editedTurn.suite, preview.slot)
+          : undefined,
       );
       if (!stored) throw new Error("图片已生成，但没有保存到资产库");
       if (existingTurn) {
@@ -3480,6 +3581,7 @@ export default function Home() {
     const targetConversationId =
       conversationId ?? conversations[conversations.length - 1].id;
     setActiveConversationId(targetConversationId);
+    setStudioComposerMinimized(false);
     setScreen("studio");
     window.setTimeout(() => {
       document.getElementById("conversation-top")?.scrollIntoView({
@@ -3767,10 +3869,11 @@ export default function Home() {
             })}
           </section>
 
-          <div className="studio-composer">
+          <div className={`studio-composer ${studioComposerMinimized ? "is-minimized" : ""}`}>
             <Composer
               key={`studio-composer-${mode}`}
               compact
+              minimized={studioComposerMinimized}
               prompt={prompt}
               uploads={uploads}
               mode={mode}
@@ -3790,6 +3893,12 @@ export default function Home() {
               onLanguage={setLanguage}
               onBrand={setBrand}
               onSuite={setSuite}
+              onExpand={() => {
+                setStudioComposerMinimized(false);
+                window.requestAnimationFrame(() => {
+                  document.getElementById("conversation-prompt")?.focus();
+                });
+              }}
             />
           </div>
         </section>

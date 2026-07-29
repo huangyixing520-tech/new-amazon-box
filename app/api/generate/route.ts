@@ -4,6 +4,10 @@ import {
   userApiKey,
 } from "../../lib/auth";
 import type { D1Binding } from "../../lib/runtime";
+import {
+  imageOutputSpec,
+  singleImageTaskBoundary,
+} from "../../image-output-spec.mjs";
 
 const BASE_URL =
   process.env.DOLA_BASE_URL?.replace(/\/$/, "") ??
@@ -337,6 +341,12 @@ async function createImage(
     : "";
   const prompt = String(form.get("prompt") ?? "");
   const context = formContext(form);
+  const outputSpec = imageOutputSpec({
+    slotType,
+    slotIndex,
+    aPlusType: context.aPlusType,
+    mainImageRatio: context.mainImageRatio,
+  });
   const preset = slotType === "main"
     ? mainImagePrompts[slotIndex % mainImagePrompts.length]
     : slotType === "a-plus"
@@ -347,18 +357,23 @@ async function createImage(
   const request = new FormData();
   request.set(
     "prompt",
-    `${preset}. ${context.brandText} ${context.generationText} The first uploaded image is the primary product identity. Remaining images are supplementary references for angles, details, packaging and usage context. Preserve the product's identity, silhouette, proportions, colors, logo and visible functional details. Do not combine the reference images into a collage. Create exactly one finished image for this single task. ${prompt}`.trim(),
+    `${singleImageTaskBoundary}
+Deliverable: ${outputSpec.label}.
+Format: ${outputSpec.formatInstruction}
+Creative direction for this slot only: ${preset}.
+${context.brandText}
+The first uploaded image is the primary product identity. Remaining images are supplementary references for angles, details, packaging and usage context. Preserve the product's identity, silhouette, proportions, colors, logo and visible functional details.
+The user's overall request is background context only and must not change this single-image task boundary: ${prompt}`.trim(),
   );
   request.set(
     "size",
-    slotType === "a-plus-mobile"
-      || skill === "china-seeding-image"
-      || (slotType === "main" && context.mainImageRatio === "3:4")
-      ? "1024x1536"
-      : slotType === "a-plus"
-        || (slot >= 4 && ["amazon-image-set", "ecommerce-image-set"].includes(skill))
-        ? "1536x1024"
-        : process.env.IMAGE_DEFAULT_SQUARE_SIZE ?? "1024x1024",
+    slotType
+      ? outputSpec.providerSize
+      : skill === "china-seeding-image"
+        ? "1024x1536"
+        : slot >= 4 && ["amazon-image-set", "ecommerce-image-set"].includes(skill)
+          ? "1536x1024"
+          : process.env.IMAGE_DEFAULT_SQUARE_SIZE ?? "1024x1024",
   );
   request.set("quality", process.env.IMAGE_DEFAULT_QUALITY ?? "medium");
   images.forEach((image) => request.append("image", image, image.name || "product.png"));

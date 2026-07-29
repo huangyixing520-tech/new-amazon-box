@@ -3,6 +3,33 @@ import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 import { imageOutputUrl } from "../task-backend/image-response.mjs";
 import { imageTaskCount } from "../app/image-task-count.mjs";
+import {
+  imageOutputSpec,
+  singleImageTaskBoundary,
+} from "../app/image-output-spec.mjs";
+
+test("maps every suite slot to one task and the correct final canvas", () => {
+  const advanced = imageOutputSpec({
+    slotType: "a-plus",
+    slotIndex: 2,
+    aPlusType: "advanced",
+  });
+  const standard = imageOutputSpec({
+    slotType: "a-plus",
+    slotIndex: 2,
+    aPlusType: "standard",
+  });
+  assert.deepEqual(
+    [advanced.outputWidth, advanced.outputHeight],
+    [1464, 600],
+  );
+  assert.deepEqual(
+    [standard.outputWidth, standard.outputHeight],
+    [960, 600],
+  );
+  assert.match(singleImageTaskBoundary, /one independent image task/i);
+  assert.match(singleImageTaskBoundary, /Never create a collage/);
+});
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -255,7 +282,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /Generate the final listing directly/);
   assert.match(generateRoute, /X-Mercato-Generation-Architecture/);
   assert.match(generateRoute, /direct-mode-skill/);
-  assert.match(generateRoute, /Create exactly one finished image for this single task/);
+  assert.match(generateRoute, /singleImageTaskBoundary/);
+  assert.doesNotMatch(generateRoute, /context\.brandText\} \$\{context\.generationText/);
   assert.match(generateRoute, /slotType/);
   assert.match(generateRoute, /a-plus-mobile/);
   assert.match(generateRoute, /Main and secondary image ratio/);
@@ -263,8 +291,20 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /brandColor === "auto"/);
   assert.match(generateRoute, /Auto-detect a coherent primary color/);
   assert.match(generateRoute, /\[GENERATION SETTINGS\]/);
-  assert.match(generateRoute, /context\.mainImageRatio === "3:4"/);
-  assert.match(generateRoute, /"1024x1536"/);
+  assert.equal(
+    imageOutputSpec({
+      slotType: "main",
+      mainImageRatio: "3:4",
+    }).providerSize,
+    "1024x1536",
+  );
+  assert.match(assetRoute, /sharp\(Buffer\.from\(source\.buffer\)\)/);
+  assert.match(assetRoute, /outputWidth/);
+  assert.match(assetRoute, /outputHeight/);
+  assert.match(page, /suiteOutputDimensions/);
+  assert.match(page, /conversation-send-minimized/);
+  assert.match(page, /studioComposerMinimized/);
+  assert.match(styles, /\.composer-minimized/);
   assert.match(generateRoute, /Gulf Cooperation Council \/ Middle East/);
   assert.match(generateRoute, /Portuguese/);
   assert.match(generateRoute, /never as "one-touch operation"/);
