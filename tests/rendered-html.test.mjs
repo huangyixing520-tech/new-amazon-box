@@ -60,6 +60,11 @@ test("ships the complete generation flow and its assets", async () => {
     taskBackend,
     accountPanel,
     authLibrary,
+    historyRoute,
+    eventsRoute,
+    adminRoute,
+    adminPage,
+    envExample,
   ] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
@@ -70,6 +75,11 @@ test("ships the complete generation flow and its assets", async () => {
     readFile(new URL("../task-backend/server.mjs", import.meta.url), "utf8"),
     readFile(new URL("../app/account-panel.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/history/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/metrics/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../.env.example", import.meta.url), "utf8"),
     access(new URL("../public/product-main.png", import.meta.url)),
     access(new URL("../public/product-lifestyle.png", import.meta.url)),
     access(new URL("../public/product-outdoor.png", import.meta.url)),
@@ -257,7 +267,22 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(assetRoute, /GENERATED_ASSETS/);
   assert.match(assetRoute, /asset_owners/);
   assert.match(assetRoute, /ORDER BY a\.created_at DESC/);
+  assert.match(page, /\/api\/history/);
+  assert.match(page, /generation_requested/);
+  assert.match(page, /generation_completed/);
+  assert.match(page, /data-analytics-event="asset_downloaded"/);
+  assert.match(assetRoute, /a\.role = 'output'/);
+  assert.match(assetRoute, /slot_index/);
+  assert.match(historyRoute, /conversation_turns/);
+  assert.match(historyRoute, /role === "input"/);
+  assert.match(eventsRoute, /analytics_events/);
+  assert.match(adminRoute, /requireAdmin/);
+  assert.match(adminRoute, /generationDau/);
+  assert.match(adminPage, /Skill 表现/);
+  assert.match(accountPanel, /打开数据后台/);
+  assert.match(envExample, /ADMIN_EMAILS=/);
   assert.match(authLibrary, /API_KEY_ENCRYPTION_SECRET/);
+  assert.match(authLibrary, /ADMIN_EMAILS/);
   assert.match(authLibrary, /AES-GCM/);
   assert.match(authLibrary, /HttpOnly/);
   assert.match(authLibrary, /email_verified/);

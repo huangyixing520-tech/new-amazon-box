@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server";
 import {
-  createAssetsDateIndexSql,
-  createAssetsTableSql,
-} from "../../../db/schema";
-import {
   authErrorResponse,
-  ensureIdentitySchema,
   requireUser,
 } from "../../lib/auth";
+import { ensureAssetsSchema } from "../../lib/assets-data";
 import {
   runtimeBindings,
-  type D1Binding,
 } from "../../lib/runtime";
 
 type AssetRow = {
@@ -20,15 +15,10 @@ type AssetRow = {
   prompt: string;
   conversation_id: string;
   turn_id: string;
+  role: "input" | "output";
+  slot_index: number;
   created_at: string;
 };
-
-async function ensureSchema(db: D1Binding) {
-  await db.batch([
-    db.prepare(createAssetsTableSql),
-    db.prepare(createAssetsDateIndexSql),
-  ]);
-}
 
 async function sourceBytes(sourceUrl: string) {
   if (sourceUrl.startsWith("data:")) {
@@ -53,14 +43,13 @@ export async function GET(request: Request) {
     const user = await requireUser(request);
     const { DB } = await runtimeBindings();
     if (!DB) return NextResponse.json({ assets: [] });
-    await ensureSchema(DB);
-    await ensureIdentitySchema(DB);
+    await ensureAssetsSchema(DB);
     const result = await DB.prepare(`
       SELECT a.id, a.type, a.title, a.prompt,
-        a.conversation_id, a.turn_id, a.created_at
+        a.conversation_id, a.turn_id, a.role, a.slot_index, a.created_at
       FROM assets a
       INNER JOIN asset_owners o ON o.asset_id = a.id
-      WHERE o.user_id = ?
+      WHERE o.user_id = ? AND a.role = 'output'
       ORDER BY a.created_at DESC
       LIMIT 500
     `).bind(user.id).all<AssetRow>();
@@ -72,6 +61,8 @@ export async function GET(request: Request) {
         prompt: asset.prompt,
         conversationId: asset.conversation_id,
         turnId: asset.turn_id,
+        role: asset.role,
+        slot: asset.slot_index,
         createdAt: asset.created_at,
         url: `/api/assets/${encodeURIComponent(asset.id)}`,
       })),
@@ -99,6 +90,8 @@ export async function POST(request: Request) {
       conversationId?: string;
       turnId?: string;
       createdAt?: string;
+      role?: "input" | "output";
+      slot?: number;
     };
     if (
       !body.sourceUrl ||
@@ -110,8 +103,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "资产信息不完整" }, { status: 400 });
     }
 
-    await ensureSchema(DB);
-    await ensureIdentitySchema(DB);
+    await ensureAssetsSchema(DB);
+    const role = body.role === "input" ? "input" : "output";
+    const slot = Number.isFinite(body.slot) ? Math.max(0, Number(body.slot)) : 0;
+    const existing = await DB.prepare(`
+      SELECT a.id
+      FROM assets a
+      INNER JOIN asset_owners o ON o.asset_id = a.id
+      WHERE o.user_id = ? AND a.turn_id = ? AND a.role = ? AND a.slot_index = ?
+    `).bind(user.id, body.turnId, role, slot).all<{ id: string }>();
+    for (const asset of existing.results ?? []) {
+      await DB.batch([
+        DB.prepare("DELETE FROM asset_owners WHERE asset_id = ? AND user_id = ?")
+          .bind(asset.id, user.id),
+        DB.prepare("DELETE FROM assets WHERE id = ?").bind(asset.id),
+      ]);
+    }
     const id = crypto.randomUUID();
     const objectKey = `generated/${user.id}/${body.conversationId}/${id}`;
     const createdAt = body.createdAt || new Date().toISOString();
@@ -123,8 +130,8 @@ export async function POST(request: Request) {
       DB.prepare(`
         INSERT INTO assets (
           id, object_key, source_url, type, title, prompt,
-          conversation_id, turn_id, mime_type, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          conversation_id, turn_id, mime_type, role, slot_index, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         id,
         objectKey,
@@ -135,6 +142,8 @@ export async function POST(request: Request) {
         body.conversationId,
         body.turnId,
         mimeType,
+        role,
+        slot,
         createdAt,
       ),
       DB.prepare(`
@@ -151,6 +160,8 @@ export async function POST(request: Request) {
         prompt: body.prompt || "",
         conversationId: body.conversationId,
         turnId: body.turnId,
+        role,
+        slot,
         createdAt,
         url: `/api/assets/${encodeURIComponent(id)}`,
       },

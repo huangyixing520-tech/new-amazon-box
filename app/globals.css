@@ -798,6 +798,44 @@ button:active, a:active { transform: translateY(1px); }
 .asset-empty p { margin: 0; color: var(--muted); font-size: 11px; }
 .toast { position: fixed; left: 50%; bottom: 190px; z-index: 50; padding: 11px 15px; border-radius: var(--radius-pill); background: var(--text); color: var(--bg); box-shadow: var(--shadow); font-size: 11px; font-weight: 650; transform: translateX(-50%); }
 .resume-conversation { width: 100%; margin-top: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 18px; background: var(--text); color: var(--bg); cursor: pointer; font-size: 11px; font-weight: 700; }
+.account-admin-link { min-height: 48px; padding: 0 16px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 16px; background: #fff; color: var(--text); text-decoration: none; font-size: 12px; font-weight: 720; }
+.account-admin-link svg { width: 19px; height: 19px; color: #729b20; }
+.account-admin-link:hover { border-color: color-mix(in srgb, var(--accent), var(--line) 40%); background: var(--accent-soft); }
+
+.admin-shell { min-height: 100dvh; padding: 48px clamp(22px,5vw,76px) 80px; background:
+  radial-gradient(circle at 76% 8%, rgb(198 245 47 / .13), transparent 30%),
+  var(--bg); color: var(--text); }
+.admin-header { display: flex; align-items: end; justify-content: space-between; gap: 24px; }
+.admin-header h1 { margin: 20px 0 0; font-size: clamp(42px,6vw,72px); line-height: .9; letter-spacing: -.065em; }
+.admin-header p { margin: 14px 0 0; color: var(--muted); font-size: 13px; }
+.admin-back { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); text-decoration: none; font-size: 11px; font-weight: 720; }
+.admin-back svg { width: 16px; height: 16px; }
+.admin-range { padding: 4px; display: flex; gap: 3px; border: 1px solid var(--line); border-radius: 16px; background: rgb(255 255 255 / .78); }
+.admin-range button { padding: 9px 13px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; font-weight: 720; }
+.admin-range button.active { background: var(--text); color: var(--bg); }
+.admin-state { margin-top: 48px; padding: 28px; border: 1px solid var(--line); border-radius: 24px; background: #fff; }
+.admin-state strong { font-size: 16px; }
+.admin-state p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+.admin-kpis { margin-top: 48px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
+.admin-kpis article { min-height: 152px; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid var(--line); border-radius: 24px; background: #fff; box-shadow: 0 18px 48px rgb(28 36 24 / .055); }
+.admin-kpis article span { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.admin-kpis article svg { width: 19px; height: 19px; color: #719621; }
+.admin-kpis article strong { font-size: 42px; line-height: 1; letter-spacing: -.055em; }
+.admin-funnel, .admin-table-section { margin-top: 34px; padding: 24px; border: 1px solid var(--line); border-radius: 26px; background: rgb(255 255 255 / .9); }
+.admin-funnel > header, .admin-table-section > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.admin-funnel h2, .admin-table-section h2 { margin: 0; font-size: 19px; letter-spacing: -.035em; }
+.admin-funnel header span, .admin-table-section header span { color: var(--muted); font-size: 10px; }
+.admin-funnel > div { margin-top: 22px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
+.admin-funnel article { min-height: 118px; padding: 18px; display: grid; align-content: space-between; border-right: 1px solid var(--line); }
+.admin-funnel article:last-child { border-right: 0; }
+.admin-funnel article span, .admin-funnel article small { color: var(--muted); font-size: 10px; }
+.admin-funnel article strong { font-size: 28px; letter-spacing: -.04em; }
+.admin-table-wrap { margin-top: 20px; overflow-x: auto; }
+.admin-table-wrap table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.admin-table-wrap th, .admin-table-wrap td { min-width: 92px; padding: 14px 12px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.admin-table-wrap th { color: var(--muted); font-size: 9px; font-weight: 760; letter-spacing: .04em; text-transform: uppercase; }
+.admin-table-wrap td:first-child, .admin-table-wrap th:first-child { min-width: 170px; }
+.admin-table-wrap tbody tr:last-child td { border-bottom: 0; }
 
 @keyframes shimmer {
   from { background-position-x: 120%; }
@@ -856,6 +894,12 @@ button:active, a:active { transform: translateY(1px); }
   .home-workspace { min-height: calc(100dvh - 64px); margin: 0; border: 0; border-radius: 0; }
   .home-stage { padding: 42px 22px 90px; }
   .asset-library-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .admin-shell { padding: 30px 16px 60px; }
+  .admin-header { align-items: start; flex-direction: column; }
+  .admin-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .admin-funnel > div { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .admin-funnel article:nth-child(2) { border-right: 0; }
+  .admin-funnel article:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
 }
 
 @media (max-width: 640px) {
@@ -885,6 +929,10 @@ button:active, a:active { transform: translateY(1px); }
   .skill-hint { grid-template-columns: 1fr; gap: 5px; }
   .request-summary { grid-template-columns: 44px 1fr; }
   .request-tags { grid-column: 1 / -1; overflow-x: auto; }
+  .admin-kpis { grid-template-columns: 1fr; }
+  .admin-funnel > div { grid-template-columns: 1fr; }
+  .admin-funnel article { border-right: 0; border-bottom: 1px solid var(--line); }
+  .admin-funnel article:last-child { border-bottom: 0; }
   .conversation-stream { gap: 42px; }
   .user-message, .assistant-message { grid-template-columns: 30px minmax(0,1fr); gap: 8px; }
   .user-message { grid-template-columns: minmax(0,1fr) 30px; }

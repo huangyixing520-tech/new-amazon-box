@@ -1,4 +1,4 @@
-import { currentUser } from "../../../lib/auth";
+import { currentUser, isAdminEmail } from "../../../lib/auth";
 
 export async function GET(request: Request) {
   const user = await currentUser(request);
@@ -12,5 +12,6 @@ export async function GET(request: Request) {
     },
     hasApiKey: user.hasApiKey,
     keyLastFour: user.keyLastFour,
+    isAdmin: isAdminEmail(user.email),
   });
 }

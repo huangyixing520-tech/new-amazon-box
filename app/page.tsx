@@ -128,7 +128,16 @@ type AssetRecord = {
   url: string;
   conversationId: string;
   turnId: string;
+  role?: "input" | "output";
+  slot?: number;
   createdAt: string;
+};
+
+type GenerationSummary = {
+  status: "complete" | "partial" | "failed";
+  completed: number;
+  expected: number;
+  failed: number;
 };
 
 const modes: Option[] = [
@@ -1348,6 +1357,7 @@ function Composer({
 }
 
 function ListingResult({
+  turnId,
   productImage,
   language,
   region,
@@ -1356,7 +1366,9 @@ function ListingResult({
   suite,
   ready,
   onNotice,
+  onListingChange,
 }: {
+  turnId: string;
   productImage: string;
   language: string;
   region: string;
@@ -1365,6 +1377,7 @@ function ListingResult({
   suite: SuiteSettings;
   ready: boolean;
   onNotice: (text: string) => void;
+  onListingChange: (listing: ListingData) => void;
 }) {
   const copy = listingCopy[language as keyof typeof listingCopy] ?? listingCopy.en;
   const price = prices[region] ?? prices.us;
@@ -1429,16 +1442,40 @@ function ListingResult({
     onNotice("商品链接已复制");
   };
 
+  const listingDraft = (
+    changes: Partial<ListingData> = {},
+  ): ListingData => ({
+    ...data,
+    title,
+    salePrice,
+    listPrice,
+    bullets,
+    description,
+    aPlusHeadline,
+    specifications: Object.fromEntries(specs),
+    ...changes,
+  });
+
   const updateBullet = (index: number, value: string) => {
-    setBullets((current) =>
-      current.map((bullet, bulletIndex) => bulletIndex === index ? value : bullet),
-    );
+    setBullets((current) => {
+      const next = current.map(
+        (bullet, bulletIndex) => bulletIndex === index ? value : bullet,
+      );
+      onListingChange(listingDraft({ bullets: next }));
+      return next;
+    });
   };
 
   const updateSpec = (index: number, value: string) => {
-    setSpecs((current) =>
-      current.map((spec, specIndex) => specIndex === index ? [spec[0], value] : spec),
-    );
+    setSpecs((current) => {
+      const next = current.map(
+        (spec, specIndex) => specIndex === index ? [spec[0], value] : spec,
+      );
+      onListingChange(
+        listingDraft({ specifications: Object.fromEntries(next) }),
+      );
+      return next;
+    });
   };
 
   const listingJson = JSON.stringify({
@@ -1494,7 +1531,13 @@ function ListingResult({
         </div>
         <span className="listing-edit-hint">虚线区域可直接编辑</span>
         <div className="listing-actions">
-          <button type="button" onClick={copyLink} data-testid="copy-listing-link">
+          <button
+            type="button"
+            onClick={copyLink}
+            data-testid="copy-listing-link"
+            data-analytics-event="listing_link_copied"
+            data-turn-id={turnId}
+          >
             复制链接
           </button>
           <a
@@ -1502,6 +1545,8 @@ function ListingResult({
             download={`brewgo-listing-${region}-${language}.json`}
             onClick={() => onNotice("Listing JSON 已下载")}
             data-testid="download-listing"
+            data-analytics-event="listing_json_downloaded"
+            data-turn-id={turnId}
           >
             下载 JSON
           </a>
@@ -1542,7 +1587,10 @@ function ListingResult({
           <textarea
             className="editable-field listing-title-input"
             value={title}
-            onChange={(event) => setTitle(event.target.value)}
+            onChange={(event) => {
+              setTitle(event.target.value);
+              onListingChange(listingDraft({ title: event.target.value }));
+            }}
             aria-label="编辑商品标题"
             data-testid="listing-title-input"
             rows={4}
@@ -1564,7 +1612,10 @@ function ListingResult({
               <input
                 className="editable-field price-input"
                 value={salePrice}
-                onChange={(event) => setSalePrice(event.target.value)}
+                onChange={(event) => {
+                  setSalePrice(event.target.value);
+                  onListingChange(listingDraft({ salePrice: event.target.value }));
+                }}
                 aria-label="编辑销售价格"
                 data-testid="listing-price-input"
               />
@@ -1575,7 +1626,10 @@ function ListingResult({
             <input
               className="editable-field list-price-input"
               value={listPrice}
-              onChange={(event) => setListPrice(event.target.value)}
+              onChange={(event) => {
+                setListPrice(event.target.value);
+                onListingChange(listingDraft({ listPrice: event.target.value }));
+              }}
               aria-label="编辑原价"
             />
           </label>
@@ -1696,14 +1750,24 @@ function ListingResult({
             <textarea
               className="editable-field a-plus-title-input"
               value={aPlusHeadline}
-              onChange={(event) => setAPlusHeadline(event.target.value)}
+              onChange={(event) => {
+                setAPlusHeadline(event.target.value);
+                onListingChange(
+                  listingDraft({ aPlusHeadline: event.target.value }),
+                );
+              }}
               aria-label="编辑 A+ 标题"
               rows={2}
             />
             <textarea
               className="editable-field description-input"
               value={description}
-              onChange={(event) => setDescription(event.target.value)}
+              onChange={(event) => {
+                setDescription(event.target.value);
+                onListingChange(
+                  listingDraft({ description: event.target.value }),
+                );
+              }}
               aria-label="编辑商品描述"
               data-testid="listing-description-input"
               rows={5}
@@ -1739,6 +1803,7 @@ function ListingResult({
 }
 
 function ImageSuite({
+  turnId,
   skillId,
   taskCount,
   suite,
@@ -1748,6 +1813,7 @@ function ImageSuite({
   onRegenerate,
   regenerating,
 }: {
+  turnId: string;
   skillId: string;
   taskCount: number;
   suite?: SuiteSettings;
@@ -1799,7 +1865,14 @@ function ImageSuite({
                   <footer>
                     <div><span>{item.group}</span><strong>{item.title}</strong></div>
                     <div>
-                      <a href={item.image} download>下载</a>
+                      <a
+                        href={item.image}
+                        download
+                        data-analytics-event="asset_downloaded"
+                        data-turn-id={turnId}
+                      >
+                        下载
+                      </a>
                       <button type="button" onClick={() => onRegenerate(item)}>重做</button>
                     </div>
                   </footer>
@@ -1848,6 +1921,7 @@ const singleImageOutputs: Record<string, GalleryItem> = {
 };
 
 function SingleImageResult({
+  turnId,
   skillId,
   generatedImage,
   ready,
@@ -1855,6 +1929,7 @@ function SingleImageResult({
   onRegenerate,
   regenerating,
 }: {
+  turnId: string;
   skillId: string;
   generatedImage?: string;
   ready: boolean;
@@ -1891,7 +1966,14 @@ function SingleImageResult({
             <footer>
               <div><span>{item.group}</span><strong>{item.title}</strong></div>
               <div>
-                <a href={item.image} download>下载原图</a>
+                <a
+                  href={item.image}
+                  download
+                  data-analytics-event="asset_downloaded"
+                  data-turn-id={turnId}
+                >
+                  下载原图
+                </a>
                 <button type="button" onClick={() => onRegenerate(item)}>重新生成</button>
               </div>
             </footer>
@@ -1907,11 +1989,13 @@ function SingleImageResult({
 }
 
 function VideoResult({
+  turnId,
   ready,
   productImage,
   videoUrl,
   onNotice,
 }: {
+  turnId: string;
   ready: boolean;
   productImage: string;
   videoUrl?: string;
@@ -1932,7 +2016,15 @@ function VideoResult({
           <span>PRODUCT VIDEO · 9:16</span>
           <h2>一杯咖啡，去任何地方</h2>
         </div>
-        <button type="button" onClick={() => onNotice("视频文件已准备下载")}>下载视频</button>
+        <a
+          href={videoUrl ?? "/product-demo.mp4"}
+          download
+          onClick={() => onNotice("视频文件已准备下载")}
+          data-analytics-event="asset_downloaded"
+          data-turn-id={turnId}
+        >
+          下载视频
+        </a>
       </header>
       <div className="video-layout">
         <div className="video-stage">
@@ -2328,7 +2420,14 @@ function PreviewModal({
         <img src={preview.image} alt={preview.title} />
         <footer>
           <div><span>{preview.group}</span><strong>{preview.title}</strong></div>
-          <a href={preview.image} download>下载原图</a>
+          <a
+            href={preview.image}
+            download
+            data-analytics-event="asset_downloaded"
+            data-turn-id={preview.turnId}
+          >
+            下载原图
+          </a>
         </footer>
         <form
           className="preview-composer"
@@ -2381,6 +2480,19 @@ async function uploadAsFile(upload: Upload) {
   return new File([blob], `${source.name.replace(/\.[^.]+$/, "")}.jpg`, {
     type: blob.type || "image/png",
   });
+}
+
+async function fileDataUrl(file: File) {
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("无法读取上传图片"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadSource(upload: Upload) {
+  return fileDataUrl(await uploadAsFile(upload));
 }
 
 async function responseError(response: Response) {
@@ -2448,8 +2560,9 @@ export default function Home() {
   const [sessionReady, setSessionReady] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const controllers = useRef<Map<string, AbortController>>(new Map());
-  const turnCounter = useRef(0);
-  const conversationCounter = useRef(0);
+  const persistenceTimers = useRef<Map<string, number>>(new Map());
+  const turnsRef = useRef<Turn[]>([]);
+  const sessionTracked = useRef(false);
 
   const modeSkills = skillsByMode(mode);
   const selectedSkill =
@@ -2466,6 +2579,8 @@ export default function Home() {
   useEffect(() => () => {
     controllers.current.forEach((controller) => controller.abort());
     controllers.current.clear();
+    persistenceTimers.current.forEach((timer) => window.clearTimeout(timer));
+    persistenceTimers.current.clear();
   }, []);
 
   useEffect(() => {
@@ -2480,15 +2595,46 @@ export default function Home() {
 
   useEffect(() => {
     if (!session) return;
-    void fetch("/api/assets", { cache: "no-store" })
-      .then((response) => response.ok ? response.json() : { assets: [] })
-      .then((payload) => setAssets(payload.assets ?? []))
-      .catch(() => undefined);
+    void Promise.all([
+      fetch("/api/assets", { cache: "no-store" })
+        .then((response) => response.ok ? response.json() : { assets: [] }),
+      fetch("/api/history", { cache: "no-store" })
+        .then((response) => response.ok
+          ? response.json()
+          : { conversations: [], turns: [] }),
+    ]).then(([assetPayload, historyPayload]) => {
+      const restoredConversations = historyPayload.conversations ?? [];
+      const restoredTurns = historyPayload.turns ?? [];
+      setAssets(assetPayload.assets ?? []);
+      setConversations(restoredConversations);
+      turnsRef.current = restoredTurns;
+      setTurns(restoredTurns);
+      setActiveConversationId((current) =>
+        current ?? restoredConversations[restoredConversations.length - 1]?.id ?? null,
+      );
+    }).catch(() => undefined);
+
+    if (!sessionTracked.current) {
+      sessionTracked.current = true;
+      void fetch("/api/events", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ event: "session_started" }),
+        keepalive: true,
+      }).catch(() => undefined);
+    }
   }, [session]);
 
   const updateSession = (nextSession: ClientSession) => {
     setSession(nextSession);
-    if (!nextSession) setAssets([]);
+    if (!nextSession) {
+      setAssets([]);
+      setConversations([]);
+      turnsRef.current = [];
+      setTurns([]);
+      setActiveConversationId(null);
+      sessionTracked.current = false;
+    }
   };
 
   const showNotice = (text: string) => {
@@ -2496,11 +2642,85 @@ export default function Home() {
     window.setTimeout(() => setNotice(""), 2200);
   };
 
+  const persistConversation = async (conversation: Conversation) => {
+    const response = await fetch("/api/history", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "upsert-conversation",
+        conversation,
+      }),
+      keepalive: true,
+    });
+    if (!response.ok) throw new Error(await responseError(response));
+  };
+
+  const persistTurn = async (turn: Turn) => {
+    const response = await fetch("/api/history", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "upsert-turn", turn }),
+      keepalive: true,
+    });
+    if (!response.ok) throw new Error(await responseError(response));
+  };
+
+  const scheduleTurnPersistence = (turn: Turn, immediate = false) => {
+    const existing = persistenceTimers.current.get(turn.id);
+    if (existing) window.clearTimeout(existing);
+    if (immediate) {
+      persistenceTimers.current.delete(turn.id);
+      void persistTurn(turn).catch(() => showNotice("任务进度暂未保存，请检查网络"));
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      persistenceTimers.current.delete(turn.id);
+      void persistTurn(turn).catch(() => undefined);
+    }, 900);
+    persistenceTimers.current.set(turn.id, timer);
+  };
+
+  const trackEvent = (
+    event: string,
+    turn?: Turn,
+    metadata: Record<string, unknown> = {},
+  ) => {
+    void fetch("/api/events", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        event,
+        mode: turn?.mode,
+        skill: turn?.skill,
+        conversationId: turn?.conversationId,
+        turnId: turn?.id,
+        metadata,
+      }),
+      keepalive: true,
+    }).catch(() => undefined);
+  };
+
+  useEffect(() => {
+    const handleTrackedAction = (event: MouseEvent) => {
+      const target = (event.target as HTMLElement | null)?.closest<HTMLElement>(
+        "[data-analytics-event]",
+      );
+      if (!target) return;
+      const turnId = target.dataset.turnId;
+      const turn = turnsRef.current.find((item) => item.id === turnId);
+      trackEvent(target.dataset.analyticsEvent || "asset_downloaded", turn);
+    };
+    document.addEventListener("click", handleTrackedAction);
+    return () => document.removeEventListener("click", handleTrackedAction);
+  }, []);
+
   const storeAsset = async (
     turn: Turn,
     sourceUrl: string,
     type: "image" | "video",
     title: string,
+    slot = 0,
+    role: "input" | "output" = "output",
   ) => {
     const temporaryId = `local-${crypto.randomUUID()}`;
     const createdAt = new Date().toISOString();
@@ -2512,9 +2732,13 @@ export default function Home() {
       url: sourceUrl,
       conversationId: turn.conversationId,
       turnId: turn.id,
+      role,
+      slot,
       createdAt,
     };
-    setAssets((current) => [optimistic, ...current]);
+    if (role === "output") {
+      setAssets((current) => [optimistic, ...current]);
+    }
     try {
       const response = await fetch("/api/assets", {
         method: "POST",
@@ -2526,16 +2750,31 @@ export default function Home() {
           prompt: turn.prompt,
           conversationId: turn.conversationId,
           turnId: turn.id,
+          role,
+          slot,
           createdAt,
         }),
       });
-      if (!response.ok) return;
+      if (!response.ok) throw new Error(await responseError(response));
       const payload = await response.json();
-      setAssets((current) =>
-        current.map((asset) => asset.id === temporaryId ? payload.asset : asset),
+      if (role === "output") {
+        setAssets((current) =>
+          current.map((asset) => asset.id === temporaryId ? payload.asset : asset),
+        );
+      }
+      return payload.asset as AssetRecord;
+    } catch (error) {
+      if (role === "output") {
+        setAssets((current) =>
+          current.filter((asset) => asset.id !== temporaryId),
+        );
+      }
+      showNotice(
+        error instanceof Error
+          ? `生成成功，但资产保存失败：${error.message}`
+          : "生成成功，但资产保存失败",
       );
-    } catch {
-      // The generated result remains available in this session when persistence is offline.
+      return null;
     }
   };
 
@@ -2599,9 +2838,20 @@ export default function Home() {
   };
 
   const patchTurn = (turnId: string, patch: Partial<Turn>) => {
-    setTurns((current) =>
-      current.map((turn) => turn.id === turnId ? { ...turn, ...patch } : turn),
-    );
+    let updated: Turn | undefined;
+    const nextTurns = turnsRef.current.map((turn) => {
+      if (turn.id !== turnId) return turn;
+      updated = { ...turn, ...patch };
+      return updated;
+    });
+    turnsRef.current = nextTurns;
+    setTurns(nextTurns);
+    if (updated) {
+      scheduleTurnPersistence(
+        updated,
+        patch.running === false || Boolean(patch.error),
+      );
+    }
   };
 
   const generationForm = async (
@@ -2680,7 +2930,11 @@ export default function Home() {
     throw new Error("图片生成超时，请稍后重试");
   };
 
-  const runListing = async (turn: Turn, uploadsForTurn: Upload[], signal: AbortSignal) => {
+  const runListing = async (
+    turn: Turn,
+    uploadsForTurn: Upload[],
+    signal: AbortSignal,
+  ): Promise<GenerationSummary> => {
     const suiteImageCount = turn.skill === "amazon-listing"
       ? turn.imageTaskCount ?? 0
       : 0;
@@ -2731,7 +2985,7 @@ export default function Home() {
         completed: generationCopy.listing.phases.length,
         running: false,
       });
-      return;
+      return { status: "complete", completed: 1, expected: 1, failed: 0 };
     }
 
     patchTurn(turn.id, {
@@ -2750,17 +3004,20 @@ export default function Home() {
       while (nextSlot < suiteImageCount) {
         const slot = nextSlot++;
         try {
-          results[slot] = await runImageTask(
+          const generatedUrl = await runImageTask(
             await generationForm(turn, uploadsForTurn, "image", slot),
             signal,
           );
-          void storeAsset(
+          const stored = await storeAsset(
             turn,
-            results[slot],
+            generatedUrl,
             "image",
             suiteItems(turn.skill, suiteImageCount, turn.suite)[slot]?.title ??
               `Listing 图片 ${slot + 1}`,
+            slot,
           );
+          if (!stored) throw new Error("图片已生成，但没有保存到资产库");
+          results[slot] = stored.url;
         } catch (error) {
           if ((error as Error).name === "AbortError") throw error;
           failedSlots.push(slot);
@@ -2792,9 +3049,19 @@ export default function Home() {
       completed: 1 + done,
       running: false,
     });
+    return {
+      status: failedSlots.length ? "partial" : "complete",
+      completed: done,
+      expected: suiteImageCount,
+      failed: failedSlots.length,
+    };
   };
 
-  const runImages = async (turn: Turn, uploadsForTurn: Upload[], signal: AbortSignal) => {
+  const runImages = async (
+    turn: Turn,
+    uploadsForTurn: Upload[],
+    signal: AbortSignal,
+  ): Promise<GenerationSummary> => {
     const count = turn.imageTaskCount ?? imageTaskCount(turn.kind, turn.prompt);
     patchTurn(turn.id, {
       phase: "正在生成商品图片",
@@ -2811,19 +3078,22 @@ export default function Home() {
       while (nextSlot < count) {
         const slot = nextSlot++;
         try {
-          results[slot] = await runImageTask(
+          const generatedUrl = await runImageTask(
             await generationForm(turn, uploadsForTurn, "image", slot),
             signal,
           );
-          void storeAsset(
+          const stored = await storeAsset(
             turn,
-            results[slot],
+            generatedUrl,
             "image",
             (turn.kind === "single"
               ? singleImageOutputs[turn.skill]?.title
               : suiteItems(turn.skill, count, turn.suite)[slot]?.title) ??
               `生成图片 ${slot + 1}`,
+            slot,
           );
+          if (!stored) throw new Error("图片已生成，但没有保存到资产库");
+          results[slot] = stored.url;
         } catch (error) {
           if ((error as Error).name === "AbortError") throw error;
           failedSlots.push(slot);
@@ -2853,9 +3123,19 @@ export default function Home() {
       completed: done,
       running: false,
     });
+    return {
+      status: failedSlots.length ? "partial" : "complete",
+      completed: done,
+      expected: count,
+      failed: failedSlots.length,
+    };
   };
 
-  const runVideo = async (turn: Turn, uploadsForTurn: Upload[], signal: AbortSignal) => {
+  const runVideo = async (
+    turn: Turn,
+    uploadsForTurn: Upload[],
+    signal: AbortSignal,
+  ): Promise<GenerationSummary> => {
     patchTurn(turn.id, { phase: "正在提交视频任务", completed: 1 });
     const response = await fetch("/api/generate", {
       method: "POST",
@@ -2877,14 +3157,15 @@ export default function Home() {
       const videoUrl = deepFind(payload, ["video_url", "videoUrl", "url"]);
       const status = deepFind(payload, ["status", "state"])?.toLowerCase();
       if (videoUrl && ["succeeded", "success", "completed", "done"].includes(status ?? "completed")) {
-        void storeAsset(turn, videoUrl, "video", turn.title);
+        const stored = await storeAsset(turn, videoUrl, "video", turn.title, 0);
+        if (!stored) throw new Error("视频已生成，但没有保存到资产库");
         patchTurn(turn.id, {
-          videoUrl,
+          videoUrl: stored.url,
           phase: "生成完成",
           completed: generationCopy.video.phases.length,
           running: false,
         });
-        return;
+        return { status: "complete", completed: 1, expected: 1, failed: 0 };
       }
       if (["failed", "error", "cancelled", "canceled"].includes(status ?? "")) {
         throw new Error(deepFind(payload, ["message", "error"]) ?? "视频生成失败");
@@ -2902,22 +3183,35 @@ export default function Home() {
     controllers.current.set(turn.id, controller);
     patchTurn(turn.id, { running: true, error: undefined });
     try {
-      if (turn.kind === "listing") await runListing(turn, uploadsForTurn, controller.signal);
-      else if (turn.kind === "video") await runVideo(turn, uploadsForTurn, controller.signal);
-      else await runImages(turn, uploadsForTurn, controller.signal);
+      const summary = turn.kind === "listing"
+        ? await runListing(turn, uploadsForTurn, controller.signal)
+        : turn.kind === "video"
+          ? await runVideo(turn, uploadsForTurn, controller.signal)
+          : await runImages(turn, uploadsForTurn, controller.signal);
+      trackEvent("generation_completed", turn, summary);
     } catch (error) {
-      if ((error as Error).name === "AbortError") return;
+      if ((error as Error).name === "AbortError") {
+        trackEvent("generation_completed", turn, {
+          status: "failed",
+          reason: "cancelled",
+        });
+        return;
+      }
       patchTurn(turn.id, {
         running: false,
         error: error instanceof Error ? error.message : "生成失败",
         phase: "生成失败",
+      });
+      trackEvent("generation_completed", turn, {
+        status: "failed",
+        reason: error instanceof Error ? error.message : "生成失败",
       });
     } finally {
       controllers.current.delete(turn.id);
     }
   };
 
-  const startGeneration = () => {
+  const startGeneration = async () => {
     if (!uploads.length) return;
     if (!sessionReady || !session) {
       setAccountOpen(true);
@@ -2929,29 +3223,37 @@ export default function Home() {
       showNotice("请先在账号管理中配置 API Key");
       return;
     }
-    const id = `turn-${turnCounter.current += 1}`;
+    const id = `turn-${crypto.randomUUID()}`;
     const taskPrompt = prompt.trim() || selectedSkill.starter;
     const conversationId =
       activeConversationId ??
-      `conversation-${conversationCounter.current += 1}`;
+      `conversation-${crypto.randomUUID()}`;
+    let conversationToPersist: Conversation | undefined;
     if (!activeConversationId) {
-      setConversations((current) => [
-        ...current,
-        {
-          id: conversationId,
-          title: taskPrompt.slice(0, 22),
-          createdAt: new Date().toISOString(),
-        },
-      ]);
+      conversationToPersist = {
+        id: conversationId,
+        title: taskPrompt.slice(0, 22),
+        createdAt: new Date().toISOString(),
+      };
+      setConversations((current) => [...current, conversationToPersist!]);
       setActiveConversationId(conversationId);
     } else {
-      setConversations((current) =>
-        current.map((conversation) =>
-          conversation.id === conversationId && conversation.title === "新对话"
-            ? { ...conversation, title: taskPrompt.slice(0, 22) }
-            : conversation,
-        ),
+      const currentConversation = conversations.find(
+        (conversation) => conversation.id === conversationId,
       );
+      if (currentConversation?.title === "新对话") {
+        conversationToPersist = {
+          ...currentConversation,
+          title: taskPrompt.slice(0, 22),
+        };
+        setConversations((current) =>
+          current.map((conversation) =>
+            conversation.id === conversationId
+              ? conversationToPersist!
+              : conversation,
+          ),
+        );
+      }
     }
     const configuredImageCount = hasSuiteSettings(selectedSkill.id)
       ? suiteTaskCount(selectedSkill.id, suite, taskPrompt)
@@ -2977,9 +3279,46 @@ export default function Home() {
       phase: generationCopy[selectedKind].phases[0],
       imageTaskCount: configuredImageCount || undefined,
     };
-    setTurns((current) => [...current, turn]);
+    const nextTurns = [...turnsRef.current, turn];
+    turnsRef.current = nextTurns;
+    setTurns(nextTurns);
     setScreen("studio");
     setPrompt("");
+    try {
+      const persistedConversation = conversationToPersist ??
+        conversations.find((conversation) => conversation.id === conversationId);
+      if (persistedConversation) await persistConversation(persistedConversation);
+      await persistTurn(turn);
+      trackEvent("generation_requested", turn, {
+        expectedOutputs: configuredImageCount || 1,
+        requestedImageCount: configuredImageCount || 0,
+        aPlusCount: suite.aPlusCount,
+        mainImageCount: suite.mainImageCount,
+      });
+      const storedInputs = await Promise.all(
+        turnUploads.map(async (upload, slot) => {
+          const sourceUrl = await uploadSource(upload);
+          return storeAsset(
+            turn,
+            sourceUrl,
+            "image",
+            upload.name || `输入图片 ${slot + 1}`,
+            slot,
+            "input",
+          );
+        }),
+      );
+      if (storedInputs.some((asset) => !asset)) {
+        throw new Error("输入图片没有完整保存，请检查网络后重试");
+      }
+    } catch (error) {
+      patchTurn(turn.id, {
+        running: false,
+        phase: "任务保存失败",
+        error: error instanceof Error ? error.message : "无法保存任务",
+      });
+      return;
+    }
     window.setTimeout(() => {
       void runGeneration(turn, turnUploads);
       document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -3016,11 +3355,12 @@ export default function Home() {
           slot,
         ),
       );
-      void storeAsset(turn, url, "image", item.title);
-      setTurns((current) => current.map((currentTurn) => {
+      const stored = await storeAsset(turn, url, "image", item.title, slot);
+      if (!stored) throw new Error("图片已生成，但没有保存到资产库");
+      const nextTurns = turnsRef.current.map((currentTurn) => {
         if (currentTurn.id !== turn.id) return currentTurn;
         const images = [...(currentTurn.images ?? [])];
-        images[slot] = url;
+        images[slot] = stored.url;
         const failedImageSlots = (currentTurn.failedImageSlots ?? [])
           .filter((failedSlot) => failedSlot !== slot);
         const done = images.filter(Boolean).length;
@@ -3033,7 +3373,11 @@ export default function Home() {
           phase: done === total ? "生成完成" : `已生成 ${done} / ${total} 张`,
           error: undefined,
         };
-      }));
+      });
+      turnsRef.current = nextTurns;
+      setTurns(nextTurns);
+      const updatedTurn = nextTurns.find((currentTurn) => currentTurn.id === turn.id);
+      if (updatedTurn) scheduleTurnPersistence(updatedTurn, true);
       setRegenerating(null);
       showNotice(`「${item.title}」已更新`);
     } catch (error) {
@@ -3048,9 +3392,9 @@ export default function Home() {
     const fallbackConversationId =
       activeConversationId ??
       conversations[conversations.length - 1]?.id ??
-      `conversation-${conversationCounter.current += 1}`;
+      `conversation-${crypto.randomUUID()}`;
     const turn: Turn = existingTurn ?? {
-      id: `edit-${turnCounter.current += 1}`,
+      id: `edit-${crypto.randomUUID()}`,
       conversationId: fallbackConversationId,
       createdAt: new Date().toISOString(),
       title: preview.title,
@@ -3085,18 +3429,29 @@ export default function Home() {
           preview.slot,
         ),
       );
+      const stored = await storeAsset(
+        editedTurn,
+        url,
+        "image",
+        `${preview.title} · 改图`,
+        preview.slot,
+      );
+      if (!stored) throw new Error("图片已生成，但没有保存到资产库");
       if (existingTurn) {
-        setTurns((current) =>
-          current.map((currentTurn) => {
-            if (currentTurn.id !== turn.id) return currentTurn;
-            const images = [...(currentTurn.images ?? [])];
-            images[preview.slot] = url;
-            return { ...currentTurn, images };
-          }),
+        const nextTurns = turnsRef.current.map((currentTurn) => {
+          if (currentTurn.id !== turn.id) return currentTurn;
+          const images = [...(currentTurn.images ?? [])];
+          images[preview.slot] = stored.url;
+          return { ...currentTurn, images };
+        });
+        turnsRef.current = nextTurns;
+        setTurns(nextTurns);
+        const updatedTurn = nextTurns.find(
+          (currentTurn) => currentTurn.id === turn.id,
         );
+        if (updatedTurn) scheduleTurnPersistence(updatedTurn, true);
       }
-      void storeAsset(editedTurn, url, "image", `${preview.title} · 改图`);
-      setPreview((current) => current ? { ...current, image: url } : current);
+      setPreview((current) => current ? { ...current, image: stored.url } : current);
       setPreviewPrompt("");
       showNotice("图片已按新要求更新");
     } catch (error) {
@@ -3128,6 +3483,18 @@ export default function Home() {
           : conversation,
       ),
     );
+    void fetch("/api/history", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "rename-conversation",
+        conversationId,
+        title,
+      }),
+      keepalive: true,
+    }).then(async (response) => {
+      if (!response.ok) throw new Error(await responseError(response));
+    }).catch(() => showNotice("重命名暂未同步，请重试"));
     showNotice("对话已重命名");
   };
 
@@ -3142,9 +3509,11 @@ export default function Home() {
       (conversation) => conversation.id !== conversationId,
     );
     setConversations(remainingConversations);
-    setTurns((current) =>
-      current.filter((turn) => turn.conversationId !== conversationId),
+    const nextTurns = turnsRef.current.filter(
+      (turn) => turn.conversationId !== conversationId,
     );
+    turnsRef.current = nextTurns;
+    setTurns(nextTurns);
     if (!remainingConversations.length) {
       setActiveConversationId(null);
       setScreen("home");
@@ -3153,15 +3522,34 @@ export default function Home() {
         remainingConversations[remainingConversations.length - 1].id,
       );
     }
+    void fetch("/api/history", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "delete-conversation",
+        conversationId,
+      }),
+      keepalive: true,
+    }).then(async (response) => {
+      if (!response.ok) throw new Error(await responseError(response));
+    }).catch(() => showNotice("删除暂未同步，请重试"));
     showNotice("对话已删除");
   };
 
   const openNewConversation = () => {
-    const id = `conversation-${conversationCounter.current += 1}`;
+    const id = `conversation-${crypto.randomUUID()}`;
+    const conversation = {
+      id,
+      title: "新对话",
+      createdAt: new Date().toISOString(),
+    };
     setConversations((current) => [
       ...current,
-      { id, title: "新对话", createdAt: new Date().toISOString() },
+      conversation,
     ]);
+    void persistConversation(conversation).catch(() =>
+      showNotice("新对话暂未保存，请检查网络"),
+    );
     setActiveConversationId(id);
     setScreen("home");
     window.setTimeout(() => document.getElementById("main-prompt")?.focus(), 0);
@@ -3297,6 +3685,7 @@ export default function Home() {
                         {turn.kind === "listing" ? (
                           <ListingResult
                             key={turn.listing?.productUrlSlug ?? `${turn.id}-loading`}
+                            turnId={turn.id}
                             productImage={turn.productImage}
                             language={turn.language}
                             region={turn.region}
@@ -3305,10 +3694,14 @@ export default function Home() {
                             suite={turn.suite}
                             ready={ready}
                             onNotice={showNotice}
+                            onListingChange={(listing) =>
+                              patchTurn(turn.id, { listing })
+                            }
                           />
                         ) : null}
                         {turn.kind === "images" ? (
                           <ImageSuite
+                            turnId={turn.id}
                             skillId={turn.skill}
                             taskCount={turn.imageTaskCount ?? 6}
                             suite={turn.suite}
@@ -3321,6 +3714,7 @@ export default function Home() {
                         ) : null}
                         {turn.kind === "seeding" ? (
                           <ImageSuite
+                            turnId={turn.id}
                             skillId={turn.skill}
                             taskCount={turn.imageTaskCount ?? 4}
                             suite={turn.suite}
@@ -3333,6 +3727,7 @@ export default function Home() {
                         ) : null}
                         {turn.kind === "single" ? (
                           <SingleImageResult
+                            turnId={turn.id}
                             skillId={turn.skill}
                             generatedImage={turn.images?.[0]}
                             ready={ready}
@@ -3343,6 +3738,7 @@ export default function Home() {
                         ) : null}
                         {turn.kind === "video" ? (
                           <VideoResult
+                            turnId={turn.id}
                             ready={ready}
                             productImage={turn.productImage}
                             videoUrl={turn.videoUrl}

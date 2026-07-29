@@ -52,6 +52,22 @@ function envValue(name: string) {
   return process.env[name]?.trim() ?? "";
 }
 
+export function isAdminEmail(email: string) {
+  const allowed = envValue("ADMIN_EMAILS")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  return allowed.includes(email.trim().toLowerCase());
+}
+
+export async function requireAdmin(request: Request) {
+  const user = await requireUser(request);
+  if (!isAdminEmail(user.email)) {
+    throw new AuthError("当前账号没有数据后台权限", 403);
+  }
+  return user;
+}
+
 function requiredSecret(name: string) {
   const value = envValue(name);
   if (value.length < 32) {

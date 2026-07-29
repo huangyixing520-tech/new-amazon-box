@@ -2,6 +2,7 @@
 
 import {
   CheckCircle,
+  ChartBar,
   Eye,
   EyeSlash,
   Key,
@@ -20,6 +21,7 @@ export type ClientSession = {
   };
   hasApiKey: boolean;
   keyLastFour: string | null;
+  isAdmin?: boolean;
 } | null;
 
 type GoogleCredentialResponse = {
@@ -363,6 +365,11 @@ export default function AccountPanel({
             >
               <SignOut />退出登录
             </button>
+            {session.isAdmin ? (
+              <a className="account-admin-link" href="/admin">
+                <ChartBar weight="duotone" />打开数据后台
+              </a>
+            ) : null}
           </>
         )}
 

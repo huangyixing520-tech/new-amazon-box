@@ -66,6 +66,57 @@ export const createAssetOwnersTableSql = `
 export const createAssetOwnersUserIndexSql =
   "CREATE INDEX IF NOT EXISTS asset_owners_user_idx ON asset_owners(user_id, created_at DESC)";
 
+export const createConversationsTableSql = `
+  CREATE TABLE IF NOT EXISTS conversations (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )
+`;
+
+export const createConversationsUserIndexSql =
+  "CREATE INDEX IF NOT EXISTS conversations_user_idx ON conversations(user_id, updated_at DESC)";
+
+export const createConversationTurnsTableSql = `
+  CREATE TABLE IF NOT EXISTS conversation_turns (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )
+`;
+
+export const createConversationTurnsIndexSql =
+  "CREATE INDEX IF NOT EXISTS conversation_turns_idx ON conversation_turns(user_id, conversation_id, created_at ASC)";
+
+export const createAnalyticsEventsTableSql = `
+  CREATE TABLE IF NOT EXISTS analytics_events (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    event_name TEXT NOT NULL,
+    mode TEXT,
+    skill TEXT,
+    conversation_id TEXT,
+    turn_id TEXT,
+    metadata_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )
+`;
+
+export const createAnalyticsEventsDateIndexSql =
+  "CREATE INDEX IF NOT EXISTS analytics_events_date_idx ON analytics_events(created_at DESC)";
+
+export const createAnalyticsEventsUserIndexSql =
+  "CREATE INDEX IF NOT EXISTS analytics_events_user_idx ON analytics_events(user_id, created_at DESC)";
+
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull(),
