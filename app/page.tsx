@@ -300,9 +300,9 @@ const aPlusCounts: Option[] = Array.from({ length: 9 }, (_, count) => ({
   label: `${count} 张`,
 }));
 
-const mainImageCounts: Option[] = Array.from({ length: 8 }, (_, index) => ({
-  id: String(index + 1),
-  label: `${index + 1} 张`,
+const mainImageCounts: Option[] = Array.from({ length: 9 }, (_, count) => ({
+  id: String(count),
+  label: `${count} 张`,
 }));
 
 const mainImageRatios: Option[] = [
@@ -941,6 +941,11 @@ function Composer({
   const brandGenePanelRef = useRef<HTMLElement>(null);
   const dragDepthRef = useRef(0);
   const modeSkills = skillsByMode(mode);
+  const suiteSelectionEmpty =
+    hasSuiteSettings(skill) &&
+    suite.aPlusCount === 0 &&
+    suite.mainImageCount === 0;
+  const sendDisabled = disabled || suiteSelectionEmpty;
 
   useEffect(() => {
     if (openMenu !== "brand-gene") return;
@@ -1000,7 +1005,7 @@ function Composer({
   }, [compact, deletingPromptIdea, mode, prompt, promptIdea, promptIdeaText]);
 
   const submitOnShortcut = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !disabled) {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !sendDisabled) {
       event.preventDefault();
       onSend();
     }
@@ -1244,7 +1249,8 @@ function Composer({
             className="send-button"
             aria-label={compact ? "发送新任务" : "开始生成"}
             data-testid={compact ? "conversation-send" : "send"}
-            disabled={disabled}
+            disabled={sendDisabled}
+            title={suiteSelectionEmpty ? "请至少选择 1 张主副图或 A+ 图" : undefined}
             onClick={onSend}
           >
             <ArrowUp aria-hidden="true" weight="bold" />
@@ -3213,6 +3219,14 @@ export default function Home() {
 
   const startGeneration = async () => {
     if (!uploads.length) return;
+    if (
+      hasSuiteSettings(selectedSkill.id) &&
+      suite.aPlusCount === 0 &&
+      suite.mainImageCount === 0
+    ) {
+      showNotice("请至少选择 1 张主副图或 A+ 图");
+      return;
+    }
     if (!sessionReady || !session) {
       setAccountOpen(true);
       showNotice("请先使用 Google 登录");

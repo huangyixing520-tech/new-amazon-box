@@ -119,6 +119,11 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /高级 \+ 手机 A\+/);
   assert.match(page, /a-plus-count-trigger/);
   assert.match(page, /main-image-count-trigger/);
+  assert.match(
+    page,
+    /const mainImageCounts:[\s\S]*Array\.from\(\{ length: 9 \}, \(_, count\)[\s\S]*id: String\(count\)/,
+  );
+  assert.match(page, /suite\.aPlusCount === 0[\s\S]*suite\.mainImageCount === 0/);
   assert.match(page, /main-image-ratio-trigger/);
   assert.match(page, /主副图比例/);
   assert.match(page, /"1:1"/);
@@ -141,12 +146,14 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /video-result/);
   assert.match(
     styles,
-    /\.listing-a-plus-gallery img\s*\{[^}]*height:\s*auto;[^}]*object-fit:\s*contain;/,
+    /\.listing-a-plus-gallery img\s*\{[^}]*height:\s*min\(320px, 38vw\);[^}]*object-fit:\s*contain;/,
   );
   assert.match(
     styles,
-    /\.asset-wide \.asset-visual img\s*\{[^}]*height:\s*auto;[^}]*aspect-ratio:\s*auto;[^}]*object-fit:\s*contain;/,
+    /\.asset-wide \.asset-visual img\s*\{[^}]*height:\s*100%;[^}]*aspect-ratio:\s*auto;[^}]*object-fit:\s*contain;/,
   );
+  assert.match(styles, /\.brand-gene-panel\s*\{[^}]*position:\s*absolute;[^}]*box-shadow:/);
+  assert.match(styles, /\.single-image-result\s*\{[^}]*width:\s*min\(620px, 100%\)/);
   assert.match(page, /product-demo\.mp4/);
   assert.match(page, /销售国家\/地区/);
   assert.match(page, /生成内容语言/);
