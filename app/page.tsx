@@ -131,9 +131,9 @@ type AssetRecord = {
 };
 
 const modes: Option[] = [
+  { id: "listing", label: "Listing 生成", description: "生成亚马逊商品链接内容" },
   { id: "image", label: "图片生成", description: "生成商品图、场景图与电商套图" },
   { id: "video", label: "视频生成", description: "生成商品视频与带货口播" },
-  { id: "listing", label: "Listing 生成", description: "生成亚马逊商品链接内容" },
 ];
 
 const skills: SkillOption[] = [
@@ -2233,8 +2233,8 @@ export default function Home() {
   const [screen, setScreen] = useState<"home" | "studio" | "assets">("home");
   const [prompt, setPrompt] = useState("");
   const [uploads, setUploads] = useState<Upload[]>([]);
-  const [mode, setMode] = useState<GenerationMode>("image");
-  const [skill, setSkill] = useState("amazon-image-set");
+  const [mode, setMode] = useState<GenerationMode>("listing");
+  const [skill, setSkill] = useState("amazon-listing");
   const [region, setRegion] = useState("us");
   const [language, setLanguage] = useState("en");
   const [brand, setBrand] = useState<BrandSettings>(defaultBrandSettings);

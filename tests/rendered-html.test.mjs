@@ -81,6 +81,16 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /图片生成/);
   assert.match(page, /视频生成/);
   assert.match(page, /Listing 生成/);
+  assert.ok(
+    page.indexOf('{ id: "listing", label: "Listing 生成"') <
+      page.indexOf('{ id: "image", label: "图片生成"'),
+  );
+  assert.ok(
+    page.indexOf('{ id: "image", label: "图片生成"') <
+      page.indexOf('{ id: "video", label: "视频生成"'),
+  );
+  assert.match(page, /useState<GenerationMode>\("listing"\)/);
+  assert.match(page, /useState\("amazon-listing"\)/);
   assert.match(page, /商品套图/);
   assert.match(page, /跨境电商套图/);
   assert.match(page, /人物场景图/);
