@@ -93,6 +93,7 @@ type Turn = {
   brand: BrandSettings;
   suite: SuiteSettings;
   productImage: string;
+  productImages?: string[];
   completed: number;
   running: boolean;
   phase: string;
@@ -104,6 +105,8 @@ type Turn = {
   failedImageSlots?: number[];
   videoUrl?: string;
 };
+
+const MAX_UPLOADS = 9;
 
 type Conversation = {
   id: string;
@@ -790,20 +793,29 @@ function Composer({
     <section className={`composer ${compact ? "composer-compact" : ""}`}>
       <div className="composer-body">
         {uploads.length ? (
-          <div className="upload-strip" aria-label="已添加商品图">
-            {uploads.map((upload) => (
-              <figure className="upload-thumb" key={upload.id}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={upload.url} alt={upload.name} />
-                <button
-                  type="button"
-                  aria-label={`移除 ${upload.name}`}
-                  onClick={() => onRemove(upload.id)}
-                >
-                  ×
-                </button>
-              </figure>
-            ))}
+          <div className="upload-group">
+            <div className="upload-summary">
+              <span>参考图片 {uploads.length} / {MAX_UPLOADS}</span>
+              <small>首张作为商品主体，其余用于补充细节</small>
+            </div>
+            <div
+              className="upload-strip"
+              aria-label={`已添加 ${uploads.length} 张参考图片，最多 ${MAX_UPLOADS} 张`}
+            >
+              {uploads.map((upload, index) => (
+                <figure className="upload-thumb" key={upload.id}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={upload.url} alt={`${index === 0 ? "商品主体" : "参考图"}：${upload.name}`} />
+                  <button
+                    type="button"
+                    aria-label={`移除 ${upload.name}`}
+                    onClick={() => onRemove(upload.id)}
+                  >
+                    <X aria-hidden="true" weight="bold" />
+                  </button>
+                </figure>
+              ))}
+            </div>
           </div>
         ) : null}
 
@@ -831,11 +843,13 @@ function Composer({
             <input
               type="file"
               accept="image/*"
+              multiple
+              disabled={uploads.length >= MAX_UPLOADS}
               data-testid="file-input"
               onChange={onFiles}
             />
             <Plus aria-hidden="true" weight="bold" />
-            <span>上传图片</span>
+            <span>{uploads.length >= MAX_UPLOADS ? "已达 9 张" : "上传图片"}</span>
           </label>
           <OptionMenu
             label="选择生成模式"
@@ -2294,15 +2308,34 @@ export default function Home() {
   };
 
   const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setUploads([{
-      id: `${file.name}-${file.lastModified}`,
-      name: file.name,
-      url: URL.createObjectURL(file),
-      owned: true,
-      file,
-    }]);
+    const selected = Array.from(event.target.files ?? [])
+      .filter((file) => file.type.startsWith("image/"));
+    if (!selected.length) return;
+    const remaining = Math.max(0, MAX_UPLOADS - uploads.length);
+    if (!remaining) {
+      showNotice("最多上传 9 张图片");
+      event.target.value = "";
+      return;
+    }
+    const known = new Set(uploads.map((upload) => upload.id));
+    const additions: Upload[] = [];
+    for (const file of selected) {
+      const id = `${file.name}-${file.lastModified}-${file.size}`;
+      if (known.has(id)) continue;
+      known.add(id);
+      additions.push({
+        id,
+        name: file.name,
+        url: URL.createObjectURL(file),
+        owned: true,
+        file,
+      });
+      if (additions.length === remaining) break;
+    }
+    setUploads((current) => [...current, ...additions].slice(0, MAX_UPLOADS));
+    if (selected.length > additions.length) {
+      showNotice(`最多上传 9 张图片，本次已添加 ${additions.length} 张`);
+    }
     event.target.value = "";
   };
 
@@ -2318,7 +2351,7 @@ export default function Home() {
 
   const generationForm = async (
     turn: Turn,
-    upload: Upload,
+    uploadsForTurn: Upload[],
     action: "listing" | "image" | "video",
     slot?: number,
   ) => {
@@ -2352,8 +2385,10 @@ export default function Home() {
         form.set("slotIndex", String(slotConfig.index));
       }
     }
-    const file = await uploadAsFile(upload);
-    form.set("image", file, file.name);
+    const files = await Promise.all(
+      uploadsForTurn.slice(0, MAX_UPLOADS).map(uploadAsFile),
+    );
+    files.forEach((file) => form.append("image", file, file.name));
     return form;
   };
 
@@ -2389,7 +2424,7 @@ export default function Home() {
     throw new Error("图片生成超时，请稍后重试");
   };
 
-  const runListing = async (turn: Turn, upload: Upload, signal: AbortSignal) => {
+  const runListing = async (turn: Turn, uploadsForTurn: Upload[], signal: AbortSignal) => {
     const suiteImageCount = turn.skill === "amazon-listing"
       ? turn.imageTaskCount ?? 0
       : 0;
@@ -2401,7 +2436,7 @@ export default function Home() {
     });
     const response = await fetch("/api/generate", {
       method: "POST",
-      body: await generationForm(turn, upload, "listing"),
+      body: await generationForm(turn, uploadsForTurn, "listing"),
       signal,
     });
     if (!response.ok || !response.body) throw new Error(await responseError(response));
@@ -2460,7 +2495,7 @@ export default function Home() {
         const slot = nextSlot++;
         try {
           results[slot] = await runImageTask(
-            await generationForm(turn, upload, "image", slot),
+            await generationForm(turn, uploadsForTurn, "image", slot),
             signal,
           );
           void storeAsset(
@@ -2503,7 +2538,7 @@ export default function Home() {
     });
   };
 
-  const runImages = async (turn: Turn, upload: Upload, signal: AbortSignal) => {
+  const runImages = async (turn: Turn, uploadsForTurn: Upload[], signal: AbortSignal) => {
     const count = turn.imageTaskCount ?? imageTaskCount(turn.kind, turn.prompt);
     patchTurn(turn.id, {
       phase: "正在生成商品图片",
@@ -2521,7 +2556,7 @@ export default function Home() {
         const slot = nextSlot++;
         try {
           results[slot] = await runImageTask(
-            await generationForm(turn, upload, "image", slot),
+            await generationForm(turn, uploadsForTurn, "image", slot),
             signal,
           );
           void storeAsset(
@@ -2564,11 +2599,11 @@ export default function Home() {
     });
   };
 
-  const runVideo = async (turn: Turn, upload: Upload, signal: AbortSignal) => {
+  const runVideo = async (turn: Turn, uploadsForTurn: Upload[], signal: AbortSignal) => {
     patchTurn(turn.id, { phase: "正在提交视频任务", completed: 1 });
     const response = await fetch("/api/generate", {
       method: "POST",
-      body: await generationForm(turn, upload, "video"),
+      body: await generationForm(turn, uploadsForTurn, "video"),
       signal,
     });
     if (!response.ok) throw new Error(await responseError(response));
@@ -2606,14 +2641,14 @@ export default function Home() {
     throw new Error("视频生成超时，请稍后重试");
   };
 
-  const runGeneration = async (turn: Turn, upload: Upload) => {
+  const runGeneration = async (turn: Turn, uploadsForTurn: Upload[]) => {
     const controller = new AbortController();
     controllers.current.set(turn.id, controller);
     patchTurn(turn.id, { running: true, error: undefined });
     try {
-      if (turn.kind === "listing") await runListing(turn, upload, controller.signal);
-      else if (turn.kind === "video") await runVideo(turn, upload, controller.signal);
-      else await runImages(turn, upload, controller.signal);
+      if (turn.kind === "listing") await runListing(turn, uploadsForTurn, controller.signal);
+      else if (turn.kind === "video") await runVideo(turn, uploadsForTurn, controller.signal);
+      else await runImages(turn, uploadsForTurn, controller.signal);
     } catch (error) {
       if ((error as Error).name === "AbortError") return;
       patchTurn(turn.id, {
@@ -2665,6 +2700,7 @@ export default function Home() {
     const configuredImageCount = hasSuiteSettings(selectedSkill.id)
       ? suiteTaskCount(selectedSkill.id, suite, taskPrompt)
       : imageTaskCount(selectedKind, taskPrompt);
+    const turnUploads = uploads.slice(0, MAX_UPLOADS);
     const turn: Turn = {
       id,
       conversationId,
@@ -2679,6 +2715,7 @@ export default function Home() {
       brand: { ...brand },
       suite: { ...suite },
       productImage,
+      productImages: turnUploads.map((upload) => upload.url),
       completed: 0,
       running: true,
       phase: generationCopy[selectedKind].phases[0],
@@ -2688,7 +2725,7 @@ export default function Home() {
     setScreen("studio");
     setPrompt("");
     window.setTimeout(() => {
-      void runGeneration(turn, uploads[0]);
+      void runGeneration(turn, turnUploads);
       document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 0);
   };
@@ -2711,11 +2748,17 @@ export default function Home() {
     const slot = Math.max(0, presets.findIndex((preset) => preset.id === item.id));
     try {
       const url = await runImageTask(
-        await generationForm(turn, {
-          id: `${turn.id}-regenerate`,
-          name: "product.png",
-          url: turn.productImage,
-        }, "image", slot),
+        await generationForm(
+          turn,
+          (turn.productImages?.length ? turn.productImages : [turn.productImage])
+            .map((url, index) => ({
+              id: `${turn.id}-regenerate-${index}`,
+              name: `reference-${index + 1}.png`,
+              url,
+            })),
+          "image",
+          slot,
+        ),
       );
       void storeAsset(turn, url, "image", item.title);
       setTurns((current) => current.map((currentTurn) => {
@@ -2764,6 +2807,7 @@ export default function Home() {
       brand: { ...brand },
       suite: { ...suite },
       productImage: preview.image,
+      productImages: [preview.image],
       completed: 1,
       running: false,
       phase: "生成完成",
@@ -2776,11 +2820,11 @@ export default function Home() {
       const url = await runImageTask(
         await generationForm(
           editedTurn,
-          {
+          [{
             id: `${preview.id}-edit`,
             name: "reference-image.png",
             url: preview.image,
-          },
+          }],
           "image",
           preview.slot,
         ),
@@ -2903,9 +2947,17 @@ export default function Home() {
                   <div className="user-message">
                     <div className="message-avatar">Y</div>
                     <div className="message-bubble">
-                      <div className="message-product">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={turn.productImage} alt="用户上传的商品" />
+                      <div className="message-products" aria-label="本次任务的参考图片">
+                        {(turn.productImages?.length ? turn.productImages : [turn.productImage])
+                          .map((image, imageIndex) => (
+                            <div className="message-product" key={`${turn.id}-input-${imageIndex}`}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={image}
+                                alt={imageIndex === 0 ? "用户上传的商品主体" : `用户上传的参考图 ${imageIndex + 1}`}
+                              />
+                            </div>
+                          ))}
                       </div>
                       <div className="message-copy">
                         <p>{turn.prompt}</p>
@@ -2955,11 +3007,15 @@ export default function Home() {
                         ) : turn.completed < total ? (
                           <button
                             type="button"
-                            onClick={() => void runGeneration(turn, {
-                              id: `${turn.id}-retry`,
-                              name: "product.png",
-                              url: turn.productImage,
-                            })}
+                            onClick={() => void runGeneration(
+                              turn,
+                              (turn.productImages?.length ? turn.productImages : [turn.productImage])
+                                .map((url, imageIndex) => ({
+                                  id: `${turn.id}-retry-${imageIndex}`,
+                                  name: `reference-${imageIndex + 1}.png`,
+                                  url,
+                                })),
+                            )}
                           >
                             重新生成
                           </button>

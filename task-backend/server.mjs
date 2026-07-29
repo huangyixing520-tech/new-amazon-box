@@ -14,6 +14,7 @@ import { pathToFileURL } from "node:url";
 import { imageOutputUrl } from "./image-response.mjs";
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+const MAX_UPLOAD_COUNT = 9;
 const TASK_TTL_MS = 24 * 60 * 60 * 1000;
 
 function errorMessage(payload, fallback) {
@@ -118,7 +119,7 @@ export function createTaskServer(options = {}) {
     model: options.model ?? process.env.IMAGE_MODEL ?? "yunwu/gpt-image-2",
     concurrency: Math.max(1, Number(options.concurrency ?? process.env.TASK_CONCURRENCY ?? 2)),
     retryDelays: options.retryDelays ?? String(
-      process.env.IMAGE_RETRY_DELAYS_MS ?? "5000,15000,30000",
+      process.env.IMAGE_RETRY_DELAYS_MS ?? "5000,15000,30000,60000,120000",
     )
       .split(",")
       .map(Number)
@@ -131,7 +132,9 @@ export function createTaskServer(options = {}) {
   let active = 0;
 
   const taskPath = (id) => join(tasksDir, `${id}.json`);
-  const inputPath = (id) => join(inputsDir, `${id}.bin`);
+  const inputPath = (id, index) => index === undefined
+    ? join(inputsDir, `${id}.bin`)
+    : join(inputsDir, `${id}-${index}.bin`);
 
   async function readTask(id) {
     return JSON.parse(await readFile(taskPath(id), "utf8"));
@@ -148,7 +151,17 @@ export function createTaskServer(options = {}) {
     task.error = undefined;
     await saveTask(task);
     try {
-      const bytes = await readFile(inputPath(id));
+      const imageInputs = Array.isArray(task.images) && task.images.length
+        ? await Promise.all(task.images.map(async (image, index) => ({
+            bytes: await readFile(inputPath(id, index)),
+            name: image.name,
+            type: image.type,
+          })))
+        : [{
+            bytes: await readFile(inputPath(id)),
+            name: task.imageName,
+            type: task.imageType,
+          }];
       const upstreamKey = task.encryptedUpstreamKey
         ? decryptUpstreamKey(
             task.encryptedUpstreamKey,
@@ -161,11 +174,11 @@ export function createTaskServer(options = {}) {
       request.set("prompt", task.prompt);
       request.set("size", task.size);
       request.set("quality", task.quality);
-      request.set(
-        "image",
-        new Blob([bytes], { type: task.imageType || "image/png" }),
-        task.imageName || "product.png",
-      );
+      imageInputs.forEach((image) => request.append(
+        imageInputs.length === 1 ? "image" : "image[]",
+        new Blob([image.bytes], { type: image.type || "image/png" }),
+        image.name || "product.png",
+      ));
       let url;
       for (let attempt = 0; attempt <= config.retryDelays.length; attempt += 1) {
         const response = await fetch(`${config.baseUrl}/images/edits`, {
@@ -239,6 +252,10 @@ export function createTaskServer(options = {}) {
         await Promise.all([
           rm(taskPath(id), { force: true }),
           rm(inputPath(id), { force: true }),
+          ...Array.from(
+            { length: Math.max(MAX_UPLOAD_COUNT, task.images?.length ?? 0) },
+            (_, index) => rm(inputPath(id, index), { force: true }),
+          ),
         ]);
       }
     }
@@ -285,7 +302,7 @@ export function createTaskServer(options = {}) {
       }
       const contentLength = Number(request.headers["content-length"] ?? 0);
       if (contentLength > MAX_UPLOAD_BYTES) {
-        return json(response, 413, { error: "商品图片不能超过 20MB" });
+        return json(response, 413, { error: "上传图片总大小不能超过 20MB" });
       }
       const webRequest = new Request("http://localhost/v1/image-tasks", {
         method: "POST",
@@ -294,10 +311,14 @@ export function createTaskServer(options = {}) {
         duplex: "half",
       });
       const form = await webRequest.formData();
-      const image = form.get("image");
-      if (!(image instanceof File)) return json(response, 400, { error: "请上传商品图片" });
-      if (image.size > MAX_UPLOAD_BYTES) {
-        return json(response, 413, { error: "商品图片不能超过 20MB" });
+      const images = form.getAll("image")
+        .filter((value) => value instanceof File);
+      if (!images.length) return json(response, 400, { error: "请上传商品图片" });
+      if (images.length > MAX_UPLOAD_COUNT) {
+        return json(response, 400, { error: `最多上传 ${MAX_UPLOAD_COUNT} 张图片` });
+      }
+      if (images.reduce((total, image) => total + image.size, 0) > MAX_UPLOAD_BYTES) {
+        return json(response, 413, { error: "上传图片总大小不能超过 20MB" });
       }
       const id = randomUUID();
       const now = new Date().toISOString();
@@ -307,15 +328,19 @@ export function createTaskServer(options = {}) {
         prompt: String(form.get("prompt") ?? ""),
         size: String(form.get("size") ?? "1024x1024"),
         quality: String(form.get("quality") ?? "medium"),
-        imageName: image.name,
-        imageType: image.type,
+        images: images.map((image) => ({
+          name: image.name,
+          type: image.type,
+        })),
         encryptedUpstreamKey: upstreamKey
           ? encryptUpstreamKey(upstreamKey, config.userKeyEncryptionSecret)
           : undefined,
         createdAt: now,
         updatedAt: now,
       };
-      await writeFile(inputPath(id), Buffer.from(await image.arrayBuffer()));
+      await Promise.all(images.map(async (image, index) => {
+        await writeFile(inputPath(id, index), Buffer.from(await image.arrayBuffer()));
+      }));
       await saveTask(task);
       enqueue(id);
       return json(response, 202, publicTask(task));

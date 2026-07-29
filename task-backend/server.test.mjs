@@ -142,6 +142,112 @@ test("retries a logical 429 returned with HTTP 200", async (context) => {
   assert.equal(upstreamCalls, 2);
 });
 
+test("makes at most six upstream attempts for retryable overloads", async (context) => {
+  const dataDir = await mkdtemp(join(tmpdir(), "mercato-task-six-attempts-"));
+  context.after(() => rm(dataDir, { recursive: true, force: true }));
+  let upstreamCalls = 0;
+  const upstream = createServer((_request, response) => {
+    upstreamCalls += 1;
+    response.writeHead(429, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({
+      error: { message: "当前分组上游负载已饱和，请稍后再试" },
+    }));
+  });
+  const upstreamPort = await listen(upstream);
+  context.after(() => close(upstream));
+
+  const backend = createTaskServer({
+    dataDir,
+    baseUrl: `http://127.0.0.1:${upstreamPort}`,
+    apiKey: "dola-test",
+    token: "backend-test",
+    retryDelays: [0, 0, 0, 0, 0],
+  });
+  const backendPort = await listen(backend);
+  context.after(() => close(backend));
+
+  const form = new FormData();
+  form.set("image", new File(["product"], "product.png", { type: "image/png" }));
+  const created = await fetch(`http://127.0.0.1:${backendPort}/v1/image-tasks`, {
+    method: "POST",
+    headers: { Authorization: "Bearer backend-test" },
+    body: form,
+  }).then((response) => response.json());
+
+  let completed;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    completed = await fetch(
+      `http://127.0.0.1:${backendPort}/v1/image-tasks/${created.id}`,
+      { headers: { Authorization: "Bearer backend-test" } },
+    ).then((response) => response.json());
+    if (completed.status === "failed") break;
+  }
+  assert.equal(completed.status, "failed");
+  assert.equal(upstreamCalls, 6);
+});
+
+test("forwards up to nine reference images in one generation task", async (context) => {
+  const dataDir = await mkdtemp(join(tmpdir(), "mercato-task-reference-images-"));
+  context.after(() => rm(dataDir, { recursive: true, force: true }));
+  let upstreamBody = "";
+  const upstream = createServer(async (request, response) => {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    upstreamBody = Buffer.concat(chunks).toString("utf8");
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ data: [{ url: "https://example.com/multi.png" }] }));
+  });
+  const upstreamPort = await listen(upstream);
+  context.after(() => close(upstream));
+
+  const backend = createTaskServer({
+    dataDir,
+    baseUrl: `http://127.0.0.1:${upstreamPort}`,
+    apiKey: "dola-test",
+    token: "backend-test",
+    retryDelays: [],
+  });
+  const backendPort = await listen(backend);
+  context.after(() => close(backend));
+
+  const form = new FormData();
+  form.append("image", new File(["primary"], "primary.png", { type: "image/png" }));
+  form.append("image", new File(["detail"], "detail.png", { type: "image/png" }));
+  const created = await fetch(`http://127.0.0.1:${backendPort}/v1/image-tasks`, {
+    method: "POST",
+    headers: { Authorization: "Bearer backend-test" },
+    body: form,
+  }).then((response) => response.json());
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const completed = await fetch(
+      `http://127.0.0.1:${backendPort}/v1/image-tasks/${created.id}`,
+      { headers: { Authorization: "Bearer backend-test" } },
+    ).then((response) => response.json());
+    if (completed.status === "succeeded") break;
+  }
+  assert.match(upstreamBody, /name="image\[\]"/);
+  assert.match(upstreamBody, /filename="primary.png"/);
+  assert.match(upstreamBody, /filename="detail.png"/);
+
+  const tooMany = new FormData();
+  for (let index = 0; index < 10; index += 1) {
+    tooMany.append(
+      "image",
+      new File([String(index)], `reference-${index + 1}.png`, { type: "image/png" }),
+    );
+  }
+  const rejected = await fetch(`http://127.0.0.1:${backendPort}/v1/image-tasks`, {
+    method: "POST",
+    headers: { Authorization: "Bearer backend-test" },
+    body: tooMany,
+  });
+  assert.equal(rejected.status, 400);
+  assert.match(await rejected.text(), /最多上传 9 张图片/);
+});
+
 test("uses a per-user key without exposing or persisting it in plaintext", async (context) => {
   const dataDir = await mkdtemp(join(tmpdir(), "mercato-task-user-key-"));
   context.after(() => rm(dataDir, { recursive: true, force: true }));

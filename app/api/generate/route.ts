@@ -10,6 +10,7 @@ const BASE_URL =
   "https://api.dolaio.cn/aigateway/cisco/v1";
 const AGENT_MODEL = process.env.AGENT_MODEL ?? "MiniMax-M3";
 const VIDEO_MODEL = process.env.VIDEO_MODEL ?? "novai/seedance-2.0-mini";
+const MAX_UPLOADS = 9;
 
 const languageNames: Record<string, string> = {
   en: "English",
@@ -188,16 +189,24 @@ async function fileDataUrl(file: File) {
   return `data:${file.type || "image/png"};base64,${btoa(binary)}`;
 }
 
+function uploadedImages(form: FormData) {
+  return form.getAll("image")
+    .filter((value): value is File => value instanceof File);
+}
+
 async function listingMessages(form: FormData) {
   const skill = String(form.get("skill") ?? "amazon-listing");
   const context = formContext(form);
   const prompt = String(form.get("prompt") ?? "");
-  const image = form.get("image");
-  const imageName = image instanceof File ? image.name : "uploaded product image";
+  const images = uploadedImages(form);
+  const imageNames = images.length
+    ? images.map((image, index) => `${index + 1}. ${image.name}`).join("\n")
+    : "No uploaded product image";
   const userText = `[FORM]
 Generation mode: Listing generation
 Skill: ${skill}
-Uploaded image: ${imageName}
+Uploaded images (${images.length}):
+${imageNames}
 
 [BRAND GENE]
 ${context.brandText}
@@ -208,11 +217,14 @@ ${context.generationText}
 [USER INPUT]
 ${prompt || "Create a complete marketplace listing from the supplied product information."}
 
-Inspect the product image carefully. Distinguish visible facts from assumptions and never invent non-visible specifications.`;
-  const userContent = image instanceof File
+Treat the first uploaded image as the primary product identity. Use the remaining images only as supplementary references for angles, details, packaging and usage context. Inspect every supplied image carefully. Distinguish visible facts from assumptions and never invent non-visible specifications.`;
+  const userContent = images.length
     ? [
         { type: "text", text: userText },
-        { type: "image_url", image_url: { url: await fileDataUrl(image) } },
+        ...await Promise.all(images.map(async (image) => ({
+          type: "image_url",
+          image_url: { url: await fileDataUrl(image) },
+        }))),
       ]
     : userText;
 
@@ -310,8 +322,8 @@ async function createImage(
   userId: string,
   db: D1Binding,
 ) {
-  const image = form.get("image");
-  if (!(image instanceof File)) return jsonError("请上传商品图片", 400);
+  const images = uploadedImages(form);
+  if (!images.length) return jsonError("请上传商品图片", 400);
 
   const skill = String(form.get("skill") ?? "amazon-scene-image");
   const slot = Math.max(0, Number(form.get("slot") ?? 0));
@@ -332,7 +344,7 @@ async function createImage(
   const request = new FormData();
   request.set(
     "prompt",
-    `${preset}. ${context.brandText} ${context.generationText} Preserve the uploaded product's identity, silhouette, proportions, colors, logo and visible functional details. Do not combine multiple layouts into a collage. Create exactly one finished image for this single task. ${prompt}`.trim(),
+    `${preset}. ${context.brandText} ${context.generationText} The first uploaded image is the primary product identity. Remaining images are supplementary references for angles, details, packaging and usage context. Preserve the product's identity, silhouette, proportions, colors, logo and visible functional details. Do not combine the reference images into a collage. Create exactly one finished image for this single task. ${prompt}`.trim(),
   );
   request.set(
     "size",
@@ -346,7 +358,7 @@ async function createImage(
         : process.env.IMAGE_DEFAULT_SQUARE_SIZE ?? "1024x1024",
   );
   request.set("quality", process.env.IMAGE_DEFAULT_QUALITY ?? "medium");
-  request.set("image", image, image.name || "product.png");
+  images.forEach((image) => request.append("image", image, image.name || "product.png"));
 
   const backend = taskBackend();
   const response = await fetch(`${backend.url}/v1/image-tasks`, {
@@ -376,8 +388,8 @@ async function createVideo(
   userId: string,
   db: D1Binding,
 ) {
-  const image = form.get("image");
-  if (!(image instanceof File)) return jsonError("请上传商品图片", 400);
+  const image = uploadedImages(form)[0];
+  if (!image) return jsonError("请上传商品图片", 400);
   const dataUrl = await fileDataUrl(image);
   const prompt = String(form.get("prompt") ?? "");
   const skill = String(form.get("skill") ?? "video-replica");
@@ -433,6 +445,9 @@ export async function POST(request: Request) {
       DB,
     } = await userApiKey(request);
     const form = await request.formData();
+    if (uploadedImages(form).length > MAX_UPLOADS) {
+      return jsonError(`最多上传 ${MAX_UPLOADS} 张图片`, 400);
+    }
     const action = String(form.get("action") ?? "");
     if (action === "listing") return await createListing(form, apiKey);
     if (action === "image") {

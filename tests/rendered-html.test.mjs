@@ -43,6 +43,7 @@ test("server-renders the Mercato creation workspace", async () => {
   assert.match(html, /data-testid="brand-gene-trigger"/);
   assert.match(html, /data-testid="skill-trigger"/);
   assert.match(html, /data-testid="file-input"/);
+  assert.match(html, /multiple=""/);
   assert.match(html, /data-testid="send"/);
   assert.match(html, /property="og:image"/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
