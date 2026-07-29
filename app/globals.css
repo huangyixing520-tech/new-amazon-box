@@ -171,8 +171,11 @@ button:active, a:active { transform: translateY(1px); }
 .brand-field > div input[type=text] { min-height: 30px; padding: 0; border: 0; border-radius: 0; }
 .brand-field input:focus-visible, .brand-field select:focus-visible { border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus), transparent 80%); }
 .brand-gene-summary { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 10px; }
-.send-button { width: 48px; height: 48px; border: 0; border-radius: 18px; background: var(--accent); color: var(--accent-ink); cursor: pointer; font-size: 24px; font-weight: 620; line-height: 1; transition: transform 160ms ease, opacity 160ms ease; }
-.send-button svg { width: 22px; height: 22px; }
+.brand-field .option-menu { width: 100%; }
+.brand-field .option-trigger { width: 100%; min-height: 44px; justify-content: space-between; border-radius: 14px; }
+.brand-field .option-popover { width: max-content; min-width: max(210px, 100%); }
+.send-button { width: 48px; height: 48px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 18px; background: var(--accent); color: var(--accent-ink); cursor: pointer; font-size: 24px; font-weight: 620; line-height: 1; transition: transform 160ms ease, opacity 160ms ease; }
+.send-button svg { width: 22px; height: 22px; display: block; }
 .send-button:hover:not(:disabled) { transform: translateY(-2px); }
 .send-button:disabled { background: var(--surface-strong); color: var(--muted); cursor: not-allowed; opacity: .7; }
 .skill-hint { margin-top: 16px; padding: 14px 16px; display: grid; grid-template-columns: 135px 1fr; gap: 14px; border-radius: 18px; background: var(--surface-soft); }

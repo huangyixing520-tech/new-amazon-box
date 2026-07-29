@@ -101,6 +101,10 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /brand-gene-panel/);
   assert.match(page, /font-style-select/);
   assert.match(page, /platform-select/);
+  assert.match(page, /dismissOnOutsidePress/);
+  assert.match(page, /dismissBrandGene/);
+  assert.match(page, /openBrandMenu === "font-style"/);
+  assert.doesNotMatch(page, /<select[\s\S]*?data-testid="font-style-select"/);
   assert.match(page, /listing-result/);
   assert.match(page, /image-result/);
   assert.match(page, /single-image-result/);
@@ -176,6 +180,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(layout, /generateMetadata/);
   assert.match(layout, /summary_large_image/);
   assert.match(styles, /--accent: #c9f33e/);
+  assert.match(styles, /\.send-button \{[^}]*display: grid;[^}]*place-items: center;/);
+  assert.match(styles, /\.brand-field \.option-popover/);
   assert.match(styles, /\.home-workspace::after/);
   assert.match(styles, /background-size: 5px 5px, 7px 7px/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);

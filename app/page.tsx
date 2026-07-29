@@ -586,6 +586,7 @@ function OptionMenu({
   value,
   open,
   onOpen,
+  onDismiss,
   onChange,
   prefix,
   rich = false,
@@ -597,6 +598,7 @@ function OptionMenu({
   value: string;
   open: boolean;
   onOpen: () => void;
+  onDismiss?: () => void;
   onChange: (value: string) => void;
   prefix?: string;
   rich?: boolean;
@@ -604,9 +606,31 @@ function OptionMenu({
   testId: string;
 }) {
   const selected = options.find((option) => option.id === value) ?? options[0];
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open || !onDismiss) return;
+
+    const dismissOnOutsidePress = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) onDismiss();
+    };
+    const dismissOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") onDismiss();
+    };
+
+    document.addEventListener("pointerdown", dismissOnOutsidePress);
+    document.addEventListener("keydown", dismissOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOnOutsidePress);
+      document.removeEventListener("keydown", dismissOnEscape);
+    };
+  }, [onDismiss, open]);
 
   return (
-    <div className={`option-menu ${rich ? "option-menu-rich" : ""} ${accent ? "option-menu-accent" : ""}`}>
+    <div
+      className={`option-menu ${rich ? "option-menu-rich" : ""} ${accent ? "option-menu-accent" : ""}`}
+      ref={menuRef}
+    >
       <button
         type="button"
         className="option-trigger"
@@ -690,10 +714,40 @@ function Composer({
   onSuite: (value: SuiteSettings) => void;
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [openBrandMenu, setOpenBrandMenu] = useState<string | null>(null);
   const [promptIdea, setPromptIdea] = useState(0);
   const [promptIdeaText, setPromptIdeaText] = useState(promptIdeasByMode[mode][0]);
   const [deletingPromptIdea, setDeletingPromptIdea] = useState(false);
+  const brandGeneTriggerRef = useRef<HTMLDivElement>(null);
+  const brandGenePanelRef = useRef<HTMLElement>(null);
   const modeSkills = skillsByMode(mode);
+
+  useEffect(() => {
+    if (openMenu !== "brand-gene") return;
+
+    const dismissBrandGene = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (
+        brandGeneTriggerRef.current?.contains(target) ||
+        brandGenePanelRef.current?.contains(target)
+      ) return;
+      setOpenMenu(null);
+      setOpenBrandMenu(null);
+    };
+    const dismissBrandGeneOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenMenu(null);
+        setOpenBrandMenu(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", dismissBrandGene);
+    document.addEventListener("keydown", dismissBrandGeneOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissBrandGene);
+      document.removeEventListener("keydown", dismissBrandGeneOnEscape);
+    };
+  }, [openMenu]);
 
   useEffect(() => {
     if (compact || prompt) return;
@@ -789,6 +843,7 @@ function Composer({
             value={mode}
             open={openMenu === "mode"}
             onOpen={() => setOpenMenu(openMenu === "mode" ? null : "mode")}
+            onDismiss={() => setOpenMenu(null)}
             onChange={(value) => {
               onMode(value as GenerationMode);
               setOpenMenu(null);
@@ -796,14 +851,17 @@ function Composer({
             accent
             testId="mode-trigger"
           />
-          <div className="brand-gene-control">
+          <div className="brand-gene-control" ref={brandGeneTriggerRef}>
             <button
               type="button"
               className="option-trigger brand-gene-trigger"
               aria-expanded={openMenu === "brand-gene"}
               aria-controls={compact ? "compact-brand-gene-panel" : "brand-gene-panel"}
               data-testid="brand-gene-trigger"
-              onClick={() => setOpenMenu(openMenu === "brand-gene" ? null : "brand-gene")}
+              onClick={() => {
+                setOpenBrandMenu(null);
+                setOpenMenu(openMenu === "brand-gene" ? null : "brand-gene");
+              }}
             >
               <span>品牌基因</span>
               <span className="chevron" aria-hidden="true">
@@ -819,6 +877,7 @@ function Composer({
             value={skill}
             open={openMenu === "skill"}
             onOpen={() => setOpenMenu(openMenu === "skill" ? null : "skill")}
+            onDismiss={() => setOpenMenu(null)}
             onChange={(value) => {
               onSkill(value);
               setOpenMenu(null);
@@ -835,6 +894,7 @@ function Composer({
                 value={suite.aPlusType}
                 open={openMenu === "a-plus-type"}
                 onOpen={() => setOpenMenu(openMenu === "a-plus-type" ? null : "a-plus-type")}
+                onDismiss={() => setOpenMenu(null)}
                 onChange={(value) => {
                   onSuite({ ...suite, aPlusType: value });
                   setOpenMenu(null);
@@ -848,6 +908,7 @@ function Composer({
                 value={String(suite.aPlusCount)}
                 open={openMenu === "a-plus-count"}
                 onOpen={() => setOpenMenu(openMenu === "a-plus-count" ? null : "a-plus-count")}
+                onDismiss={() => setOpenMenu(null)}
                 onChange={(value) => {
                   onSuite({ ...suite, aPlusCount: Number(value) });
                   setOpenMenu(null);
@@ -863,6 +924,7 @@ function Composer({
                 onOpen={() => setOpenMenu(
                   openMenu === "main-image-ratio" ? null : "main-image-ratio",
                 )}
+                onDismiss={() => setOpenMenu(null)}
                 onChange={(value) => {
                   onSuite({ ...suite, mainImageRatio: value as "1:1" | "3:4" });
                   setOpenMenu(null);
@@ -876,6 +938,7 @@ function Composer({
                 value={String(suite.mainImageCount)}
                 open={openMenu === "main-image-count"}
                 onOpen={() => setOpenMenu(openMenu === "main-image-count" ? null : "main-image-count")}
+                onDismiss={() => setOpenMenu(null)}
                 onChange={(value) => {
                   onSuite({ ...suite, mainImageCount: Number(value) });
                   setOpenMenu(null);
@@ -907,6 +970,7 @@ function Composer({
           id={compact ? "compact-brand-gene-panel" : "brand-gene-panel"}
           data-testid="brand-gene-panel"
           aria-label="品牌基因设置"
+          ref={brandGenePanelRef}
         >
           <label className="brand-field color-field">
             <span>品牌主色</span>
@@ -933,54 +997,76 @@ function Composer({
               />
             </div>
           </label>
-          <label className="brand-field">
+          <div className="brand-field">
             <span>字体风格</span>
-            <select
+            <OptionMenu
+              label="字体风格"
+              options={fontStyles}
               value={brand.fontStyle}
-              data-testid="font-style-select"
-              onChange={(event) => onBrand({ ...brand, fontStyle: event.target.value })}
-            >
-              {fontStyles.map((option) => (
-                <option value={option.id} key={option.id}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="brand-field">
+              open={openBrandMenu === "font-style"}
+              onOpen={() => setOpenBrandMenu(
+                openBrandMenu === "font-style" ? null : "font-style",
+              )}
+              onDismiss={() => setOpenBrandMenu(null)}
+              onChange={(value) => {
+                onBrand({ ...brand, fontStyle: value });
+                setOpenBrandMenu(null);
+              }}
+              testId="font-style-select"
+            />
+          </div>
+          <div className="brand-field">
             <span>销售国家/地区</span>
-            <select
+            <OptionMenu
+              label="销售国家/地区"
+              options={regions}
               value={region}
-              data-testid="region-trigger"
-              onChange={(event) => onRegion(event.target.value)}
-            >
-              {regions.map((option) => (
-                <option value={option.id} key={option.id}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="brand-field">
+              open={openBrandMenu === "region"}
+              onOpen={() => setOpenBrandMenu(openBrandMenu === "region" ? null : "region")}
+              onDismiss={() => setOpenBrandMenu(null)}
+              onChange={(value) => {
+                onRegion(value);
+                setOpenBrandMenu(null);
+              }}
+              testId="region-trigger"
+            />
+          </div>
+          <div className="brand-field">
             <span>生成内容语言</span>
-            <select
+            <OptionMenu
+              label="生成内容语言"
+              options={languages}
               value={language}
-              data-testid="language-trigger"
-              onChange={(event) => onLanguage(event.target.value)}
-            >
-              {languages.map((option) => (
-                <option value={option.id} key={option.id}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="brand-field">
+              open={openBrandMenu === "language"}
+              onOpen={() => setOpenBrandMenu(
+                openBrandMenu === "language" ? null : "language",
+              )}
+              onDismiss={() => setOpenBrandMenu(null)}
+              onChange={(value) => {
+                onLanguage(value);
+                setOpenBrandMenu(null);
+              }}
+              testId="language-trigger"
+            />
+          </div>
+          <div className="brand-field">
             <span>发布平台</span>
-            <select
+            <OptionMenu
+              label="发布平台"
+              options={platforms}
               value={brand.platform}
-              data-testid="platform-select"
-              onChange={(event) => onBrand({ ...brand, platform: event.target.value })}
-            >
-              {platforms.map((option) => (
-                <option value={option.id} key={option.id}>{option.label}</option>
-              ))}
-            </select>
-          </label>
+              open={openBrandMenu === "platform"}
+              onOpen={() => setOpenBrandMenu(
+                openBrandMenu === "platform" ? null : "platform",
+              )}
+              onDismiss={() => setOpenBrandMenu(null)}
+              onChange={(value) => {
+                onBrand({ ...brand, platform: value });
+                setOpenBrandMenu(null);
+              }}
+              testId="platform-select"
+            />
+          </div>
           <p className="brand-gene-summary">
             {platforms.find((item) => item.id === brand.platform)?.label} ·{" "}
             {regions.find((item) => item.id === region)?.label} ·{" "}
