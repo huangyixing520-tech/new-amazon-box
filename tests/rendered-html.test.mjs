@@ -63,6 +63,8 @@ test("ships the complete generation flow and its assets", async () => {
     historyRoute,
     eventsRoute,
     adminRoute,
+    adminUserResultsRoute,
+    adminAssetRoute,
     adminPage,
     envExample,
   ] = await Promise.all([
@@ -78,6 +80,8 @@ test("ships the complete generation flow and its assets", async () => {
     readFile(new URL("../app/api/history/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/metrics/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/users/[id]/results/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/assets/[id]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../.env.example", import.meta.url), "utf8"),
     access(new URL("../public/product-main.png", import.meta.url)),
@@ -279,6 +283,15 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(adminRoute, /requireAdmin/);
   assert.match(adminRoute, /generationDau/);
   assert.match(adminPage, /Skill 表现/);
+  assert.match(adminPage, /用户生成结果/);
+  assert.match(adminPage, /\/api\/admin\/users\/\$\{encodeURIComponent\(userId\)\}\/results/);
+  assert.match(adminPage, /查看用户输入/);
+  assert.match(adminPage, /admin-result-assets/);
+  assert.match(adminUserResultsRoute, /requireAdmin/);
+  assert.match(adminUserResultsRoute, /a\.role = 'output'/);
+  assert.match(adminUserResultsRoute, /\/api\/admin\/assets\//);
+  assert.match(adminAssetRoute, /requireAdmin/);
+  assert.match(adminAssetRoute, /GENERATED_ASSETS/);
   assert.match(accountPanel, /打开数据后台/);
   assert.match(envExample, /ADMIN_EMAILS=/);
   assert.match(authLibrary, /API_KEY_ENCRYPTION_SECRET/);
