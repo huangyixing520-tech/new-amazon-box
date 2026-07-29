@@ -142,8 +142,8 @@ test("retries a logical 429 returned with HTTP 200", async (context) => {
   assert.equal(upstreamCalls, 2);
 });
 
-test("makes at most six upstream attempts for retryable overloads", async (context) => {
-  const dataDir = await mkdtemp(join(tmpdir(), "mercato-task-six-attempts-"));
+test("retries retryable overloads at most 18 times", async (context) => {
+  const dataDir = await mkdtemp(join(tmpdir(), "mercato-task-eighteen-retries-"));
   context.after(() => rm(dataDir, { recursive: true, force: true }));
   let upstreamCalls = 0;
   const upstream = createServer((_request, response) => {
@@ -161,7 +161,7 @@ test("makes at most six upstream attempts for retryable overloads", async (conte
     baseUrl: `http://127.0.0.1:${upstreamPort}`,
     apiKey: "dola-test",
     token: "backend-test",
-    retryDelays: [0, 0, 0, 0, 0],
+    retryDelays: Array.from({ length: 24 }, () => 0),
   });
   const backendPort = await listen(backend);
   context.after(() => close(backend));
@@ -184,7 +184,7 @@ test("makes at most six upstream attempts for retryable overloads", async (conte
     if (completed.status === "failed") break;
   }
   assert.equal(completed.status, "failed");
-  assert.equal(upstreamCalls, 6);
+  assert.equal(upstreamCalls, 19);
 });
 
 test("forwards up to nine reference images in one generation task", async (context) => {

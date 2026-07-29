@@ -15,6 +15,8 @@ import { imageOutputUrl } from "./image-response.mjs";
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const MAX_UPLOAD_COUNT = 9;
+const MAX_IMAGE_RETRIES = 18;
+const IMAGE_RETRY_INTERVAL_MS = 10_000;
 const TASK_TTL_MS = 24 * 60 * 60 * 1000;
 
 function errorMessage(payload, fallback) {
@@ -107,6 +109,14 @@ function publicTask(task) {
 }
 
 export function createTaskServer(options = {}) {
+  const configuredRetryDelays = options.retryDelays ?? (
+    process.env.IMAGE_RETRY_DELAYS_MS
+      ? String(process.env.IMAGE_RETRY_DELAYS_MS).split(",")
+      : Array.from(
+          { length: MAX_IMAGE_RETRIES },
+          () => IMAGE_RETRY_INTERVAL_MS,
+        )
+  );
   const config = {
     dataDir: options.dataDir ?? process.env.DATA_DIR ?? join(process.cwd(), "data"),
     baseUrl: (options.baseUrl ?? process.env.DOLA_BASE_URL ??
@@ -116,14 +126,12 @@ export function createTaskServer(options = {}) {
       options.userKeyEncryptionSecret ??
       process.env.USER_KEY_ENCRYPTION_SECRET,
     token: options.token ?? process.env.TASK_BACKEND_TOKEN,
-    model: options.model ?? process.env.IMAGE_MODEL ?? "yunwu/gpt-image-2",
+    model: options.model ?? process.env.IMAGE_MODEL ?? "gpt-image-2",
     concurrency: Math.max(1, Number(options.concurrency ?? process.env.TASK_CONCURRENCY ?? 2)),
-    retryDelays: options.retryDelays ?? String(
-      process.env.IMAGE_RETRY_DELAYS_MS ?? "5000,15000,30000,60000,120000",
-    )
-      .split(",")
+    retryDelays: configuredRetryDelays
       .map(Number)
-      .filter((delay) => Number.isFinite(delay) && delay >= 0),
+      .filter((delay) => Number.isFinite(delay) && delay >= 0)
+      .slice(0, MAX_IMAGE_RETRIES),
   };
   const tasksDir = join(config.dataDir, "tasks");
   const inputsDir = join(config.dataDir, "inputs");
