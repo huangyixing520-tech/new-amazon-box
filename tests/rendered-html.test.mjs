@@ -110,6 +110,11 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /"1:1"/);
   assert.match(page, /"3:4"/);
   assert.match(page, /brand-gene-panel/);
+  assert.match(page, /智能品牌色/);
+  assert.match(page, /brand-color-popover/);
+  assert.match(page, /清除品牌主色，恢复智能品牌色/);
+  assert.match(page, /turn\.brand\.primaryColor \|\| "auto"/);
+  assert.doesNotMatch(page, /type="color"/);
   assert.match(page, /font-style-select/);
   assert.match(page, /platform-select/);
   assert.match(page, /dismissOnOutsidePress/);
@@ -226,6 +231,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /a-plus-mobile/);
   assert.match(generateRoute, /Main and secondary image ratio/);
   assert.match(generateRoute, /\[BRAND GENE\]/);
+  assert.match(generateRoute, /brandColor === "auto"/);
+  assert.match(generateRoute, /Auto-detect a coherent primary color/);
   assert.match(generateRoute, /\[GENERATION SETTINGS\]/);
   assert.match(generateRoute, /context\.mainImageRatio === "3:4"/);
   assert.match(generateRoute, /"1024x1536"/);

@@ -118,7 +118,10 @@ function formContext(form: FormData) {
   const region = String(form.get("region") ?? "us");
   const language = String(form.get("language") ?? "en");
   const platform = String(form.get("platform") ?? "amazon");
-  const brandColor = String(form.get("brandColor") ?? "#111111");
+  const brandColor = String(form.get("brandColor") ?? "auto");
+  const brandColorDescription = brandColor === "auto"
+    ? "Auto-detect a coherent primary color from the supplied product and brand assets"
+    : brandColor;
   const fontStyle = String(form.get("fontStyle") ?? "auto");
   const aPlusType = String(form.get("aPlusType") ?? "advanced");
   const aPlusCount = Math.max(0, Number(form.get("aPlusCount") ?? 0));
@@ -136,7 +139,7 @@ function formContext(form: FormData) {
     mainImageRatio,
     brandText: `Sales market: ${regionNames[region] ?? region}. Output language: ${
       languageNames[language] ?? language
-    }. Publishing platform: ${platform}. Brand primary color: ${brandColor}. Typography direction: ${fontStyle}.`,
+    }. Publishing platform: ${platform}. Brand primary color: ${brandColorDescription}. Typography direction: ${fontStyle}.`,
     generationText: `Main and secondary images: ${mainImageCount}. Main and secondary image ratio: ${mainImageRatio}. A+ type: ${aPlusType}. A+ images: ${aPlusCount}.`,
   };
 }

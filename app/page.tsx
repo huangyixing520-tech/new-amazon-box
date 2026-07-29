@@ -6,6 +6,7 @@ import {
   useState,
   type DragEvent,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
   ArrowUp,
@@ -301,7 +302,7 @@ const mainImageRatios: Option[] = [
 ];
 
 const defaultBrandSettings: BrandSettings = {
-  primaryColor: "#111111",
+  primaryColor: "",
   fontStyle: "auto",
   platform: "amazon",
 };
@@ -667,6 +668,211 @@ function OptionMenu({
               {option.id === value ? <span className="selected-mark">✓</span> : null}
             </button>
           ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type HsvColor = {
+  h: number;
+  s: number;
+  v: number;
+};
+
+function normaliseHex(value: string) {
+  const trimmed = value.trim();
+  if (/^#[0-9a-f]{6}$/i.test(trimmed)) return trimmed.toLowerCase();
+  if (/^[0-9a-f]{6}$/i.test(trimmed)) return `#${trimmed.toLowerCase()}`;
+  return null;
+}
+
+function hexToHsv(value: string): HsvColor {
+  const hex = normaliseHex(value) ?? "#111111";
+  const red = Number.parseInt(hex.slice(1, 3), 16) / 255;
+  const green = Number.parseInt(hex.slice(3, 5), 16) / 255;
+  const blue = Number.parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const delta = max - min;
+  let hue = 0;
+
+  if (delta) {
+    if (max === red) hue = 60 * (((green - blue) / delta) % 6);
+    else if (max === green) hue = 60 * ((blue - red) / delta + 2);
+    else hue = 60 * ((red - green) / delta + 4);
+  }
+
+  return {
+    h: hue < 0 ? hue + 360 : hue,
+    s: max ? delta / max : 0,
+    v: max,
+  };
+}
+
+function hsvToHex({ h, s, v }: HsvColor) {
+  const chroma = v * s;
+  const segment = h / 60;
+  const x = chroma * (1 - Math.abs((segment % 2) - 1));
+  const offset = v - chroma;
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+
+  if (segment < 1) [red, green] = [chroma, x];
+  else if (segment < 2) [red, green] = [x, chroma];
+  else if (segment < 3) [green, blue] = [chroma, x];
+  else if (segment < 4) [green, blue] = [x, chroma];
+  else if (segment < 5) [red, blue] = [x, chroma];
+  else [red, blue] = [chroma, x];
+
+  return `#${[red, green, blue]
+    .map((channel) => Math.round((channel + offset) * 255).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+function BrandColorPicker({
+  value,
+  open,
+  onOpen,
+  onChange,
+  onReset,
+}: {
+  value: string;
+  open: boolean;
+  onOpen: () => void;
+  onChange: (value: string) => void;
+  onReset: () => void;
+}) {
+  const [color, setColor] = useState<HsvColor>(() => hexToHsv(value));
+  const [hexDraft, setHexDraft] = useState(() => (value || "#111111").toUpperCase());
+
+  const commitColor = (next: HsvColor) => {
+    const hex = hsvToHex(next);
+    setColor(next);
+    setHexDraft(hex.toUpperCase());
+    onChange(hex);
+  };
+
+  const chooseSaturationValue = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const saturation = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
+    const brightness = 1 - Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height));
+    commitColor({ ...color, s: saturation, v: brightness });
+  };
+
+  const startChoosingSaturationValue = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    chooseSaturationValue(event);
+  };
+
+  return (
+    <div className="brand-color-control">
+      <div className={`brand-color-trigger ${value ? "has-color" : "is-auto"}`}>
+        <button
+          type="button"
+          className="brand-color-trigger-main"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          data-testid="brand-color-picker"
+          onClick={onOpen}
+        >
+          <span
+            className={value ? "brand-color-swatch" : "brand-color-swatch brand-color-swatch-auto"}
+            style={value ? { backgroundColor: value } : undefined}
+            aria-hidden="true"
+          />
+          <strong>{value ? value.toUpperCase() : "智能品牌色"}</strong>
+        </button>
+        {value ? (
+          <button
+            type="button"
+            className="brand-color-clear"
+            aria-label="清除品牌主色，恢复智能品牌色"
+            data-testid="brand-color-clear"
+            onClick={() => {
+              setColor(hexToHsv("#111111"));
+              setHexDraft("#111111");
+              onReset();
+            }}
+          >
+            <X aria-hidden="true" weight="bold" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="brand-color-caret"
+            aria-label="打开品牌色选择器"
+            tabIndex={-1}
+            onClick={onOpen}
+          >
+            {open ? <CaretUp aria-hidden="true" weight="bold" /> : <CaretDown aria-hidden="true" weight="bold" />}
+          </button>
+        )}
+      </div>
+
+      {open ? (
+        <div
+          className="brand-color-popover"
+          role="dialog"
+          aria-label="选择品牌主色"
+          data-testid="brand-color-popover"
+        >
+          <div
+            className="brand-color-canvas"
+            style={{ backgroundColor: `hsl(${color.h} 100% 50%)` }}
+            onPointerDown={startChoosingSaturationValue}
+            onPointerMove={(event) => {
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                chooseSaturationValue(event);
+              }
+            }}
+          >
+            <span
+              className="brand-color-handle"
+              style={{ left: `${color.s * 100}%`, top: `${(1 - color.v) * 100}%` }}
+              aria-hidden="true"
+            />
+          </div>
+          <div className="brand-color-hue-row">
+            <input
+              className="brand-color-hue"
+              type="range"
+              min="0"
+              max="359"
+              value={Math.round(color.h)}
+              aria-label="品牌色相"
+              onChange={(event) => commitColor({ ...color, h: Number(event.target.value) })}
+            />
+            <span className="brand-color-preview" style={{ backgroundColor: hsvToHex(color) }} />
+          </div>
+          <label className="brand-color-hex">
+            <span>HEX</span>
+            <input
+              type="text"
+              value={hexDraft}
+              aria-label="品牌主色十六进制"
+              data-testid="brand-color-text"
+              maxLength={7}
+              onChange={(event) => {
+                const next = event.target.value.toUpperCase();
+                setHexDraft(next);
+                const hex = normaliseHex(next);
+                if (hex) {
+                  setColor(hexToHsv(hex));
+                  onChange(hex);
+                }
+              }}
+              onBlur={() => setHexDraft((value || "#111111").toUpperCase())}
+            />
+          </label>
+          <div className="brand-color-smart-note">
+            <span className="brand-color-swatch brand-color-swatch-auto" aria-hidden="true" />
+            <p>
+              <strong>智能品牌色</strong>
+              <small>清除固定颜色后，将根据商品与品牌素材自动提取。</small>
+            </p>
+          </div>
         </div>
       ) : null}
     </div>
@@ -1045,31 +1251,21 @@ function Composer({
           aria-label="品牌基因设置"
           ref={brandGenePanelRef}
         >
-          <label className="brand-field color-field">
+          <div className="brand-field color-field">
             <span>品牌主色</span>
-            <div>
-              <input
-                type="color"
-                value={brand.primaryColor}
-                aria-label="选择品牌主色"
-                data-testid="brand-color-picker"
-                onChange={(event) => onBrand({ ...brand, primaryColor: event.target.value })}
-              />
-              <input
-                type="text"
-                value={brand.primaryColor.toUpperCase()}
-                aria-label="品牌主色十六进制"
-                data-testid="brand-color-text"
-                maxLength={7}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (/^#[0-9a-f]{6}$/i.test(value)) {
-                    onBrand({ ...brand, primaryColor: value });
-                  }
-                }}
-              />
-            </div>
-          </label>
+            <BrandColorPicker
+              value={brand.primaryColor}
+              open={openBrandMenu === "brand-color"}
+              onOpen={() => setOpenBrandMenu(
+                openBrandMenu === "brand-color" ? null : "brand-color",
+              )}
+              onChange={(value) => onBrand({ ...brand, primaryColor: value })}
+              onReset={() => {
+                onBrand({ ...brand, primaryColor: "" });
+                setOpenBrandMenu(null);
+              }}
+            />
+          </div>
           <div className="brand-field">
             <span>字体风格</span>
             <OptionMenu
@@ -2421,14 +2617,15 @@ export default function Home() {
     form.set("region", turn.region);
     form.set("language", turn.language);
     form.set("platform", turn.brand.platform);
-    form.set("brandColor", turn.brand.primaryColor);
+    const brandColor = turn.brand.primaryColor || "auto";
+    form.set("brandColor", brandColor);
     form.set("fontStyle", turn.brand.fontStyle);
     form.set("aPlusType", turn.suite.aPlusType);
     form.set("aPlusCount", String(turn.suite.aPlusCount));
     form.set("mainImageCount", String(turn.suite.mainImageCount));
     form.set("mainImageRatio", turn.suite.mainImageRatio);
     form.set("brandContext", JSON.stringify({
-      primaryColor: turn.brand.primaryColor,
+      primaryColor: brandColor,
       fontStyle: turn.brand.fontStyle,
       market: regions.find((item) => item.id === turn.region)?.label ?? turn.region,
       language: languages.find((item) => item.id === turn.language)?.label ?? turn.language,
