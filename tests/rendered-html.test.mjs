@@ -167,6 +167,13 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /current\.slice\(0, -1\)/);
   assert.match(page, /fullIdea\.slice\(0, promptIdeaText\.length \+ 1\)/);
   assert.match(page, /prefers-reduced-motion: reduce/);
+  assert.match(page, /composer-drop-zone/);
+  assert.match(page, /compact-composer-drop-zone/);
+  assert.match(page, /onDragEnter=\{beginFileDrag\}/);
+  assert.match(page, /onDragOver=\{continueFileDrag\}/);
+  assert.match(page, /onDrop=\{dropFiles\}/);
+  assert.match(page, /Array\.from\(event\.dataTransfer\.files\)/);
+  assert.match(page, /仅支持上传图片文件/);
   assert.match(page, /<h1>一张商品图，生成亚马逊链接<\/h1>/);
   assert.doesNotMatch(page, /一张商品图，<br \/>生成亚马逊链接/);
   assert.match(page, /<span className="brand-mark" aria-hidden="true">♥<\/span>/);
@@ -183,6 +190,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(styles, /--accent: #c9f33e/);
   assert.match(styles, /\.send-button \{[^}]*display: grid;[^}]*place-items: center;/);
   assert.match(styles, /\.brand-field \.option-popover/);
+  assert.match(styles, /\.composer-dragging/);
+  assert.match(styles, /\.composer-drop-hint/);
   assert.match(styles, /\.home-workspace::after/);
   assert.match(styles, /background-size: 5px 5px, 7px 7px/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);

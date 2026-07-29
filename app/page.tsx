@@ -4,7 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
-  type ChangeEvent,
+  type DragEvent,
   type KeyboardEvent,
 } from "react";
 import {
@@ -706,7 +706,7 @@ function Composer({
   suite: SuiteSettings;
   disabled: boolean;
   onPrompt: (value: string) => void;
-  onFiles: (event: ChangeEvent<HTMLInputElement>) => void;
+  onFiles: (files: File[]) => void;
   onRemove: (id: string) => void;
   onSend: () => void;
   onMode: (value: GenerationMode) => void;
@@ -721,8 +721,10 @@ function Composer({
   const [promptIdea, setPromptIdea] = useState(0);
   const [promptIdeaText, setPromptIdeaText] = useState(promptIdeasByMode[mode][0]);
   const [deletingPromptIdea, setDeletingPromptIdea] = useState(false);
+  const [draggingFiles, setDraggingFiles] = useState(false);
   const brandGeneTriggerRef = useRef<HTMLDivElement>(null);
   const brandGenePanelRef = useRef<HTMLElement>(null);
+  const dragDepthRef = useRef(0);
   const modeSkills = skillsByMode(mode);
 
   useEffect(() => {
@@ -789,8 +791,62 @@ function Composer({
     }
   };
 
+  const isFileDrag = (event: DragEvent<HTMLElement>) =>
+    Array.from(event.dataTransfer.types).includes("Files");
+
+  const beginFileDrag = (event: DragEvent<HTMLElement>) => {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    setDraggingFiles(true);
+  };
+
+  const continueFileDrag = (event: DragEvent<HTMLElement>) => {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = uploads.length >= MAX_UPLOADS ? "none" : "copy";
+    if (!draggingFiles) setDraggingFiles(true);
+  };
+
+  const endFileDrag = (event: DragEvent<HTMLElement>) => {
+    if (!draggingFiles) return;
+    event.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (!dragDepthRef.current) setDraggingFiles(false);
+  };
+
+  const dropFiles = (event: DragEvent<HTMLElement>) => {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setDraggingFiles(false);
+    onFiles(Array.from(event.dataTransfer.files));
+  };
+
   return (
-    <section className={`composer ${compact ? "composer-compact" : ""}`}>
+    <section
+      className={`composer ${compact ? "composer-compact" : ""} ${draggingFiles ? "composer-dragging" : ""}`}
+      data-testid={compact ? "compact-composer-drop-zone" : "composer-drop-zone"}
+      onDragEnter={beginFileDrag}
+      onDragOver={continueFileDrag}
+      onDragLeave={endFileDrag}
+      onDrop={dropFiles}
+    >
+      {draggingFiles ? (
+        <div className="composer-drop-hint" role="status" aria-live="polite">
+          <span className="composer-drop-icon" aria-hidden="true">
+            <Images weight="regular" />
+          </span>
+          <strong>
+            {uploads.length >= MAX_UPLOADS ? "已达到 9 张上限" : "松开即可上传图片"}
+          </strong>
+          <small>
+            {uploads.length >= MAX_UPLOADS
+              ? "移除一张图片后可以继续添加"
+              : `还可以添加 ${MAX_UPLOADS - uploads.length} 张图片`}
+          </small>
+        </div>
+      ) : null}
       <div className="composer-body">
         {uploads.length ? (
           <div className="upload-group">
@@ -846,7 +902,10 @@ function Composer({
               multiple
               disabled={uploads.length >= MAX_UPLOADS}
               data-testid="file-input"
-              onChange={onFiles}
+              onChange={(event) => {
+                onFiles(Array.from(event.target.files ?? []));
+                event.target.value = "";
+              }}
             />
             <Plus aria-hidden="true" weight="bold" />
             <span>{uploads.length >= MAX_UPLOADS ? "已达 9 张" : "上传图片"}</span>
@@ -2307,14 +2366,15 @@ export default function Home() {
     }
   };
 
-  const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(event.target.files ?? [])
-      .filter((file) => file.type.startsWith("image/"));
-    if (!selected.length) return;
+  const handleFiles = (files: File[]) => {
+    const selected = files.filter((file) => file.type.startsWith("image/"));
+    if (!selected.length) {
+      if (files.length) showNotice("仅支持上传图片文件");
+      return;
+    }
     const remaining = Math.max(0, MAX_UPLOADS - uploads.length);
     if (!remaining) {
       showNotice("最多上传 9 张图片");
-      event.target.value = "";
       return;
     }
     const known = new Set(uploads.map((upload) => upload.id));
@@ -2336,7 +2396,6 @@ export default function Home() {
     if (selected.length > additions.length) {
       showNotice(`最多上传 9 张图片，本次已添加 ${additions.length} 张`);
     }
-    event.target.value = "";
   };
 
   const removeUpload = (id: string) => {
