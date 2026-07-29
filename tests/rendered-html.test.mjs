@@ -125,6 +125,14 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /image-result/);
   assert.match(page, /single-image-result/);
   assert.match(page, /video-result/);
+  assert.match(
+    styles,
+    /\.listing-a-plus-gallery img\s*\{[^}]*height:\s*auto;[^}]*object-fit:\s*contain;/,
+  );
+  assert.match(
+    styles,
+    /\.asset-wide \.asset-visual img\s*\{[^}]*height:\s*auto;[^}]*aspect-ratio:\s*auto;[^}]*object-fit:\s*contain;/,
+  );
   assert.match(page, /product-demo\.mp4/);
   assert.match(page, /销售国家\/地区/);
   assert.match(page, /生成内容语言/);
