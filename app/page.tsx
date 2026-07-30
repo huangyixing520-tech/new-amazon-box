@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowUp,
   CaretDown,
@@ -903,6 +904,175 @@ function BrandColorPicker({
   );
 }
 
+function UploadPreviewModal({
+  upload,
+  onClose,
+}: {
+  upload: Upload;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="upload-preview-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`预览 ${upload.name}`}
+      data-testid="upload-preview-modal"
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        className="upload-preview-close"
+        aria-label="关闭图片预览"
+        onClick={onClose}
+      >
+        <X aria-hidden="true" weight="bold" />
+      </button>
+      <figure
+        className="upload-preview-content"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={upload.url} alt={upload.name} />
+        <figcaption>
+          <span>参考图片</span>
+          <strong>{upload.name}</strong>
+        </figcaption>
+      </figure>
+    </div>,
+    document.body,
+  );
+}
+
+function UploadDeck({
+  uploads,
+  compact,
+  onFiles,
+  onRemove,
+  onPreview,
+}: {
+  uploads: Upload[];
+  compact?: boolean;
+  onFiles: (files: File[]) => void;
+  onRemove: (id: string) => void;
+  onPreview: (upload: Upload) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const visibleUploads = uploads.slice(0, 3);
+  const atLimit = uploads.length >= MAX_UPLOADS;
+
+  const openFilePicker = () => {
+    if (!atLimit) inputRef.current?.click();
+  };
+
+  return (
+    <div
+      className={`upload-deck ${compact ? "upload-deck-compact" : ""} ${
+        uploads.length ? "has-uploads" : "is-empty"
+      }`}
+      role="group"
+      aria-label={`参考图片 ${uploads.length} / ${MAX_UPLOADS}`}
+      data-testid="upload-deck"
+    >
+      <input
+        ref={inputRef}
+        className="upload-deck-input"
+        type="file"
+        accept="image/*"
+        multiple
+        disabled={atLimit}
+        aria-hidden="true"
+        tabIndex={-1}
+        data-testid="file-input"
+        onChange={(event) => {
+          onFiles(Array.from(event.target.files ?? []));
+          event.target.value = "";
+        }}
+      />
+      <span className="sr-only" aria-live="polite">
+        已添加 {uploads.length} 张参考图片，最多 {MAX_UPLOADS} 张
+      </span>
+
+      {!uploads.length ? (
+        <button
+          type="button"
+          className="upload-deck-empty"
+          aria-label="上传图片"
+          onClick={openFilePicker}
+        >
+          <Plus aria-hidden="true" weight="bold" />
+        </button>
+      ) : (
+        <>
+          <div className="upload-deck-cards">
+            {visibleUploads.map((upload, index) => (
+              <figure
+                className={`upload-deck-card upload-deck-card-${index + 1}`}
+                key={upload.id}
+              >
+                <button
+                  type="button"
+                  className="upload-deck-preview"
+                  aria-label={`预览 ${upload.name}`}
+                  title={upload.name}
+                  onClick={() => onPreview(upload)}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={upload.url}
+                    alt={index === 0 ? `商品主体：${upload.name}` : `参考图：${upload.name}`}
+                  />
+                </button>
+                <button
+                  type="button"
+                  className="upload-deck-remove"
+                  aria-label={`移除 ${upload.name}`}
+                  onClick={() => onRemove(upload.id)}
+                >
+                  <X aria-hidden="true" weight="bold" />
+                </button>
+              </figure>
+            ))}
+          </div>
+
+          {!atLimit ? (
+            <button
+              type="button"
+              className={`upload-deck-add ${
+                uploads.length === 1 ? "upload-deck-add-card" : "upload-deck-add-circle"
+              }`}
+              aria-label={`继续上传图片，当前 ${uploads.length} 张`}
+              onClick={openFilePicker}
+            >
+              <Plus aria-hidden="true" weight="bold" />
+            </button>
+          ) : null}
+
+          {uploads.length > 3 ? (
+            <span className="upload-deck-count" aria-hidden="true">
+              +{uploads.length - 3}
+            </span>
+          ) : null}
+
+          <span className="upload-deck-name" aria-hidden="true">
+            {uploads.length === 1 ? uploads[0].name : `${uploads.length} 张参考图片`}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Composer({
   compact = false,
   minimized = false,
@@ -952,6 +1122,7 @@ function Composer({
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [openBrandMenu, setOpenBrandMenu] = useState<string | null>(null);
+  const [uploadPreview, setUploadPreview] = useState<Upload | null>(null);
   const [promptIdea, setPromptIdea] = useState(0);
   const [promptIdeaText, setPromptIdeaText] = useState(promptIdeasByMode[mode][0]);
   const [deletingPromptIdea, setDeletingPromptIdea] = useState(false);
@@ -1062,139 +1233,113 @@ function Composer({
     onFiles(Array.from(event.dataTransfer.files));
   };
 
+  const uploadDeck = (
+    <UploadDeck
+      uploads={uploads}
+      compact={compact || minimized}
+      onFiles={onFiles}
+      onRemove={(id) => {
+        if (uploadPreview?.id === id) setUploadPreview(null);
+        onRemove(id);
+      }}
+      onPreview={setUploadPreview}
+    />
+  );
+
   if (minimized) {
     return (
+      <>
+        <section
+          className="composer composer-compact composer-minimized"
+          data-testid="minimized-composer"
+          onDragEnter={beginFileDrag}
+          onDragOver={continueFileDrag}
+          onDragLeave={endFileDrag}
+          onDrop={dropFiles}
+        >
+          {uploadDeck}
+          <textarea
+            id="conversation-prompt"
+            data-testid="conversation-input-minimized"
+            value={prompt}
+            rows={1}
+            aria-label="继续发送新任务"
+            placeholder="继续描述你想生成或修改的内容"
+            onFocus={onExpand}
+            onClick={onExpand}
+            onChange={(event) => onPrompt(event.target.value)}
+            onKeyDown={submitOnShortcut}
+          />
+          <button
+            type="button"
+            className="send-button"
+            aria-label="发送新任务"
+            data-testid="conversation-send-minimized"
+            disabled={sendDisabled}
+            title={suiteSelectionEmpty ? "请至少选择 1 张主副图或 A+ 图" : undefined}
+            onClick={onSend}
+          >
+            <ArrowUp aria-hidden="true" weight="bold" />
+          </button>
+        </section>
+        {uploadPreview ? (
+          <UploadPreviewModal upload={uploadPreview} onClose={() => setUploadPreview(null)} />
+        ) : null}
+      </>
+    );
+  }
+
+  return (
+    <>
       <section
-        className="composer composer-compact composer-minimized"
-        data-testid="minimized-composer"
+        className={`composer ${compact ? "composer-compact" : ""} ${draggingFiles ? "composer-dragging" : ""}`}
+        data-testid={compact ? "compact-composer-drop-zone" : "composer-drop-zone"}
         onDragEnter={beginFileDrag}
         onDragOver={continueFileDrag}
         onDragLeave={endFileDrag}
         onDrop={dropFiles}
       >
-        <div className="minimized-upload-strip" aria-label={`${uploads.length} 张参考图片`}>
-          {uploads.slice(0, 3).map((upload, index) => (
-            <span className="minimized-upload-thumb" key={upload.id}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={upload.url} alt={`参考图片 ${index + 1}`} />
+        {draggingFiles ? (
+          <div className="composer-drop-hint" role="status" aria-live="polite">
+            <span className="composer-drop-icon" aria-hidden="true">
+              <Images weight="regular" />
             </span>
-          ))}
-          {uploads.length > 3 ? <small>+{uploads.length - 3}</small> : null}
-        </div>
-        <textarea
-          id="conversation-prompt"
-          data-testid="conversation-input-minimized"
-          value={prompt}
-          rows={1}
-          aria-label="继续发送新任务"
-          placeholder="继续描述你想生成或修改的内容"
-          onFocus={onExpand}
-          onClick={onExpand}
-          onChange={(event) => onPrompt(event.target.value)}
-          onKeyDown={submitOnShortcut}
-        />
-        <button
-          type="button"
-          className="send-button"
-          aria-label="发送新任务"
-          data-testid="conversation-send-minimized"
-          disabled={sendDisabled}
-          title={suiteSelectionEmpty ? "请至少选择 1 张主副图或 A+ 图" : undefined}
-          onClick={onSend}
-        >
-          <ArrowUp aria-hidden="true" weight="bold" />
-        </button>
-      </section>
-    );
-  }
-
-  return (
-    <section
-      className={`composer ${compact ? "composer-compact" : ""} ${draggingFiles ? "composer-dragging" : ""}`}
-      data-testid={compact ? "compact-composer-drop-zone" : "composer-drop-zone"}
-      onDragEnter={beginFileDrag}
-      onDragOver={continueFileDrag}
-      onDragLeave={endFileDrag}
-      onDrop={dropFiles}
-    >
-      {draggingFiles ? (
-        <div className="composer-drop-hint" role="status" aria-live="polite">
-          <span className="composer-drop-icon" aria-hidden="true">
-            <Images weight="regular" />
-          </span>
-          <strong>
-            {uploads.length >= MAX_UPLOADS ? "已达到 9 张上限" : "松开即可上传图片"}
-          </strong>
-          <small>
-            {uploads.length >= MAX_UPLOADS
-              ? "移除一张图片后可以继续添加"
-              : `还可以添加 ${MAX_UPLOADS - uploads.length} 张图片`}
-          </small>
-        </div>
-      ) : null}
-      <div className="composer-body">
-        {uploads.length ? (
-          <div className="upload-group">
-            <div className="upload-summary">
-              <span>参考图片 {uploads.length} / {MAX_UPLOADS}</span>
-              <small>首张作为商品主体，其余用于补充细节</small>
-            </div>
-            <div
-              className="upload-strip"
-              aria-label={`已添加 ${uploads.length} 张参考图片，最多 ${MAX_UPLOADS} 张`}
-            >
-              {uploads.map((upload, index) => (
-                <figure className="upload-thumb" key={upload.id}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={upload.url} alt={`${index === 0 ? "商品主体" : "参考图"}：${upload.name}`} />
-                  <button
-                    type="button"
-                    aria-label={`移除 ${upload.name}`}
-                    onClick={() => onRemove(upload.id)}
-                  >
-                    <X aria-hidden="true" weight="bold" />
-                  </button>
-                </figure>
-              ))}
-            </div>
+            <strong>
+              {uploads.length >= MAX_UPLOADS ? "已达到 9 张上限" : "松开即可上传图片"}
+            </strong>
+            <small>
+              {uploads.length >= MAX_UPLOADS
+                ? "移除一张图片后可以继续添加"
+                : `还可以添加 ${MAX_UPLOADS - uploads.length} 张图片`}
+            </small>
           </div>
         ) : null}
+        <div className="composer-body">
+          <div className="composer-input-row">
+            {uploadDeck}
+            <div className="composer-prompt-column">
+              <label className="prompt-label" htmlFor={compact ? "conversation-prompt" : "main-prompt"}>
+                {compact ? "继续发送新任务" : "描述你希望生成的内容"}
+              </label>
+              <textarea
+                id={compact ? "conversation-prompt" : "main-prompt"}
+                data-testid={compact ? "conversation-input" : "prompt-input"}
+                value={prompt}
+                rows={compact ? 2 : 4}
+                placeholder={
+                  compact
+                    ? "例如：再生成一套商品图，突出便携和自加热"
+                    : `让 Mercato 帮我生成${promptIdeaText}`
+                }
+                onChange={(event) => onPrompt(event.target.value)}
+                onKeyDown={submitOnShortcut}
+              />
+            </div>
+          </div>
+        </div>
 
-        <label className="prompt-label" htmlFor={compact ? "conversation-prompt" : "main-prompt"}>
-          {compact ? "继续发送新任务" : "描述你希望生成的内容"}
-        </label>
-        <textarea
-          id={compact ? "conversation-prompt" : "main-prompt"}
-          data-testid={compact ? "conversation-input" : "prompt-input"}
-          value={prompt}
-          rows={compact ? 2 : 4}
-          placeholder={
-            compact
-              ? "例如：再生成一套商品图，突出便携和自加热"
-              : `让 Mercato 帮我生成${promptIdeaText}`
-          }
-          onChange={(event) => onPrompt(event.target.value)}
-          onKeyDown={submitOnShortcut}
-        />
-      </div>
-
-      <div className="composer-toolbar">
-        <div className="settings-cluster">
-          <label className="upload-button">
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              disabled={uploads.length >= MAX_UPLOADS}
-              data-testid="file-input"
-              onChange={(event) => {
-                onFiles(Array.from(event.target.files ?? []));
-                event.target.value = "";
-              }}
-            />
-            <Plus aria-hidden="true" weight="bold" />
-            <span>{uploads.length >= MAX_UPLOADS ? "已达 9 张" : "上传图片"}</span>
-          </label>
+        <div className="composer-toolbar">
+          <div className="settings-cluster">
           <OptionMenu
             label="选择生成模式"
             options={modes}
@@ -1323,7 +1468,7 @@ function Composer({
         </div>
       </div>
 
-      {openMenu === "brand-gene" ? (
+        {openMenu === "brand-gene" ? (
         <section
           className="brand-gene-panel"
           id={compact ? "compact-brand-gene-panel" : "brand-gene-panel"}
@@ -1422,8 +1567,12 @@ function Composer({
             {languages.find((item) => item.id === language)?.label}
           </p>
         </section>
+        ) : null}
+      </section>
+      {uploadPreview ? (
+        <UploadPreviewModal upload={uploadPreview} onClose={() => setUploadPreview(null)} />
       ) : null}
-    </section>
+    </>
   );
 }
 
@@ -2634,6 +2783,7 @@ export default function Home() {
   const controllers = useRef<Map<string, AbortController>>(new Map());
   const persistenceTimers = useRef<Map<string, number>>(new Map());
   const turnsRef = useRef<Turn[]>([]);
+  const uploadsRef = useRef<Upload[]>([]);
   const sessionTracked = useRef(false);
 
   const modeSkills = skillsByMode(mode);
@@ -2653,7 +2803,14 @@ export default function Home() {
     controllers.current.clear();
     persistenceTimers.current.forEach((timer) => window.clearTimeout(timer));
     persistenceTimers.current.clear();
+    uploadsRef.current.forEach((upload) => {
+      if (upload.owned) URL.revokeObjectURL(upload.url);
+    });
   }, []);
+
+  useEffect(() => {
+    uploadsRef.current = uploads;
+  }, [uploads]);
 
   useEffect(() => {
     if (screen !== "studio") return;
@@ -2870,7 +3027,14 @@ export default function Home() {
   };
 
   const addSample = () => {
-    setUploads([{ id: "sample", name: "便携咖啡机示例图", url: "/product-main.png" }]);
+    uploadsRef.current.forEach((upload) => {
+      if (upload.owned) URL.revokeObjectURL(upload.url);
+    });
+    const nextUploads = [
+      { id: "sample", name: "便携咖啡机示例图", url: "/product-main.png" },
+    ];
+    uploadsRef.current = nextUploads;
+    setUploads(nextUploads);
     setPrompt(selectedSkill.starter);
   };
 
@@ -2893,12 +3057,13 @@ export default function Home() {
       if (files.length) showNotice("仅支持上传图片文件");
       return;
     }
-    const remaining = Math.max(0, MAX_UPLOADS - uploads.length);
+    const currentUploads = uploadsRef.current;
+    const remaining = Math.max(0, MAX_UPLOADS - currentUploads.length);
     if (!remaining) {
       showNotice("最多上传 9 张图片");
       return;
     }
-    const known = new Set(uploads.map((upload) => upload.id));
+    const known = new Set(currentUploads.map((upload) => upload.id));
     const additions: Upload[] = [];
     for (const file of selected) {
       const id = `${file.name}-${file.lastModified}-${file.size}`;
@@ -2913,14 +3078,20 @@ export default function Home() {
       });
       if (additions.length === remaining) break;
     }
-    setUploads((current) => [...current, ...additions].slice(0, MAX_UPLOADS));
+    const nextUploads = [...currentUploads, ...additions].slice(0, MAX_UPLOADS);
+    uploadsRef.current = nextUploads;
+    setUploads(nextUploads);
     if (selected.length > additions.length) {
       showNotice(`最多上传 9 张图片，本次已添加 ${additions.length} 张`);
     }
   };
 
   const removeUpload = (id: string) => {
-    setUploads((current) => current.filter((upload) => upload.id !== id));
+    const removed = uploadsRef.current.find((upload) => upload.id === id);
+    if (removed?.owned) URL.revokeObjectURL(removed.url);
+    const nextUploads = uploadsRef.current.filter((upload) => upload.id !== id);
+    uploadsRef.current = nextUploads;
+    setUploads(nextUploads);
   };
 
   const patchTurn = (turnId: string, patch: Partial<Turn>) => {
