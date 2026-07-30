@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import sharp from "sharp";
 import {
   authErrorResponse,
   requireUser,
@@ -37,6 +36,21 @@ async function sourceBytes(sourceUrl: string) {
     buffer: await response.arrayBuffer(),
     mimeType: response.headers.get("content-type") || "application/octet-stream",
   };
+}
+
+async function resizeImage(
+  sourceBuffer: ArrayBuffer,
+  outputWidth: number,
+  outputHeight: number,
+) {
+  const { default: sharp } = await import("sharp");
+  return sharp(Buffer.from(sourceBuffer))
+    .resize(outputWidth, outputHeight, {
+      fit: "cover",
+      position: "centre",
+    })
+    .png()
+    .toBuffer();
 }
 
 export async function GET(request: Request) {
@@ -136,13 +150,7 @@ export async function POST(request: Request) {
       outputWidth > 0 &&
       outputHeight > 0;
     const storedBytes = shouldResize
-      ? await sharp(Buffer.from(source.buffer))
-          .resize(outputWidth, outputHeight, {
-            fit: "cover",
-            position: "centre",
-          })
-          .png()
-          .toBuffer()
+      ? await resizeImage(source.buffer, outputWidth, outputHeight)
       : new Uint8Array(source.buffer);
     const mimeType = shouldResize ? "image/png" : source.mimeType;
     await GENERATED_ASSETS.put(objectKey, storedBytes, {

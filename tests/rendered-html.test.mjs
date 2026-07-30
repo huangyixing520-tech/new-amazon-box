@@ -334,7 +334,8 @@ test("ships the complete generation flow and its assets", async () => {
     }).providerSize,
     "1024x1536",
   );
-  assert.match(assetRoute, /sharp\(Buffer\.from\(source\.buffer\)\)/);
+  assert.match(assetRoute, /await import\("sharp"\)/);
+  assert.match(assetRoute, /resizeImage\(source\.buffer, outputWidth, outputHeight\)/);
   assert.match(assetRoute, /outputWidth/);
   assert.match(assetRoute, /outputHeight/);
   assert.match(page, /suiteOutputDimensions/);
