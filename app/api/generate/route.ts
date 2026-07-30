@@ -201,6 +201,11 @@ function uploadedImages(form: FormData) {
     .filter((value): value is File => value instanceof File);
 }
 
+function uploadedReferenceVideo(form: FormData) {
+  const value = form.get("referenceVideo");
+  return value instanceof File && value.size ? value : undefined;
+}
+
 async function listingMessages(form: FormData) {
   const skill = String(form.get("skill") ?? "amazon-listing");
   const context = formContext(form);
@@ -406,15 +411,41 @@ async function createVideo(
   userId: string,
   db: D1Binding,
 ) {
-  const image = uploadedImages(form)[0];
-  if (!image) return jsonError("请上传商品图片", 400);
-  const dataUrl = await fileDataUrl(image);
+  const images = uploadedImages(form);
+  const image = images[0];
+  if (!image) return jsonError("请至少上传 1 张商品图片", 400);
   const prompt = String(form.get("prompt") ?? "");
   const skill = String(form.get("skill") ?? "video-replica");
+  const referenceVideo = uploadedReferenceVideo(form);
+  if (skill === "video-replica" && !referenceVideo) {
+    return jsonError("视频复刻需要上传 1 个参考视频", 400);
+  }
+  if (referenceVideo && !referenceVideo.type.startsWith("video/")) {
+    return jsonError("参考视频文件格式不正确", 400);
+  }
+  if (referenceVideo && referenceVideo.size > 100 * 1024 * 1024) {
+    return jsonError("参考视频不能超过 100 MB", 400);
+  }
+  const imageDataUrls = await Promise.all(images.map(fileDataUrl));
+  const referenceVideoDataUrl = referenceVideo
+    ? await fileDataUrl(referenceVideo)
+    : undefined;
   const context = formContext(form);
   const skillDirection = skill === "talking-product-video"
     ? "Create a direct-response product demonstration with a natural presenter-led sales rhythm, clear product handling and believable spoken-delivery pacing."
-    : "Create a polished visual recreation based on the user's requested pacing, shot language and product presentation style.";
+    : "Recreate the reference video's shot order, camera movement, pacing, transitions and product demonstration rhythm. Treat the reference video only as motion and composition guidance. Replace its subject with the supplied product and preserve the supplied product identity exactly.";
+  const referenceContent = referenceVideoDataUrl
+    ? [{
+        type: "video_url",
+        video_url: { url: referenceVideoDataUrl },
+        role: "reference_video",
+      }]
+    : [];
+  const productContent = imageDataUrls.map((url, index) => ({
+    type: "image_url",
+    image_url: { url },
+    role: index === 0 ? "first_frame" : "reference_image",
+  }));
   const response = await fetch(`${BASE_URL}/contents/generations/tasks`, {
     method: "POST",
     headers: {
@@ -432,13 +463,10 @@ async function createVideo(
           type: "text",
           text: `${skillDirection} ${context.brandText} ${
             prompt || "Create a polished 15-second ecommerce product video."
-          } Keep the exact product identity. No subtitles, overlays, prices, watermarks or newly generated visible text.`,
+          } The first product image is the primary identity reference; the remaining product images provide supplementary views and details. Do not copy visible brands, text or people from the reference video. Keep the exact supplied product identity. No subtitles, overlays, prices, watermarks or newly generated visible text.`,
         },
-        {
-          type: "image_url",
-          image_url: { url: dataUrl },
-          role: "first_frame",
-        },
+        ...referenceContent,
+        ...productContent,
       ],
     }),
   });

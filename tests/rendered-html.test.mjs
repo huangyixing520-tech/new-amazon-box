@@ -194,6 +194,13 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /"--deck-spread":\s*"84px"/);
   assert.match(page, /onPointerEnter=\{\(\) => setExpanded\(true\)\}/);
   assert.match(page, /onPointerLeave=\{\(\) => setExpanded\(false\)\}/);
+  assert.match(page, /data-testid="video-replica-materials"/);
+  assert.match(page, /data-testid="reference-video-file-input"/);
+  assert.match(page, /accept="video\/\*"/);
+  assert.match(page, /form\.append\("referenceVideo"/);
+  assert.match(page, /请先上传 1 个参考视频/);
+  assert.match(styles, /\.video-replica-materials\s*\{/);
+  assert.match(styles, /\.reference-video-card\s*\{/);
   assert.match(page, /product-demo\.mp4/);
   assert.match(page, /销售国家\/地区/);
   assert.match(page, /生成内容语言/);
@@ -288,6 +295,10 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /\/chat\/completions/);
   assert.match(taskBackend, /\/images\/edits/);
   assert.match(generateRoute, /\/contents\/generations\/tasks/);
+  assert.match(generateRoute, /uploadedReferenceVideo/);
+  assert.match(generateRoute, /type: "video_url"/);
+  assert.match(generateRoute, /role: "reference_video"/);
+  assert.match(generateRoute, /role: index === 0 \? "first_frame" : "reference_image"/);
   assert.match(generateRoute, /videoTask\(payload\)/);
   assert.match(generateRoute, /videoUrl: taskField/);
   assert.match(generateRoute, /Unknown is better than invented/);

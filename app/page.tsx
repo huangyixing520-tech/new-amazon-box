@@ -17,6 +17,7 @@ import {
   ChatCircle,
   House,
   Images,
+  Play,
   Plus,
   X,
 } from "@phosphor-icons/react";
@@ -98,6 +99,8 @@ type Turn = {
   suite: SuiteSettings;
   productImage: string;
   productImages?: string[];
+  referenceVideo?: string;
+  referenceVideoName?: string;
   completed: number;
   running: boolean;
   phase: string;
@@ -111,6 +114,7 @@ type Turn = {
 };
 
 const MAX_UPLOADS = 9;
+const MAX_REFERENCE_VIDEO_BYTES = 100 * 1024 * 1024;
 
 type Conversation = {
   id: string;
@@ -958,12 +962,14 @@ function UploadPreviewModal({
 function UploadDeck({
   uploads,
   compact,
+  emptyLabel,
   onFiles,
   onRemove,
   onPreview,
 }: {
   uploads: Upload[];
   compact?: boolean;
+  emptyLabel?: string;
   onFiles: (files: File[]) => void;
   onRemove: (id: string) => void;
   onPreview: (upload: Upload) => void;
@@ -1018,6 +1024,7 @@ function UploadDeck({
           onClick={openFilePicker}
         >
           <Plus aria-hidden="true" weight="bold" />
+          {emptyLabel ? <span>{emptyLabel}</span> : null}
         </button>
       ) : (
         <>
@@ -1095,11 +1102,131 @@ function UploadDeck({
   );
 }
 
+function ReferenceVideoInput({
+  upload,
+  compact,
+  onFile,
+  onRemove,
+}: {
+  upload: Upload | null;
+  compact?: boolean;
+  onFile: (file: File) => void;
+  onRemove: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div
+      className={`reference-video-input ${compact ? "is-compact" : ""} ${
+        upload ? "has-video" : "is-empty"
+      }`}
+      data-testid="reference-video-input"
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept="video/*"
+        className="upload-deck-input"
+        aria-hidden="true"
+        tabIndex={-1}
+        data-testid="reference-video-file-input"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) onFile(file);
+          event.target.value = "";
+        }}
+      />
+      <button
+        type="button"
+        className="reference-video-card"
+        aria-label={upload ? "更换参考视频" : "上传参考视频"}
+        onClick={() => inputRef.current?.click()}
+      >
+        {upload ? (
+          <>
+            <video src={upload.url} muted playsInline preload="metadata" aria-hidden="true" />
+            <span className="reference-video-play" aria-hidden="true">
+              <Play weight="fill" />
+            </span>
+          </>
+        ) : (
+          <>
+            <Plus aria-hidden="true" weight="bold" />
+            <span>参考视频</span>
+          </>
+        )}
+      </button>
+      {upload ? (
+        <>
+          <button
+            type="button"
+            className="reference-video-remove"
+            aria-label={`移除参考视频 ${upload.name}`}
+            onClick={onRemove}
+          >
+            <X aria-hidden="true" weight="bold" />
+          </button>
+          <span className="reference-video-name">{upload.name}</span>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function VideoReplicaMaterials({
+  referenceVideo,
+  uploads,
+  compact,
+  onReferenceVideo,
+  onRemoveReferenceVideo,
+  onFiles,
+  onRemove,
+  onPreview,
+}: {
+  referenceVideo: Upload | null;
+  uploads: Upload[];
+  compact?: boolean;
+  onReferenceVideo: (file: File) => void;
+  onRemoveReferenceVideo: () => void;
+  onFiles: (files: File[]) => void;
+  onRemove: (id: string) => void;
+  onPreview: (upload: Upload) => void;
+}) {
+  return (
+    <div
+      className={`video-replica-materials ${compact ? "is-compact" : ""}`}
+      data-testid="video-replica-materials"
+      aria-label="视频复刻素材：参考视频加商品图片"
+    >
+      <ReferenceVideoInput
+        upload={referenceVideo}
+        compact={compact}
+        onFile={onReferenceVideo}
+        onRemove={onRemoveReferenceVideo}
+      />
+      <span className="video-replica-plus" aria-hidden="true">
+        <Plus weight="bold" />
+      </span>
+      <div className="video-product-material">
+        <UploadDeck
+          uploads={uploads}
+          compact={compact}
+          emptyLabel="商品"
+          onFiles={onFiles}
+          onRemove={onRemove}
+          onPreview={onPreview}
+        />
+      </div>
+    </div>
+  );
+}
+
 function Composer({
   compact = false,
   minimized = false,
   prompt,
   uploads,
+  referenceVideo,
   mode,
   skill,
   region,
@@ -1109,6 +1236,8 @@ function Composer({
   disabled,
   onPrompt,
   onFiles,
+  onReferenceVideo,
+  onRemoveReferenceVideo,
   onRemove,
   onSend,
   onMode,
@@ -1123,6 +1252,7 @@ function Composer({
   minimized?: boolean;
   prompt: string;
   uploads: Upload[];
+  referenceVideo: Upload | null;
   mode: GenerationMode;
   skill: string;
   region: string;
@@ -1132,6 +1262,8 @@ function Composer({
   disabled: boolean;
   onPrompt: (value: string) => void;
   onFiles: (files: File[]) => void;
+  onReferenceVideo: (file: File) => void;
+  onRemoveReferenceVideo: () => void;
   onRemove: (id: string) => void;
   onSend: () => void;
   onMode: (value: GenerationMode) => void;
@@ -1158,6 +1290,7 @@ function Composer({
     suite.aPlusCount === 0 &&
     suite.mainImageCount === 0;
   const sendDisabled = disabled || suiteSelectionEmpty;
+  const isVideoReplica = skill === "video-replica";
 
   useEffect(() => {
     if (openMenu !== "brand-gene") return;
@@ -1236,7 +1369,10 @@ function Composer({
   const continueFileDrag = (event: DragEvent<HTMLElement>) => {
     if (!isFileDrag(event)) return;
     event.preventDefault();
-    event.dataTransfer.dropEffect = uploads.length >= MAX_UPLOADS ? "none" : "copy";
+    event.dataTransfer.dropEffect =
+      uploads.length >= MAX_UPLOADS && (!isVideoReplica || referenceVideo)
+        ? "none"
+        : "copy";
     if (!draggingFiles) setDraggingFiles(true);
   };
 
@@ -1252,7 +1388,15 @@ function Composer({
     event.preventDefault();
     dragDepthRef.current = 0;
     setDraggingFiles(false);
-    onFiles(Array.from(event.dataTransfer.files));
+    const files = Array.from(event.dataTransfer.files);
+    if (isVideoReplica) {
+      const reference = files.find((file) => file.type.startsWith("video/"));
+      const images = files.filter((file) => file.type.startsWith("image/"));
+      if (reference) onReferenceVideo(reference);
+      if (images.length) onFiles(images);
+      return;
+    }
+    onFiles(files);
   };
 
   const uploadDeck = (
@@ -1267,6 +1411,21 @@ function Composer({
       onPreview={setUploadPreview}
     />
   );
+  const materialInput = isVideoReplica ? (
+    <VideoReplicaMaterials
+      referenceVideo={referenceVideo}
+      uploads={uploads}
+      compact={compact || minimized}
+      onReferenceVideo={onReferenceVideo}
+      onRemoveReferenceVideo={onRemoveReferenceVideo}
+      onFiles={onFiles}
+      onRemove={(id) => {
+        if (uploadPreview?.id === id) setUploadPreview(null);
+        onRemove(id);
+      }}
+      onPreview={setUploadPreview}
+    />
+  ) : uploadDeck;
 
   if (minimized) {
     return (
@@ -1279,7 +1438,7 @@ function Composer({
           onDragLeave={endFileDrag}
           onDrop={dropFiles}
         >
-          {uploadDeck}
+          {materialInput}
           <textarea
             id="conversation-prompt"
             data-testid="conversation-input-minimized"
@@ -1327,18 +1486,24 @@ function Composer({
               <Images weight="regular" />
             </span>
             <strong>
-              {uploads.length >= MAX_UPLOADS ? "已达到 9 张上限" : "松开即可上传图片"}
+              {isVideoReplica
+                ? "松开即可添加参考视频或商品图片"
+                : uploads.length >= MAX_UPLOADS
+                  ? "已达到 9 张上限"
+                  : "松开即可上传图片"}
             </strong>
             <small>
-              {uploads.length >= MAX_UPLOADS
+              {isVideoReplica
+                ? "视频限 1 个，商品图片最多 9 张"
+                : uploads.length >= MAX_UPLOADS
                 ? "移除一张图片后可以继续添加"
                 : `还可以添加 ${MAX_UPLOADS - uploads.length} 张图片`}
             </small>
           </div>
         ) : null}
         <div className="composer-body">
-          <div className="composer-input-row">
-            {uploadDeck}
+          <div className={`composer-input-row ${isVideoReplica ? "is-video-replica" : ""}`}>
+            {materialInput}
             <div className="composer-prompt-column">
               <label className="prompt-label" htmlFor={compact ? "conversation-prompt" : "main-prompt"}>
                 {compact ? "继续发送新任务" : "描述你希望生成的内容"}
@@ -2737,6 +2902,20 @@ async function uploadSource(upload: Upload) {
   return fileDataUrl(await uploadAsFile(upload));
 }
 
+async function uploadOriginalFile(upload: Upload) {
+  if (upload.file) return upload.file;
+  const response = await fetch(upload.url);
+  if (!response.ok) throw new Error("无法读取参考视频");
+  const blob = await response.blob();
+  return new File([blob], upload.name || "reference-video.mp4", {
+    type: blob.type || "video/mp4",
+  });
+}
+
+async function uploadOriginalSource(upload: Upload) {
+  return fileDataUrl(await uploadOriginalFile(upload));
+}
+
 async function responseError(response: Response) {
   const payload = await response.json().catch(() => null);
   return payload?.error ?? `生成请求失败 (${response.status})`;
@@ -2783,6 +2962,7 @@ export default function Home() {
   const [screen, setScreen] = useState<"home" | "studio" | "assets">("home");
   const [prompt, setPrompt] = useState("");
   const [uploads, setUploads] = useState<Upload[]>([]);
+  const [referenceVideo, setReferenceVideo] = useState<Upload | null>(null);
   const [mode, setMode] = useState<GenerationMode>("listing");
   const [skill, setSkill] = useState("amazon-listing");
   const [region, setRegion] = useState("us");
@@ -2806,6 +2986,7 @@ export default function Home() {
   const persistenceTimers = useRef<Map<string, number>>(new Map());
   const turnsRef = useRef<Turn[]>([]);
   const uploadsRef = useRef<Upload[]>([]);
+  const referenceVideoRef = useRef<Upload | null>(null);
   const sessionTracked = useRef(false);
 
   const modeSkills = skillsByMode(mode);
@@ -2828,11 +3009,18 @@ export default function Home() {
     uploadsRef.current.forEach((upload) => {
       if (upload.owned) URL.revokeObjectURL(upload.url);
     });
+    if (referenceVideoRef.current?.owned) {
+      URL.revokeObjectURL(referenceVideoRef.current.url);
+    }
   }, []);
 
   useEffect(() => {
     uploadsRef.current = uploads;
   }, [uploads]);
+
+  useEffect(() => {
+    referenceVideoRef.current = referenceVideo;
+  }, [referenceVideo]);
 
   useEffect(() => {
     if (screen !== "studio") return;
@@ -3108,6 +3296,37 @@ export default function Home() {
     }
   };
 
+  const handleReferenceVideo = (file: File) => {
+    if (!file.type.startsWith("video/")) {
+      showNotice("参考视频仅支持视频文件");
+      return;
+    }
+    if (file.size > MAX_REFERENCE_VIDEO_BYTES) {
+      showNotice("参考视频不能超过 100 MB");
+      return;
+    }
+    if (referenceVideoRef.current?.owned) {
+      URL.revokeObjectURL(referenceVideoRef.current.url);
+    }
+    const nextVideo: Upload = {
+      id: `${file.name}-${file.lastModified}-${file.size}`,
+      name: file.name,
+      url: URL.createObjectURL(file),
+      owned: true,
+      file,
+    };
+    referenceVideoRef.current = nextVideo;
+    setReferenceVideo(nextVideo);
+  };
+
+  const removeReferenceVideo = () => {
+    if (referenceVideoRef.current?.owned) {
+      URL.revokeObjectURL(referenceVideoRef.current.url);
+    }
+    referenceVideoRef.current = null;
+    setReferenceVideo(null);
+  };
+
   const removeUpload = (id: string) => {
     const removed = uploadsRef.current.find((upload) => upload.id === id);
     if (removed?.owned) URL.revokeObjectURL(removed.url);
@@ -3138,6 +3357,7 @@ export default function Home() {
     uploadsForTurn: Upload[],
     action: "listing" | "image" | "video",
     slot?: number,
+    referenceVideoForTurn?: Upload,
   ) => {
     const form = new FormData();
     form.set("action", action);
@@ -3174,6 +3394,10 @@ export default function Home() {
       uploadsForTurn.slice(0, MAX_UPLOADS).map(uploadAsFile),
     );
     files.forEach((file) => form.append("image", file, file.name));
+    if (action === "video" && referenceVideoForTurn) {
+      const file = await uploadOriginalFile(referenceVideoForTurn);
+      form.append("referenceVideo", file, file.name);
+    }
     return form;
   };
 
@@ -3420,11 +3644,18 @@ export default function Home() {
     turn: Turn,
     uploadsForTurn: Upload[],
     signal: AbortSignal,
+    referenceVideoForTurn?: Upload,
   ): Promise<GenerationSummary> => {
     patchTurn(turn.id, { phase: "正在提交视频任务", completed: 1 });
     const response = await fetch("/api/generate", {
       method: "POST",
-      body: await generationForm(turn, uploadsForTurn, "video"),
+      body: await generationForm(
+        turn,
+        uploadsForTurn,
+        "video",
+        undefined,
+        referenceVideoForTurn,
+      ),
       signal,
     });
     if (!response.ok) throw new Error(await responseError(response));
@@ -3463,7 +3694,11 @@ export default function Home() {
     throw new Error("视频生成超时，请稍后重试");
   };
 
-  const runGeneration = async (turn: Turn, uploadsForTurn: Upload[]) => {
+  const runGeneration = async (
+    turn: Turn,
+    uploadsForTurn: Upload[],
+    referenceVideoForTurn?: Upload,
+  ) => {
     const controller = new AbortController();
     controllers.current.set(turn.id, controller);
     patchTurn(turn.id, { running: true, error: undefined });
@@ -3471,7 +3706,12 @@ export default function Home() {
       const summary = turn.kind === "listing"
         ? await runListing(turn, uploadsForTurn, controller.signal)
         : turn.kind === "video"
-          ? await runVideo(turn, uploadsForTurn, controller.signal)
+          ? await runVideo(
+              turn,
+              uploadsForTurn,
+              controller.signal,
+              referenceVideoForTurn,
+            )
           : await runImages(turn, uploadsForTurn, controller.signal);
       trackEvent("generation_completed", turn, summary);
     } catch (error) {
@@ -3497,7 +3737,14 @@ export default function Home() {
   };
 
   const startGeneration = async () => {
-    if (!uploads.length) return;
+    if (!uploads.length) {
+      showNotice("请至少上传 1 张商品图片");
+      return;
+    }
+    if (selectedSkill.id === "video-replica" && !referenceVideo) {
+      showNotice("请先上传 1 个参考视频");
+      return;
+    }
     if (
       hasSuiteSettings(selectedSkill.id) &&
       suite.aPlusCount === 0 &&
@@ -3552,6 +3799,7 @@ export default function Home() {
       ? suiteTaskCount(selectedSkill.id, suite, taskPrompt)
       : imageTaskCount(selectedKind, taskPrompt);
     const turnUploads = uploads.slice(0, MAX_UPLOADS);
+    const turnReferenceVideo = referenceVideo ?? undefined;
     const turn: Turn = {
       id,
       conversationId,
@@ -3567,6 +3815,8 @@ export default function Home() {
       suite: { ...suite },
       productImage,
       productImages: turnUploads.map((upload) => upload.url),
+      referenceVideo: turnReferenceVideo?.url,
+      referenceVideoName: turnReferenceVideo?.name,
       completed: 0,
       running: true,
       phase: generationCopy[selectedKind].phases[0],
@@ -3605,6 +3855,22 @@ export default function Home() {
       if (storedInputs.some((asset) => !asset)) {
         throw new Error("输入图片没有完整保存，请检查网络后重试");
       }
+      if (turnReferenceVideo) {
+        const storedReference = await storeAsset(
+          turn,
+          await uploadOriginalSource(turnReferenceVideo),
+          "video",
+          turnReferenceVideo.name || "参考视频",
+          0,
+          "input",
+        );
+        if (!storedReference) {
+          throw new Error("参考视频没有保存，请检查网络后重试");
+        }
+        turn.referenceVideo = storedReference.url;
+        turn.referenceVideoName = turnReferenceVideo.name;
+        await persistTurn(turn);
+      }
     } catch (error) {
       patchTurn(turn.id, {
         running: false,
@@ -3614,7 +3880,7 @@ export default function Home() {
       return;
     }
     window.setTimeout(() => {
-      void runGeneration(turn, turnUploads);
+      void runGeneration(turn, turnUploads, turnReferenceVideo);
       document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 0);
   };
@@ -3900,17 +4166,39 @@ export default function Home() {
                   <div className="user-message">
                     <div className="message-avatar">Y</div>
                     <div className="message-bubble">
-                      <div className="message-products" aria-label="本次任务的参考图片">
-                        {(turn.productImages?.length ? turn.productImages : [turn.productImage])
-                          .map((image, imageIndex) => (
-                            <div className="message-product" key={`${turn.id}-input-${imageIndex}`}>
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={image}
-                                alt={imageIndex === 0 ? "用户上传的商品主体" : `用户上传的参考图 ${imageIndex + 1}`}
-                              />
-                            </div>
-                          ))}
+                      <div className="message-materials">
+                        {turn.referenceVideo ? (
+                          <div className="message-reference-video">
+                            <video
+                              src={turn.referenceVideo}
+                              muted
+                              playsInline
+                              preload="metadata"
+                              aria-label="用户上传的参考视频"
+                            />
+                            <span aria-hidden="true">
+                              <Play weight="fill" />
+                            </span>
+                            <small>参考视频</small>
+                          </div>
+                        ) : null}
+                        {turn.referenceVideo ? (
+                          <span className="message-material-plus" aria-hidden="true">
+                            <Plus weight="bold" />
+                          </span>
+                        ) : null}
+                        <div className="message-products" aria-label="本次任务的商品图片">
+                          {(turn.productImages?.length ? turn.productImages : [turn.productImage])
+                            .map((image, imageIndex) => (
+                              <div className="message-product" key={`${turn.id}-input-${imageIndex}`}>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={image}
+                                  alt={imageIndex === 0 ? "用户上传的商品主体" : `用户上传的商品参考图 ${imageIndex + 1}`}
+                                />
+                              </div>
+                            ))}
+                        </div>
                       </div>
                       <div className="message-copy">
                         <p>{turn.prompt}</p>
@@ -3968,6 +4256,13 @@ export default function Home() {
                                   name: `reference-${imageIndex + 1}.png`,
                                   url,
                                 })),
+                              turn.referenceVideo
+                                ? {
+                                    id: `${turn.id}-reference-video`,
+                                    name: turn.referenceVideoName || "reference-video.mp4",
+                                    url: turn.referenceVideo,
+                                  }
+                                : undefined,
                             )}
                           >
                             重新生成
@@ -4069,15 +4364,21 @@ export default function Home() {
               minimized={studioComposerMinimized}
               prompt={prompt}
               uploads={uploads}
+              referenceVideo={referenceVideo}
               mode={mode}
               skill={skill}
               region={region}
               language={language}
               brand={brand}
               suite={suite}
-              disabled={!uploads.length}
+              disabled={
+                !uploads.length ||
+                (skill === "video-replica" && !referenceVideo)
+              }
               onPrompt={setPrompt}
               onFiles={handleFiles}
+              onReferenceVideo={handleReferenceVideo}
+              onRemoveReferenceVideo={removeReferenceVideo}
               onRemove={removeUpload}
               onSend={startGeneration}
               onMode={changeMode}
@@ -4204,15 +4505,21 @@ export default function Home() {
               key={`home-composer-${mode}`}
               prompt={prompt}
               uploads={uploads}
+              referenceVideo={referenceVideo}
               mode={mode}
               skill={skill}
               region={region}
               language={language}
               brand={brand}
               suite={suite}
-              disabled={!uploads.length}
+              disabled={
+                !uploads.length ||
+                (skill === "video-replica" && !referenceVideo)
+              }
               onPrompt={setPrompt}
               onFiles={handleFiles}
+              onReferenceVideo={handleReferenceVideo}
+              onRemoveReferenceVideo={removeReferenceVideo}
               onRemove={removeUpload}
               onSend={startGeneration}
               onMode={changeMode}
