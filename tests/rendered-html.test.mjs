@@ -183,12 +183,17 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(styles, /\.single-image-result\s*\{[^}]*width:\s*min\(620px, 100%\)/);
   assert.match(
     styles,
-    /\.upload-deck\.has-uploads:has\(\.upload-deck-card:hover\) \.upload-deck-add-card/,
+    /\.upload-deck-add-card:hover,[\s\S]*?background:\s*var\(--accent\)/,
   );
   assert.doesNotMatch(
     styles,
     /\.upload-deck\.has-uploads:hover \.upload-deck-add-card/,
   );
+  assert.match(styles, /\.upload-deck\.is-expanded \.upload-deck-card/);
+  assert.match(styles, /rotate\(var\(--deck-rotation\)\)/);
+  assert.match(page, /"--deck-spread":\s*"84px"/);
+  assert.match(page, /onPointerEnter=\{\(\) => setExpanded\(true\)\}/);
+  assert.match(page, /onPointerLeave=\{\(\) => setExpanded\(false\)\}/);
   assert.match(page, /product-demo\.mp4/);
   assert.match(page, /销售国家\/地区/);
   assert.match(page, /生成内容语言/);

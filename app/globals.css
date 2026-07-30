@@ -123,7 +123,7 @@ button:active, a:active { transform: translateY(1px); }
 .composer-input-row { min-height: 122px; display: grid; grid-template-columns: 136px minmax(0, 1fr); align-items: start; gap: 14px; }
 .composer-prompt-column { min-width: 0; height: 100%; display: flex; flex-direction: column; }
 .upload-deck { position: relative; width: 136px; height: 112px; flex: 0 0 136px; }
-.upload-deck.has-uploads:has(.upload-deck-card:hover),
+.upload-deck.has-uploads.is-expanded,
 .upload-deck.has-uploads:focus-within { z-index: 30; }
 .upload-deck-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .upload-deck-empty,
@@ -175,9 +175,9 @@ button:active, a:active { transform: translateY(1px); }
   transform: translateX(calc(var(--deck-stack-index) * 15px)) rotate(var(--deck-rotation));
   transition: transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s ease;
 }
-.upload-deck:has(.upload-deck-card:hover) .upload-deck-card,
+.upload-deck.is-expanded .upload-deck-card,
 .upload-deck:has(.upload-deck-preview:focus-visible) .upload-deck-card {
-  transform: translateX(calc(var(--deck-index) * var(--deck-spread))) translateY(-3px) rotate(0deg);
+  transform: translateX(calc(var(--deck-index) * var(--deck-spread))) translateY(-3px) rotate(var(--deck-rotation));
   box-shadow: 0 12px 26px rgb(29 36 27 / .14);
 }
 .upload-deck-preview { width: 100%; height: 100%; padding: 0; display: block; overflow: hidden; border: 0; border-radius: 3px; background: transparent; cursor: zoom-in; }
@@ -226,7 +226,14 @@ button:active, a:active { transform: translateY(1px); }
     box-shadow .28s ease;
 }
 .upload-deck-add-card svg { width: 17px; height: 17px; transition: width .2s ease, height .2s ease; }
-.upload-deck.has-uploads:has(.upload-deck-card:hover) .upload-deck-add-card,
+.upload-deck-add-card:hover,
+.upload-deck-add-card:focus-visible {
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 11px 24px rgb(102 126 33 / .2);
+  transform: translateY(-2px) scale(1.04);
+}
+.upload-deck.has-uploads.is-expanded .upload-deck-add-card,
 .upload-deck.has-uploads:has(.upload-deck-preview:focus-visible) .upload-deck-add-card {
   width: 72px;
   height: 88px;
@@ -237,7 +244,13 @@ button:active, a:active { transform: translateY(1px); }
   box-shadow: 0 12px 24px rgb(31 38 29 / .09);
   transform: translateX(calc(var(--deck-index) * var(--deck-spread))) translateY(-3px) rotate(5deg);
 }
-.upload-deck.has-uploads:has(.upload-deck-card:hover) .upload-deck-add-card svg,
+.upload-deck.has-uploads.is-expanded .upload-deck-add-card:hover,
+.upload-deck.has-uploads.is-expanded .upload-deck-add-card:focus-visible {
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 14px 28px rgb(102 126 33 / .2);
+}
+.upload-deck.has-uploads.is-expanded .upload-deck-add-card svg,
 .upload-deck.has-uploads:has(.upload-deck-preview:focus-visible) .upload-deck-add-card svg { width: 25px; height: 25px; }
 .upload-deck-add-circle {
   position: absolute;
@@ -297,7 +310,7 @@ button:active, a:active { transform: translateY(1px); }
   transform: translateY(5px);
   transition: opacity .16s ease, transform .2s cubic-bezier(.16,1,.3,1);
 }
-.upload-deck.has-uploads:has(.upload-deck-card:hover) .upload-deck-name,
+.upload-deck.has-uploads.is-expanded .upload-deck-name,
 .upload-deck.has-uploads:focus-within .upload-deck-name { opacity: 1; transform: translateY(0); }
 .prompt-label { margin-bottom: 7px; color: var(--muted); font-size: 10px; font-weight: 670; }
 .composer textarea { width: 100%; min-height: 64px; flex: 1; resize: none; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 16px; line-height: 1.6; }
@@ -977,7 +990,7 @@ button:active, a:active { transform: translateY(1px); }
   .upload-deck *,
   .upload-deck *::before,
   .upload-deck *::after { transition: none !important; }
-  .upload-deck:has(.upload-deck-card:hover) .upload-deck-card,
+  .upload-deck.is-expanded .upload-deck-card,
   .upload-deck:has(.upload-deck-preview:focus-visible) .upload-deck-card {
     transform: translateX(calc(var(--deck-stack-index) * 15px)) rotate(var(--deck-rotation));
   }

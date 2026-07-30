@@ -969,6 +969,7 @@ function UploadDeck({
   onPreview: (upload: Upload) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [expanded, setExpanded] = useState(false);
   const atLimit = uploads.length >= MAX_UPLOADS;
 
   const openFilePicker = () => {
@@ -979,13 +980,14 @@ function UploadDeck({
     <div
       className={`upload-deck ${compact ? "upload-deck-compact" : ""} ${
         uploads.length ? "has-uploads" : "is-empty"
-      }`}
+      } ${expanded ? "is-expanded" : ""}`}
       role="group"
       aria-label={`参考图片 ${uploads.length} / ${MAX_UPLOADS}`}
       data-testid="upload-deck"
+      onPointerLeave={() => setExpanded(false)}
       style={
         {
-          "--deck-spread": uploads.length > 7 ? "58px" : "72px",
+          "--deck-spread": "84px",
         } as CSSProperties
       }
     >
@@ -1024,6 +1026,7 @@ function UploadDeck({
               <figure
                 className="upload-deck-card"
                 key={upload.id}
+                onPointerEnter={() => setExpanded(true)}
                 style={
                   {
                     "--deck-index": index,
