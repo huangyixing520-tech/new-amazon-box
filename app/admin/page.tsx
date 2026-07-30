@@ -2,11 +2,13 @@
 
 import {
   ArrowLeft,
+  Article,
   ChartLineUp,
   DownloadSimple,
   FileText,
   ImageSquare,
   MagnifyingGlass,
+  Plus,
   Sparkle,
   Users,
   VideoCamera,
@@ -14,6 +16,10 @@ import {
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  DEFAULT_LANDING_CONTENT,
+  type LandingContent,
+} from "../lib/landing-copy";
 
 type Metric = {
   dau: number;
@@ -105,6 +111,199 @@ type AdminUserResults = {
 
 type ResultFilter = "all" | "image" | "video" | "listing";
 
+function LandingConfigEditor({
+  value,
+  saving,
+  status,
+  onChange,
+  onSave,
+}: {
+  value: LandingContent;
+  saving: boolean;
+  status: string;
+  onChange: (value: LandingContent) => void;
+  onSave: () => void;
+}) {
+  function field<Key extends keyof LandingContent>(
+    key: Key,
+    nextValue: LandingContent[Key],
+  ) {
+    onChange({ ...value, [key]: nextValue });
+  }
+
+  return (
+    <section className="admin-landing-editor">
+      <header>
+        <div>
+          <h2>落地页文案</h2>
+          <p>保存后，登录前首页会立即读取这里的最新内容。</p>
+        </div>
+        <div>
+          {status ? <span role="status">{status}</span> : null}
+          <button type="button" onClick={onSave} disabled={saving}>
+            {saving ? "正在保存" : "保存并发布文案"}
+          </button>
+        </div>
+      </header>
+
+      <div className="admin-landing-grid">
+        <section>
+          <span>首屏</span>
+          <label>
+            主标题
+            <input
+              value={value.heroTitle}
+              maxLength={44}
+              onChange={(event) => field("heroTitle", event.target.value)}
+            />
+          </label>
+          <label>
+            副标题
+            <textarea
+              value={value.heroSubtitle}
+              maxLength={120}
+              rows={3}
+              onChange={(event) => field("heroSubtitle", event.target.value)}
+            />
+          </label>
+          <div className="admin-landing-two">
+            <label>
+              主按钮
+              <input
+                value={value.primaryCta}
+                maxLength={16}
+                onChange={(event) => field("primaryCta", event.target.value)}
+              />
+            </label>
+            <label>
+              次按钮
+              <input
+                value={value.secondaryCta}
+                maxLength={16}
+                onChange={(event) => field("secondaryCta", event.target.value)}
+              />
+            </label>
+          </div>
+        </section>
+
+        <section>
+          <span>结果展示</span>
+          <label>
+            标题
+            <input
+              value={value.resultsTitle}
+              maxLength={48}
+              onChange={(event) => field("resultsTitle", event.target.value)}
+            />
+          </label>
+          <label>
+            说明
+            <textarea
+              value={value.resultsBody}
+              maxLength={120}
+              rows={3}
+              onChange={(event) => field("resultsBody", event.target.value)}
+            />
+          </label>
+        </section>
+      </div>
+
+      <section className="admin-selling-points">
+        <header>
+          <div>
+            <h3>核心卖点</h3>
+            <p>第一条会作为 Listing 的重点说明，其余卖点进入能力模块。</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => field("sellingPoints", [
+              ...value.sellingPoints,
+              { title: "新卖点", body: "请补充这一条卖点的具体说明。" },
+            ])}
+            disabled={value.sellingPoints.length >= 8}
+          >
+            <Plus weight="bold" />添加卖点
+          </button>
+        </header>
+        <div>
+          {value.sellingPoints.map((point, index) => (
+            <article key={index}>
+              <span>0{index + 1}</span>
+              <label>
+                卖点标题
+                <input
+                  value={point.title}
+                  maxLength={48}
+                  onChange={(event) => {
+                    const sellingPoints = [...value.sellingPoints];
+                    sellingPoints[index] = {
+                      ...point,
+                      title: event.target.value,
+                    };
+                    field("sellingPoints", sellingPoints);
+                  }}
+                />
+              </label>
+              <label>
+                卖点说明
+                <textarea
+                  value={point.body}
+                  maxLength={160}
+                  rows={3}
+                  onChange={(event) => {
+                    const sellingPoints = [...value.sellingPoints];
+                    sellingPoints[index] = {
+                      ...point,
+                      body: event.target.value,
+                    };
+                    field("sellingPoints", sellingPoints);
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                aria-label={`删除卖点 ${index + 1}`}
+                onClick={() => field(
+                  "sellingPoints",
+                  value.sellingPoints.filter((_, pointIndex) =>
+                    pointIndex !== index
+                  ),
+                )}
+                disabled={value.sellingPoints.length <= 1}
+              >
+                <X weight="bold" />
+              </button>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="admin-landing-closing">
+        <span>结尾行动区</span>
+        <div>
+          <label>
+            标题
+            <input
+              value={value.closingTitle}
+              maxLength={48}
+              onChange={(event) => field("closingTitle", event.target.value)}
+            />
+          </label>
+          <label>
+            说明
+            <textarea
+              value={value.closingBody}
+              maxLength={120}
+              rows={3}
+              onChange={(event) => field("closingBody", event.target.value)}
+            />
+          </label>
+        </div>
+      </section>
+    </section>
+  );
+}
+
 const skillNames: Record<string, string> = {
   "amazon-listing": "亚马逊 Listing",
   "listing-replica": "链接复刻",
@@ -133,7 +332,9 @@ function matchesResultFilter(turn: ResultTurn, filter: ResultFilter) {
 }
 
 export default function AdminPage() {
-  const [section, setSection] = useState<"overview" | "results">("overview");
+  const [section, setSection] = useState<"overview" | "results" | "landing">(
+    "overview",
+  );
   const [days, setDays] = useState(30);
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
@@ -144,6 +345,12 @@ export default function AdminPage() {
   const [resultsError, setResultsError] = useState("");
   const [resultFilter, setResultFilter] = useState<ResultFilter>("all");
   const [preview, setPreview] = useState<ResultAsset | null>(null);
+  const [landingContent, setLandingContent] = useState<LandingContent | null>(
+    null,
+  );
+  const [landingLoading, setLandingLoading] = useState(false);
+  const [landingSaving, setLandingSaving] = useState(false);
+  const [landingStatus, setLandingStatus] = useState("");
   const resultsRequestId = useRef(0);
 
   useEffect(() => {
@@ -212,6 +419,51 @@ export default function AdminPage() {
       });
   }
 
+  function openLandingEditor() {
+    setSection("landing");
+    if (landingContent || landingLoading) return;
+    setLandingLoading(true);
+    setLandingStatus("");
+    void fetch("/api/admin/landing", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "无法读取落地页配置");
+        }
+        setLandingContent(payload.content || DEFAULT_LANDING_CONTENT);
+      })
+      .catch((reason) => {
+        setLandingContent(DEFAULT_LANDING_CONTENT);
+        setLandingStatus(
+          reason instanceof Error ? reason.message : "无法读取落地页配置",
+        );
+      })
+      .finally(() => setLandingLoading(false));
+  }
+
+  function saveLanding() {
+    if (!landingContent || landingSaving) return;
+    setLandingSaving(true);
+    setLandingStatus("");
+    void fetch("/api/admin/landing", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: landingContent }),
+    })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "保存失败");
+        }
+        setLandingContent(payload.content);
+        setLandingStatus("已保存，刷新首页即可查看");
+      })
+      .catch((reason) => setLandingStatus(
+        reason instanceof Error ? reason.message : "保存失败",
+      ))
+      .finally(() => setLandingSaving(false));
+  }
+
   return (
     <main className="admin-shell">
       <header className="admin-header">
@@ -219,8 +471,8 @@ export default function AdminPage() {
           <Link href="/" className="admin-back">
             <ArrowLeft weight="bold" />返回 Mercato
           </Link>
-          <h1>数据后台</h1>
-          <p>查看产品表现、用户活跃与每次真实生成结果。</p>
+          <h1>Mercato 管理后台</h1>
+          <p>统一管理产品数据、用户生成结果与落地页内容。</p>
         </div>
         {section === "overview" ? (
           <div className="admin-range" aria-label="统计周期">
@@ -261,6 +513,13 @@ export default function AdminPage() {
           }}
         >
           <ImageSquare weight="bold" />用户生成结果
+        </button>
+        <button
+          type="button"
+          className={section === "landing" ? "active" : ""}
+          onClick={openLandingEditor}
+        >
+          <Article weight="bold" />落地页配置
         </button>
       </nav>
 
@@ -394,6 +653,20 @@ export default function AdminPage() {
             </div>
           </section>
         </>
+      ) : section === "landing" ? (
+        landingLoading || !landingContent ? (
+          <section className="admin-state">
+            <strong>正在读取落地页配置</strong>
+          </section>
+        ) : (
+          <LandingConfigEditor
+            value={landingContent}
+            saving={landingSaving}
+            status={landingStatus}
+            onChange={setLandingContent}
+            onSave={saveLanding}
+          />
+        )
       ) : (
         <section className="admin-results-layout">
           <aside className="admin-user-directory">

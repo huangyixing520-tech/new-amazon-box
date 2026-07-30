@@ -31,13 +31,13 @@ test("maps every suite slot to one task and the correct final canvas", () => {
   assert.match(singleImageTaskBoundary, /Never create a collage/);
 });
 
-async function render() {
+async function render(pathname = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
-    new Request("http://localhost/", {
+    new Request(`http://localhost${pathname}`, {
       headers: { accept: "text/html" },
     }),
     {
@@ -52,33 +52,42 @@ async function render() {
   );
 }
 
-test("server-renders the Mercato creation workspace", async () => {
+test("server-renders the public landing page and creation workspace", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Mercato AI \| 跨境电商素材创作<\/title>/i);
-  assert.match(html, /一张商品图，/);
-  assert.match(html, /生成亚马逊链接/);
-  assert.doesNotMatch(html, /生成完整商品内容/);
-  assert.match(html, /工作区导航/);
-  assert.match(html, /个人账户/);
-  assert.doesNotMatch(html, /主导航/);
-  assert.doesNotMatch(html, /AI COMMERCE STUDIO|CREATE FOR ANY MARKET|上传商品，选择 Skill|上传你的商品，开始创作/);
-  assert.match(html, /data-testid="mode-trigger"/);
-  assert.match(html, /data-testid="brand-gene-trigger"/);
-  assert.match(html, /data-testid="skill-trigger"/);
-  assert.match(html, /data-testid="file-input"/);
-  assert.match(html, /multiple=""/);
-  assert.match(html, /data-testid="send"/);
+  assert.match(html, /<title>Mercato AI \| 一张图，生成一条 Listing<\/title>/i);
+  assert.match(html, /一张图/);
+  assert.match(html, /生成一条 Listing/);
+  assert.match(html, /一次输入，三种直接可用的结果/);
+  assert.match(html, /href="\/studio"/);
+  assert.match(html, /落地页导航/);
+  assert.match(html, /每张图片，都是独立任务/);
   assert.match(html, /property="og:image"/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
+
+  const studioResponse = await render("/studio");
+  assert.equal(studioResponse.status, 200);
+  const studioHtml = await studioResponse.text();
+  assert.match(studioHtml, /一张商品图，生成亚马逊链接/);
+  assert.match(studioHtml, /工作区导航/);
+  assert.match(studioHtml, /个人账户/);
+  assert.match(studioHtml, /data-testid="mode-trigger"/);
+  assert.match(studioHtml, /data-testid="brand-gene-trigger"/);
+  assert.match(studioHtml, /data-testid="skill-trigger"/);
+  assert.match(studioHtml, /data-testid="file-input"/);
+  assert.match(studioHtml, /multiple=""/);
+  assert.match(studioHtml, /data-testid="send"/);
 });
 
 test("ships the complete generation flow and its assets", async () => {
   const [
     page,
+    landingPage,
+    landingCopy,
+    landingAdminRoute,
     layout,
     styles,
     packageJson,
@@ -95,7 +104,10 @@ test("ships the complete generation flow and its assets", async () => {
     adminPage,
     envExample,
   ] = await Promise.all([
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/landing-page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/landing-copy.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/landing/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
@@ -355,6 +367,16 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(adminRoute, /generationDau/);
   assert.match(adminPage, /Skill 表现/);
   assert.match(adminPage, /用户生成结果/);
+  assert.match(adminPage, /落地页配置/);
+  assert.match(adminPage, /保存并发布文案/);
+  assert.match(adminPage, /\/api\/admin\/landing/);
+  assert.match(landingPage, /heroTitleParts/);
+  assert.match(landingPage, /href="\/studio"/);
+  assert.match(landingPage, /landing-result-panel/);
+  assert.match(landingCopy, /一张图，生成一条 Listing/);
+  assert.match(landingCopy, /sellingPoints/);
+  assert.match(landingAdminRoute, /requireAdmin/);
+  assert.match(landingAdminRoute, /saveLandingContent/);
   assert.match(adminPage, /\/api\/admin\/users\/\$\{encodeURIComponent\(userId\)\}\/results/);
   assert.match(adminPage, /查看用户输入/);
   assert.match(adminPage, /admin-result-assets/);

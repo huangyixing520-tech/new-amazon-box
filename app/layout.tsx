@@ -15,23 +15,23 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     metadataBase: new URL(origin),
-    title: "Mercato AI | 跨境电商素材创作",
-    description: "上传商品图，为不同市场生成电商图片和商品视频。",
+    title: "Mercato AI | 一张图，生成一条 Listing",
+    description: "上传商品素材，生成可编辑的 Amazon Listing、商品套图和视频。",
     icons: {
       icon: "/favicon.svg",
       shortcut: "/favicon.svg",
     },
     openGraph: {
-      title: "Mercato AI | 跨境电商素材创作",
-      description: "上传商品图，为不同市场生成电商图片和商品视频。",
-      images: [`${origin}/og.png`],
+      title: "Mercato AI | 一张图，生成一条 Listing",
+      description: "上传商品素材，生成可编辑的 Amazon Listing、商品套图和视频。",
+      images: [`${origin}/landing-hero.webp`],
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title: "Mercato AI | 跨境电商素材创作",
-      description: "上传商品图，为不同市场生成电商图片和商品视频。",
-      images: [`${origin}/og.png`],
+      title: "Mercato AI | 一张图，生成一条 Listing",
+      description: "上传商品素材，生成可编辑的 Amazon Listing、商品套图和视频。",
+      images: [`${origin}/landing-hero.webp`],
     },
   };
 }
