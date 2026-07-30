@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type DragEvent,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
@@ -968,7 +969,6 @@ function UploadDeck({
   onPreview: (upload: Upload) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const visibleUploads = uploads.slice(0, 3);
   const atLimit = uploads.length >= MAX_UPLOADS;
 
   const openFilePicker = () => {
@@ -983,6 +983,11 @@ function UploadDeck({
       role="group"
       aria-label={`参考图片 ${uploads.length} / ${MAX_UPLOADS}`}
       data-testid="upload-deck"
+      style={
+        {
+          "--deck-spread": uploads.length > 7 ? "58px" : "72px",
+        } as CSSProperties
+      }
     >
       <input
         ref={inputRef}
@@ -1015,10 +1020,18 @@ function UploadDeck({
       ) : (
         <>
           <div className="upload-deck-cards">
-            {visibleUploads.map((upload, index) => (
+            {uploads.map((upload, index) => (
               <figure
-                className={`upload-deck-card upload-deck-card-${index + 1}`}
+                className="upload-deck-card"
                 key={upload.id}
+                style={
+                  {
+                    "--deck-index": index,
+                    "--deck-stack-index": Math.min(index, 3),
+                    "--deck-rotation": `${[-5, 2, 7, -2][index % 4]}deg`,
+                    zIndex: uploads.length - index + 3,
+                  } as CSSProperties
+                }
               >
                 <button
                   type="button"
@@ -1049,8 +1062,14 @@ function UploadDeck({
             <button
               type="button"
               className={`upload-deck-add ${
-                uploads.length === 1 ? "upload-deck-add-card" : "upload-deck-add-circle"
+                uploads.length === 1 ? "upload-deck-add-circle" : "upload-deck-add-card"
               }`}
+              style={
+                {
+                  "--deck-index": uploads.length,
+                  "--deck-stack-index": Math.min(uploads.length, 3),
+                } as CSSProperties
+              }
               aria-label={`继续上传图片，当前 ${uploads.length} 张`}
               onClick={openFilePicker}
             >
