@@ -181,6 +181,14 @@ test("ships the complete generation flow and its assets", async () => {
   );
   assert.match(styles, /\.brand-gene-panel\s*\{[^}]*position:\s*absolute;[^}]*box-shadow:/);
   assert.match(styles, /\.single-image-result\s*\{[^}]*width:\s*min\(620px, 100%\)/);
+  assert.match(
+    styles,
+    /\.upload-deck\.has-uploads:has\(\.upload-deck-card:hover\) \.upload-deck-add-card/,
+  );
+  assert.doesNotMatch(
+    styles,
+    /\.upload-deck\.has-uploads:hover \.upload-deck-add-card/,
+  );
   assert.match(page, /product-demo\.mp4/);
   assert.match(page, /销售国家\/地区/);
   assert.match(page, /生成内容语言/);
