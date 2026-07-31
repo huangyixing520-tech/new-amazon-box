@@ -15,7 +15,7 @@ import {
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useState } from "react";
-import type { LandingContent } from "./lib/landing-copy";
+import type { LandingContent, LandingMedia } from "./lib/landing-copy";
 
 type ResultMode = "listing" | "image" | "video";
 
@@ -44,7 +44,13 @@ const skillGroups = [
   },
 ];
 
-function ProductResult({ mode }: { mode: ResultMode }) {
+function ProductResult({
+  mode,
+  media,
+}: {
+  mode: ResultMode;
+  media: LandingMedia;
+}) {
   if (mode === "video") {
     return (
       <div className="landing-result-video">
@@ -53,7 +59,7 @@ function ProductResult({ mode }: { mode: ResultMode }) {
           controls
           playsInline
           preload="metadata"
-          poster="/product-lifestyle.png"
+          poster={media.videoPoster}
           aria-label="商品视频生成示例"
         />
         <div>
@@ -69,9 +75,9 @@ function ProductResult({ mode }: { mode: ResultMode }) {
     return (
       <div className="landing-result-images">
         {[
-          ["/product-main.png", "商品主图"],
-          ["/product-lifestyle.png", "生活方式图"],
-          ["/product-outdoor.png", "场景图"],
+          [media.listing, "商品主图"],
+          [media.lifestyle, "生活方式图"],
+          [media.scene, "场景图"],
         ].map(([src, label], index) => (
           <figure key={src} style={{ "--image-index": index } as React.CSSProperties}>
             <img src={src} alt={label} />
@@ -84,7 +90,7 @@ function ProductResult({ mode }: { mode: ResultMode }) {
 
   return (
     <article className="landing-listing-result">
-      <img src="/product-main.png" alt="便携咖啡机商品主图" />
+      <img src={media.listing} alt="Listing 商品主图示例" />
       <div>
         <span>Amazon Listing</span>
         <h3>Portable Espresso Maker for Travel and Everyday Coffee</h3>
@@ -150,7 +156,7 @@ export default function LandingPage({ content }: { content: LandingContent }) {
         </div>
         <figure className="landing-hero-visual">
           <img
-            src="/landing-hero.webp"
+            src={content.media.hero}
             alt="同一件商品生成白底图、生活方式图和品牌故事图"
           />
           <figcaption>
@@ -190,7 +196,7 @@ export default function LandingPage({ content }: { content: LandingContent }) {
             ))}
           </div>
           <div className="landing-result-panel" role="tabpanel">
-            <ProductResult mode={resultMode} />
+            <ProductResult mode={resultMode} media={content.media} />
           </div>
         </div>
       </section>
@@ -213,9 +219,9 @@ export default function LandingPage({ content }: { content: LandingContent }) {
               <i />
               <i />
             </div>
-            <img src="/product-main.png" alt="Listing 商品主图示例" />
+            <img src={content.media.listing} alt="Listing 商品主图示例" />
             <div className="landing-a-plus-strip">
-              <img src="/product-lifestyle.png" alt="" />
+              <img src={content.media.lifestyle} alt="" />
               <span>A+ 品牌内容</span>
             </div>
           </div>
@@ -286,10 +292,10 @@ export default function LandingPage({ content }: { content: LandingContent }) {
         </header>
         <div className="landing-task-grid">
           {[
-            ["/product-main.png", "主图", "1:1"],
-            ["/product-lifestyle.png", "生活方式图", "1:1"],
-            ["/product-outdoor.png", "场景图", "1:1"],
-            ["/landing-hero.webp", "A+ 品牌图", "宽幅"],
+            [content.media.listing, "主图", "1:1"],
+            [content.media.lifestyle, "生活方式图", "1:1"],
+            [content.media.scene, "场景图", "1:1"],
+            [content.media.hero, "A+ 品牌图", "宽幅"],
           ].map(([src, label, ratio], index) => (
             <figure key={label} style={{ "--task-index": index } as React.CSSProperties}>
               <img src={src} alt={label} />

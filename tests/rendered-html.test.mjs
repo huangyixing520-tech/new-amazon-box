@@ -88,6 +88,8 @@ test("ships the complete generation flow and its assets", async () => {
     landingPage,
     landingCopy,
     landingAdminRoute,
+    landingAdminMediaRoute,
+    landingMediaRoute,
     layout,
     styles,
     packageJson,
@@ -108,6 +110,8 @@ test("ships the complete generation flow and its assets", async () => {
     readFile(new URL("../app/landing-page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/landing-copy.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/landing/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/landing/media/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/landing/media/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
@@ -369,15 +373,30 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(adminPage, /Skill 表现/);
   assert.match(adminPage, /用户生成结果/);
   assert.match(adminPage, /落地页配置/);
-  assert.match(adminPage, /保存并发布文案/);
+  assert.match(adminPage, /保存并发布/);
+  assert.match(adminPage, /落地页图片/);
+  assert.match(adminPage, /首屏主视觉/);
+  assert.match(adminPage, /上传替换/);
   assert.match(adminPage, /\/api\/admin\/landing/);
+  assert.match(adminPage, /\/api\/admin\/landing\/media/);
   assert.match(landingPage, /heroTitleParts/);
   assert.match(landingPage, /href="\/studio"/);
   assert.match(landingPage, /landing-result-panel/);
+  assert.match(landingPage, /content\.media\.hero/);
+  assert.match(landingPage, /media\.videoPoster/);
   assert.match(landingCopy, /一张图，生成一条 Listing/);
   assert.match(landingCopy, /sellingPoints/);
+  assert.match(landingCopy, /LandingMedia/);
+  assert.match(landingCopy, /\/landing-hero\.webp/);
   assert.match(landingAdminRoute, /requireAdmin/);
   assert.match(landingAdminRoute, /saveLandingContent/);
+  assert.match(landingAdminMediaRoute, /requireAdmin/);
+  assert.match(landingAdminMediaRoute, /verifySameOrigin/);
+  assert.match(landingAdminMediaRoute, /GENERATED_ASSETS\.put/);
+  assert.match(landingAdminMediaRoute, /10 \* 1024 \* 1024/);
+  assert.match(landingMediaRoute, /key\.startsWith\("landing\/"\)/);
+  assert.match(landingMediaRoute, /GENERATED_ASSETS\.get/);
+  assert.match(landingMediaRoute, /immutable/);
   assert.match(adminPage, /\/api\/admin\/users\/\$\{encodeURIComponent\(userId\)\}\/results/);
   assert.match(adminPage, /查看用户输入/);
   assert.match(adminPage, /admin-result-assets/);

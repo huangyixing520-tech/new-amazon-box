@@ -3,6 +3,14 @@ export type LandingSellingPoint = {
   body: string;
 };
 
+export type LandingMedia = {
+  hero: string;
+  listing: string;
+  lifestyle: string;
+  scene: string;
+  videoPoster: string;
+};
+
 export type LandingContent = {
   heroTitle: string;
   heroSubtitle: string;
@@ -13,6 +21,7 @@ export type LandingContent = {
   sellingPoints: LandingSellingPoint[];
   closingTitle: string;
   closingBody: string;
+  media: LandingMedia;
 };
 
 export const DEFAULT_LANDING_CONTENT: LandingContent = {
@@ -46,6 +55,13 @@ export const DEFAULT_LANDING_CONTENT: LandingContent = {
   ],
   closingTitle: "现在，把商品变成能上架的内容",
   closingBody: "使用自己的模型 API Key 开始创作，生成记录只属于当前账号。",
+  media: {
+    hero: "/landing-hero.webp",
+    listing: "/product-main.png",
+    lifestyle: "/product-lifestyle.png",
+    scene: "/product-outdoor.png",
+    videoPoster: "/product-lifestyle.png",
+  },
 };
 
 function text(value: unknown, fallback: string, maxLength: number) {
@@ -54,9 +70,24 @@ function text(value: unknown, fallback: string, maxLength: number) {
   return normalized || fallback;
 }
 
+function mediaUrl(value: unknown, fallback: string) {
+  if (typeof value !== "string") return fallback;
+  const normalized = value.trim().slice(0, 800);
+  if (
+    (normalized.startsWith("/") && !normalized.startsWith("//")) ||
+    normalized.startsWith("https://")
+  ) {
+    return normalized;
+  }
+  return fallback;
+}
+
 export function normalizeLandingContent(value: unknown): LandingContent {
   const source = value && typeof value === "object"
     ? value as Partial<LandingContent>
+    : {};
+  const media = source.media && typeof source.media === "object"
+    ? source.media as Partial<LandingMedia>
     : {};
   const points = Array.isArray(source.sellingPoints)
     ? source.sellingPoints
@@ -114,5 +145,18 @@ export function normalizeLandingContent(value: unknown): LandingContent {
       DEFAULT_LANDING_CONTENT.closingBody,
       120,
     ),
+    media: {
+      hero: mediaUrl(media.hero, DEFAULT_LANDING_CONTENT.media.hero),
+      listing: mediaUrl(media.listing, DEFAULT_LANDING_CONTENT.media.listing),
+      lifestyle: mediaUrl(
+        media.lifestyle,
+        DEFAULT_LANDING_CONTENT.media.lifestyle,
+      ),
+      scene: mediaUrl(media.scene, DEFAULT_LANDING_CONTENT.media.scene),
+      videoPoster: mediaUrl(
+        media.videoPoster,
+        DEFAULT_LANDING_CONTENT.media.videoPoster,
+      ),
+    },
   };
 }

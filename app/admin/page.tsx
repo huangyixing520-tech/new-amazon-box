@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowCounterClockwise,
   ArrowLeft,
   Article,
   ChartLineUp,
@@ -10,6 +11,7 @@ import {
   MagnifyingGlass,
   Plus,
   Sparkle,
+  UploadSimple,
   Users,
   VideoCamera,
   X,
@@ -19,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_LANDING_CONTENT,
   type LandingContent,
+  type LandingMedia,
 } from "../lib/landing-copy";
 
 type Metric = {
@@ -111,6 +114,44 @@ type AdminUserResults = {
 
 type ResultFilter = "all" | "image" | "video" | "listing";
 
+const landingMediaSlots: Array<{
+  key: keyof LandingMedia;
+  label: string;
+  location: string;
+  hint: string;
+}> = [
+  {
+    key: "hero",
+    label: "首屏主视觉",
+    location: "首页首屏右侧",
+    hint: "建议使用 3:2 横图，展示同一商品的多种生成结果。",
+  },
+  {
+    key: "listing",
+    label: "Listing 商品图",
+    location: "Listing 结果与重点卖点",
+    hint: "建议使用 1:1 商品主图，主体清晰、留白克制。",
+  },
+  {
+    key: "lifestyle",
+    label: "生活方式图",
+    location: "图片结果与 A+ 示例",
+    hint: "建议使用 1:1 场景图，体现商品使用氛围。",
+  },
+  {
+    key: "scene",
+    label: "场景示例图",
+    location: "图片结果与任务拆分",
+    hint: "建议使用 1:1 图片，与生活方式图形成差异。",
+  },
+  {
+    key: "videoPoster",
+    label: "视频封面",
+    location: "视频结果播放前",
+    hint: "建议使用 16:9 横图，作为视频未播放时的封面。",
+  },
+];
+
 function LandingConfigEditor({
   value,
   saving,
@@ -124,6 +165,11 @@ function LandingConfigEditor({
   onChange: (value: LandingContent) => void;
   onSave: () => void;
 }) {
+  const [uploadingSlot, setUploadingSlot] = useState<keyof LandingMedia | null>(
+    null,
+  );
+  const [uploadStatus, setUploadStatus] = useState("");
+
   function field<Key extends keyof LandingContent>(
     key: Key,
     nextValue: LandingContent[Key],
@@ -131,17 +177,53 @@ function LandingConfigEditor({
     onChange({ ...value, [key]: nextValue });
   }
 
+  function mediaField(key: keyof LandingMedia, nextValue: string) {
+    field("media", { ...value.media, [key]: nextValue });
+  }
+
+  async function uploadMedia(key: keyof LandingMedia, file?: File) {
+    if (!file || uploadingSlot) return;
+    setUploadingSlot(key);
+    setUploadStatus("");
+    try {
+      const body = new FormData();
+      body.set("slot", key);
+      body.set("file", file);
+      const response = await fetch("/api/admin/landing/media", {
+        method: "POST",
+        body,
+      });
+      const payload = await response.json() as {
+        url?: string;
+        error?: string;
+      };
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.error || "图片上传失败");
+      }
+      mediaField(key, payload.url);
+      setUploadStatus("图片已上传，请点击保存并发布");
+    } catch (reason) {
+      setUploadStatus(
+        reason instanceof Error ? reason.message : "图片上传失败",
+      );
+    } finally {
+      setUploadingSlot(null);
+    }
+  }
+
   return (
     <section className="admin-landing-editor">
       <header>
         <div>
-          <h2>落地页文案</h2>
-          <p>保存后，登录前首页会立即读取这里的最新内容。</p>
+          <h2>落地页内容</h2>
+          <p>统一配置登录前首页的文案和图片，保存后立即生效。</p>
         </div>
         <div>
-          {status ? <span role="status">{status}</span> : null}
+          {status || uploadStatus ? (
+            <span role="status">{status || uploadStatus}</span>
+          ) : null}
           <button type="button" onClick={onSave} disabled={saving}>
-            {saving ? "正在保存" : "保存并发布文案"}
+            {saving ? "正在保存" : "保存并发布"}
           </button>
         </div>
       </header>
@@ -207,6 +289,71 @@ function LandingConfigEditor({
           </label>
         </section>
       </div>
+
+      <section className="admin-landing-media">
+        <header>
+          <div>
+            <h3>落地页图片</h3>
+            <p>每张卡片都标明图片在公开首页中的展示位置。</p>
+          </div>
+          <span>支持 JPG、PNG、WebP、GIF、AVIF，单张不超过 10 MB</span>
+        </header>
+        <div>
+          {landingMediaSlots.map((slot) => (
+            <article key={slot.key}>
+              <figure>
+                <img src={value.media[slot.key]} alt={`${slot.label}预览`} />
+                <figcaption>{slot.location}</figcaption>
+              </figure>
+              <div>
+                <span>{slot.label}</span>
+                <p>{slot.hint}</p>
+                <label>
+                  图片地址
+                  <input
+                    value={value.media[slot.key]}
+                    maxLength={800}
+                    onChange={(event) =>
+                      mediaField(slot.key, event.target.value)
+                    }
+                  />
+                </label>
+                <div className="admin-media-actions">
+                  <label className="admin-media-upload">
+                    <UploadSimple weight="bold" />
+                    {uploadingSlot === slot.key ? "正在上传" : "上传替换"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                      disabled={Boolean(uploadingSlot)}
+                      onChange={(event) => {
+                        void uploadMedia(slot.key, event.target.files?.[0]);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="admin-media-reset"
+                    onClick={() =>
+                      mediaField(
+                        slot.key,
+                        DEFAULT_LANDING_CONTENT.media[slot.key],
+                      )
+                    }
+                    disabled={
+                      value.media[slot.key] ===
+                      DEFAULT_LANDING_CONTENT.media[slot.key]
+                    }
+                  >
+                    <ArrowCounterClockwise weight="bold" />恢复默认
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
 
       <section className="admin-selling-points">
         <header>

@@ -1443,6 +1443,7 @@ button:active, a:active { transform: translateY(1px); }
 .admin-landing-editor button:disabled { cursor: not-allowed; opacity: .45; }
 .admin-landing-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
 .admin-landing-grid > section,
+.admin-landing-media,
 .admin-selling-points,
 .admin-landing-closing {
   padding: 24px;
@@ -1480,6 +1481,110 @@ button:active, a:active { transform: translateY(1px); }
 .admin-landing-editor textarea:focus { border-color: #8ea73e; box-shadow: 0 0 0 3px rgb(201 243 62 / .18); }
 .admin-landing-two { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 14px; }
 .admin-landing-two label + label { margin-top: 0; }
+.admin-landing-media > header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 22px;
+}
+.admin-landing-media > header > span {
+  color: var(--muted);
+  font-size: 9px;
+  text-align: right;
+}
+.admin-landing-media > div {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 10px;
+}
+.admin-landing-media article {
+  min-width: 0;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 164px minmax(0,1fr);
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #f8faf6;
+}
+.admin-landing-media article:first-child {
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(260px,.8fr) minmax(0,1.2fr);
+}
+.admin-landing-media figure {
+  min-width: 0;
+  margin: 0;
+  position: relative;
+  overflow: hidden;
+  border-radius: 13px;
+  background: #e9eee4;
+}
+.admin-landing-media figure img {
+  width: 100%;
+  height: 100%;
+  min-height: 148px;
+  display: block;
+  object-fit: cover;
+}
+.admin-landing-media article:first-child figure img { aspect-ratio: 3 / 2; }
+.admin-landing-media figcaption {
+  position: absolute;
+  left: 9px;
+  bottom: 9px;
+  padding: 6px 8px;
+  border: 1px solid rgb(255 255 255 / .42);
+  border-radius: 8px;
+  background: rgb(20 24 19 / .72);
+  color: #f8faf6;
+  backdrop-filter: blur(10px);
+  font-size: 8px;
+  font-weight: 720;
+}
+.admin-landing-media article > div {
+  min-width: 0;
+  padding: 6px 6px 4px 0;
+}
+.admin-landing-media article > div > span {
+  display: block;
+  font-size: 13px;
+  font-weight: 760;
+}
+.admin-landing-media article > div > p {
+  min-height: 31px;
+  margin: 5px 0 12px;
+}
+.admin-landing-media article label + label { margin-top: 0; }
+.admin-media-actions {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.admin-media-upload,
+.admin-media-reset {
+  min-height: 34px;
+  padding: 0 10px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  color: var(--text) !important;
+  cursor: pointer;
+  font-size: 9px !important;
+  font-weight: 720 !important;
+}
+.admin-media-upload:hover,
+.admin-media-reset:hover:not(:disabled) {
+  border-color: #a9bd6d !important;
+  background: var(--accent-soft) !important;
+}
+.admin-media-upload svg,
+.admin-media-reset svg { width: 13px; height: 13px; }
+.admin-media-upload input { display: none; }
 .admin-selling-points > header { display: flex; align-items: center; justify-content: space-between; gap: 22px; }
 .admin-selling-points > header button {
   min-height: 38px;
@@ -2119,8 +2224,17 @@ button:active, a:active { transform: translateY(1px); }
   .admin-landing-editor > header > div:last-child { width: 100%; align-items: stretch; flex-direction: column; }
   .admin-landing-editor > header > div:last-child > span { max-width: none; text-align: left; }
   .admin-landing-grid > section,
+  .admin-landing-media,
   .admin-selling-points,
   .admin-landing-closing { padding: 18px; }
+  .admin-landing-media > header { align-items: flex-start; flex-direction: column; }
+  .admin-landing-media > header > span { text-align: left; }
+  .admin-landing-media > div { grid-template-columns: 1fr; }
+  .admin-landing-media article,
+  .admin-landing-media article:first-child {
+    grid-column: auto;
+    grid-template-columns: 120px minmax(0,1fr);
+  }
   .admin-landing-two,
   .admin-landing-closing > div { grid-template-columns: 1fr; }
   .admin-landing-two label + label,
