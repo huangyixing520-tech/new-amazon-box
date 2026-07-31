@@ -217,7 +217,7 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /请先上传 1 个参考视频/);
   assert.match(styles, /\.video-replica-materials\s*\{/);
   assert.match(styles, /\.reference-video-card\s*\{/);
-  assert.match(page, /product-demo\.mp4/);
+  assert.match(page, /\/api\/demo-video/);
   assert.match(page, /销售国家\/地区/);
   assert.match(page, /生成内容语言/);
   assert.match(page, /🇺🇸 US（美国）/);
@@ -238,7 +238,10 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /runGeneration/);
   assert.match(page, /visibleAgentText/);
   assert.match(page, /plainListingText/);
-  assert.match(page, /AI merchandising suggestion/);
+  assert.match(page, /merchant supplied/);
+  assert.match(page, /价格、优惠、税费与物流信息待发布前确认/);
+  assert.doesNotMatch(page, /Apply 10% coupon/);
+  assert.doesNotMatch(page, /No Import Fees Deposit/);
   assert.match(page, /<think>\[\\s\\S\]/);
   assert.match(page, /AI-generated draft/);
   assert.match(page, /Review all claims before publishing/);
@@ -292,7 +295,7 @@ test("ships the complete generation flow and its assets", async () => {
   assert.doesNotMatch(page, /添加新任务/);
   assert.doesNotMatch(page, /<span>你<\/span>/);
   assert.doesNotMatch(page, /<span>Mercato AI<\/span>/);
-  assert.match(layout, /generateMetadata/);
+  assert.match(layout, /alternates: \{ canonical: "\/" \}/);
   assert.match(layout, /summary_large_image/);
   assert.match(styles, /--accent: #c9f33e/);
   assert.match(styles, /\.send-button \{[^}]*display: grid;[^}]*place-items: center;/);
@@ -339,7 +342,8 @@ test("ships the complete generation flow and its assets", async () => {
     "1024x1536",
   );
   assert.match(assetRoute, /await import\("sharp"\)/);
-  assert.match(assetRoute, /resizeImage\(source\.buffer, outputWidth, outputHeight\)/);
+  assert.match(assetRoute, /optimizeImage/);
+  assert.match(assetRoute, /image\/webp/);
   assert.match(assetRoute, /outputWidth/);
   assert.match(assetRoute, /outputHeight/);
   assert.match(page, /suiteOutputDimensions/);
@@ -349,7 +353,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /Gulf Cooperation Council \/ Middle East/);
   assert.match(generateRoute, /Portuguese/);
   assert.match(generateRoute, /never as "one-touch operation"/);
-  assert.match(generateRoute, /Always return non-empty numeric salePrice/);
+  assert.match(generateRoute, /Only return salePrice or listPrice when the user explicitly supplied/);
+  assert.match(generateRoute, /otherwise return an empty string/);
   assert.match(generateRoute, /userApiKey\(request\)/);
   assert.doesNotMatch(generateRoute, /process\.env\.DOLA_API_KEY/);
   assert.doesNotMatch(generateRoute, /DOLA_API_KEY\s*=\s*["'][^"']+["']/);

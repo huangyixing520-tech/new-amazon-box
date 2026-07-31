@@ -223,7 +223,7 @@ const skills: SkillOption[] = [
     mode: "listing",
     kind: "listing",
     label: "亚马逊 Listing",
-    description: "生成标题、卖点、描述、定价与 A+ 文案",
+    description: "生成标题、卖点、描述、主副图与 A+ 内容",
     starter: "生成完整亚马逊商品 Listing",
   },
   {
@@ -599,12 +599,12 @@ const listingCopy = {
   },
 };
 
-const prices: Record<string, { symbol: string; major: string; minor: string; list: string }> = {
-  us: { symbol: "$", major: "79", minor: "99", list: "$99.99" },
-  uk: { symbol: "£", major: "69", minor: "99", list: "£89.99" },
-  de: { symbol: "€", major: "74", minor: "99", list: "€94.99" },
-  jp: { symbol: "¥", major: "11,980", minor: "", list: "¥14,980" },
-  sea: { symbol: "$", major: "82", minor: "00", list: "$105.00" },
+const currencySymbols: Record<string, string> = {
+  us: "$",
+  uk: "£",
+  de: "€",
+  jp: "¥",
+  sea: "$",
 };
 
 const conversationTitle = "便携咖啡机创作";
@@ -1787,27 +1787,27 @@ function ListingResult({
   onListingChange: (listing: ListingData) => void;
 }) {
   const copy = listingCopy[language as keyof typeof listingCopy] ?? listingCopy.en;
-  const price = prices[region] ?? prices.us;
+  const currencySymbol = currencySymbols[region] ?? "$";
   const [galleryImage, setGalleryImage] = useState("");
-  const [title, setTitle] = useState(plainListingText(data?.title, copy.title));
-  const [salePrice, setSalePrice] = useState(
-    data?.salePrice?.trim() || `${price.major}${price.minor ? `.${price.minor}` : ""}`,
+  const [title, setTitle] = useState(
+    plainListingText(data?.title, "商品标题待生成"),
   );
-  const [listPrice, setListPrice] = useState(
-    data?.listPrice?.trim() || price.list.replace(price.symbol, ""),
+  const [salePrice, setSalePrice] = useState(data?.salePrice?.trim() || "");
+  const [listPrice, setListPrice] = useState(data?.listPrice?.trim() || "");
+  const [bullets, setBullets] = useState(
+    data?.bullets?.length ? data.bullets : ["", "", "", "", ""],
   );
-  const [bullets, setBullets] = useState(data?.bullets ?? copy.bullets);
   const [description, setDescription] = useState(
-    plainListingText(data?.description, copy.description),
+    plainListingText(data?.description, ""),
   );
   const [aPlusHeadline, setAPlusHeadline] = useState(
-    plainListingText(data?.aPlusHeadline, "Your product story, made for this market."),
+    plainListingText(data?.aPlusHeadline, ""),
   );
   const [specs, setSpecs] = useState(
     Object.entries(data?.specifications ?? {
       Brand: data?.brand ?? "Generic",
       "Product type": "To be confirmed",
-      "Recommended use": "Everyday use",
+      "Recommended use": "To be confirmed",
     }).filter(([, value]) => !/^not confirmed$/i.test(value.trim())),
   );
   const brand = data?.brand ?? "Generic";
@@ -1825,9 +1825,17 @@ function ListingResult({
     .filter(Boolean);
   const listingImages = generatedMainImages.length
     ? generatedMainImages
-    : [productImage, "/product-lifestyle.png", "/product-outdoor.png"];
+    : [productImage];
   const shownGalleryImage = galleryImage || listingImages[0];
   const productSlug = data?.productUrlSlug ?? "MERCATO-GENERATED";
+  const numericSalePrice = Number.parseFloat(salePrice.replaceAll(",", ""));
+  const numericListPrice = Number.parseFloat(listPrice.replaceAll(",", ""));
+  const discount =
+    Number.isFinite(numericSalePrice) &&
+    Number.isFinite(numericListPrice) &&
+    numericListPrice > numericSalePrice
+      ? Math.round((1 - numericSalePrice / numericListPrice) * 100)
+      : null;
 
   if (!ready) {
     return (
@@ -1892,8 +1900,8 @@ function ListingResult({
     productUrl: `https://marketplace.example/dp/${productSlug}`,
     title,
     pricing: {
-      type: "AI merchandising suggestion",
-      currency: price.symbol,
+      type: salePrice || listPrice ? "merchant supplied" : "not confirmed",
+      currency: currencySymbol,
       salePrice,
       listPrice,
     },
@@ -2009,16 +2017,17 @@ function ListingResult({
           </div>
           <div className="badge-row">
             <b>Listing preview</b>
-            <span>{category}</span>
+            <span>AI 草稿 · 发布前请核对商品事实与交易信息</span>
           </div>
           <hr />
           <div className="price-line">
-            <span className="discount">-20%</span>
+            {discount ? <span className="discount">-{discount}%</span> : null}
             <span className="price">
-              <sup>{price.symbol}</sup>
+              <sup>{currencySymbol}</sup>
               <input
                 className="editable-field price-input"
                 value={salePrice}
+                placeholder="待确认"
                 onChange={(event) => {
                   setSalePrice(event.target.value);
                   onListingChange(listingDraft({ salePrice: event.target.value }));
@@ -2029,10 +2038,11 @@ function ListingResult({
             </span>
           </div>
           <label className="list-price">
-            List Price: {price.symbol}
+            List Price: {currencySymbol}
             <input
               className="editable-field list-price-input"
               value={listPrice}
+              placeholder="待确认"
               onChange={(event) => {
                 setListPrice(event.target.value);
                 onListingChange(listingDraft({ listPrice: event.target.value }));
@@ -2040,11 +2050,7 @@ function ListingResult({
               aria-label="编辑原价"
             />
           </label>
-          <p className="tax-note">No Import Fees Deposit &amp; free returns</p>
-          <div className="coupon">
-            <b>Coupon</b>
-            <span>Apply 10% coupon</span>
-          </div>
+          <p className="tax-note">价格、优惠、税费与物流信息待发布前确认</p>
           {color ? (
             <>
               <div className="variation-row"><b>Color:</b> {color}</div>
@@ -2075,7 +2081,11 @@ function ListingResult({
 
         <aside className="buy-box">
           <div className="buy-price">
-            <sup>{price.symbol}</sup>{salePrice}
+            {salePrice ? (
+              <><sup>{currencySymbol}</sup>{salePrice}</>
+            ) : (
+              <span className="price-pending">价格待确认</span>
+            )}
           </div>
           <p><a href="#delivery">Delivery options</a> configured after publishing</p>
           <p>Taxes, returns and fulfillment are not connected in this preview.</p>
@@ -2149,7 +2159,7 @@ function ListingResult({
         <div className="a-plus-hero">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={generatedAPlusImages[0] ?? "/product-lifestyle.png"}
+            src={generatedAPlusImages[0] ?? productImage}
             alt={`${brand} 品牌场景`}
           />
           <div>
@@ -2442,7 +2452,7 @@ function VideoResult({
             aria-label="BrewGo 商品视频"
             data-testid="generated-video"
           >
-            <source src={videoUrl ?? "/product-demo.mp4"} type="video/mp4" />
+            <source src={videoUrl ?? "/api/demo-video"} type="video/mp4" />
           </video>
         </div>
         <aside className="storyboard">
@@ -2482,6 +2492,7 @@ function AppSidebar({
   onRename,
   onDelete,
   session,
+  sessionReady,
   onAccount,
 }: {
   screen: "home" | "studio" | "assets";
@@ -2495,6 +2506,7 @@ function AppSidebar({
   onRename: (conversationId: string, title: string) => void;
   onDelete: (conversationId: string) => void;
   session: ClientSession;
+  sessionReady: boolean;
   onAccount: () => void;
 }) {
   const latestConversation = conversations[conversations.length - 1];
@@ -2636,6 +2648,7 @@ function AppSidebar({
           aria-label="个人账户"
           aria-haspopup="dialog"
           onClick={onAccount}
+          disabled={!sessionReady}
           data-testid="account-trigger"
         >
           {session?.user.pictureUrl ? (
@@ -2652,9 +2665,13 @@ function AppSidebar({
             </span>
           )}
           <span>
-            <strong>{session?.user.name ?? "我的账户"}</strong>
+            <strong>
+              {sessionReady ? session?.user.name ?? "我的账户" : "正在载入账号"}
+            </strong>
             <small>
-              {session
+              {!sessionReady
+                ? "正在同步登录状态"
+                : session
                 ? session.hasApiKey
                   ? "API Key 已配置"
                   : "请配置 API Key"
@@ -4145,6 +4162,7 @@ export default function Home() {
           onRename={renameConversation}
           onDelete={deleteConversation}
           session={session}
+          sessionReady={sessionReady}
           onAccount={() => setAccountOpen(true)}
         />
 
@@ -4436,6 +4454,7 @@ export default function Home() {
           onRename={renameConversation}
           onDelete={deleteConversation}
           session={session}
+          sessionReady={sessionReady}
           onAccount={() => setAccountOpen(true)}
         />
         <section className="studio-main assets-main">
@@ -4490,6 +4509,7 @@ export default function Home() {
         onRename={renameConversation}
         onDelete={deleteConversation}
         session={session}
+        sessionReady={sessionReady}
         onAccount={() => setAccountOpen(true)}
       />
       <section className="home-workspace" id="create">

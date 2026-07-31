@@ -55,7 +55,7 @@ function ProductResult({
     return (
       <div className="landing-result-video">
         <video
-          src="/product-demo.mp4"
+          src="/api/demo-video"
           controls
           playsInline
           preload="metadata"
@@ -80,7 +80,7 @@ function ProductResult({
           [media.scene, "场景图"],
         ].map(([src, label], index) => (
           <figure key={src} style={{ "--image-index": index } as React.CSSProperties}>
-            <img src={src} alt={label} />
+            <img src={src} alt={label} loading="lazy" decoding="async" />
             <figcaption>{label}</figcaption>
           </figure>
         ))}
@@ -90,7 +90,12 @@ function ProductResult({
 
   return (
     <article className="landing-listing-result">
-      <img src={media.listing} alt="Listing 商品主图示例" />
+      <img
+        src={media.listing}
+        alt="Listing 商品主图示例"
+        loading="lazy"
+        decoding="async"
+      />
       <div>
         <span>Amazon Listing</span>
         <h3>Portable Espresso Maker for Travel and Everyday Coffee</h3>
@@ -119,7 +124,7 @@ export default function LandingPage({ content }: { content: LandingContent }) {
         </Link>
         <nav aria-label="落地页导航">
           <a href="#results">生成结果</a>
-          <a href="#skills">Skills</a>
+          <a href="#skills">生成技能</a>
           <a href="#workflow">工作流</a>
         </nav>
         <Link href="/studio" className="landing-login">
@@ -158,6 +163,8 @@ export default function LandingPage({ content }: { content: LandingContent }) {
           <img
             src={content.media.hero}
             alt="同一件商品生成白底图、生活方式图和品牌故事图"
+            decoding="async"
+            fetchPriority="high"
           />
           <figcaption>
             <span>同一件商品</span>
@@ -169,7 +176,7 @@ export default function LandingPage({ content }: { content: LandingContent }) {
       <section className="landing-results" id="results">
         <header className="landing-section-head">
           <div>
-            <span>01 / 结果</span>
+            <span>生成结果</span>
             <h2>{content.resultsTitle}</h2>
           </div>
           <p>{content.resultsBody}</p>
@@ -219,9 +226,19 @@ export default function LandingPage({ content }: { content: LandingContent }) {
               <i />
               <i />
             </div>
-            <img src={content.media.listing} alt="Listing 商品主图示例" />
+            <img
+              src={content.media.listing}
+              alt="Listing 商品主图示例"
+              loading="lazy"
+              decoding="async"
+            />
             <div className="landing-a-plus-strip">
-              <img src={content.media.lifestyle} alt="" />
+              <img
+                src={content.media.lifestyle}
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
               <span>A+ 品牌内容</span>
             </div>
           </div>
@@ -230,7 +247,7 @@ export default function LandingPage({ content }: { content: LandingContent }) {
 
       <section className="landing-skills" id="skills">
         <header>
-          <span>02 / Skills</span>
+          <span>生成技能</span>
           <h2>{skillPoint?.title || "每种任务，都有专门的 Skill"}</h2>
           <p>
             {skillPoint?.body ||
@@ -283,7 +300,7 @@ export default function LandingPage({ content }: { content: LandingContent }) {
 
       <section className="landing-task-story">
         <header>
-          <span>03 / Tasks</span>
+          <span>独立任务</span>
           <h2>{taskPoint?.title || "每张图片，都是独立任务"}</h2>
           <p>
             {taskPoint?.body ||
@@ -298,7 +315,7 @@ export default function LandingPage({ content }: { content: LandingContent }) {
             [content.media.hero, "A+ 品牌图", "宽幅"],
           ].map(([src, label, ratio], index) => (
             <figure key={label} style={{ "--task-index": index } as React.CSSProperties}>
-              <img src={src} alt={label} />
+              <img src={src} alt={label} loading="lazy" decoding="async" />
               <figcaption><span>{label}</span><small>{ratio}</small></figcaption>
             </figure>
           ))}
@@ -307,7 +324,7 @@ export default function LandingPage({ content }: { content: LandingContent }) {
 
       <section className="landing-workflow" id="workflow">
         <header>
-          <span>04 / Workflow</span>
+          <span>交付工作流</span>
           <h2>{deliveryPoint?.title || "从生成到交付，都在同一处"}</h2>
           <p>
             {deliveryPoint?.body ||

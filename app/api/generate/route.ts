@@ -253,14 +253,14 @@ Do not invent certifications, medical claims, exact dimensions, materials, batte
 Unknown is better than invented. Never infer power source, heating, pressure, compatibility, included accessories or operating mechanism from appearance alone.
 Every bullet and specification must be supported by the uploaded image or user text. Use "Not confirmed" for an important unknown instead of guessing.
 Describe a visible control as "visible control button", never as "one-touch operation" unless the user explicitly supplied that behavior.
-Pricing is an AI merchandising suggestion rather than a product fact. Always return non-empty numeric salePrice and listPrice strings appropriate for the selected market.
+Price, discount, coupon, tax, shipping, inventory and fulfillment terms are merchant-controlled facts. Only return salePrice or listPrice when the user explicitly supplied that exact value; otherwise return an empty string. Never invent a discount or promotion.
 Use this schema:
 {
   "title": "marketplace title",
   "brand": "brand or Generic",
   "category": "breadcrumb category",
-  "salePrice": "numeric string",
-  "listPrice": "numeric string",
+  "salePrice": "user-supplied numeric string or empty string",
+  "listPrice": "user-supplied numeric string or empty string",
   "bullets": ["five concise benefits"],
   "description": "one persuasive paragraph",
   "aPlusHeadline": "short brand headline",

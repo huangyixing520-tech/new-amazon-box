@@ -38,19 +38,21 @@ async function sourceBytes(sourceUrl: string) {
   };
 }
 
-async function resizeImage(
+async function optimizeImage(
   sourceBuffer: ArrayBuffer,
-  outputWidth: number,
-  outputHeight: number,
+  outputWidth?: number,
+  outputHeight?: number,
 ) {
   const { default: sharp } = await import("sharp");
-  return sharp(Buffer.from(sourceBuffer))
-    .resize(outputWidth, outputHeight, {
+  const image = sharp(Buffer.from(sourceBuffer)).rotate();
+  if (outputWidth && outputHeight) {
+    image.resize(outputWidth, outputHeight, {
       fit: "cover",
       position: "centre",
-    })
-    .png()
-    .toBuffer();
+      withoutEnlargement: false,
+    });
+  }
+  return image.webp({ quality: 90, effort: 4 }).toBuffer();
 }
 
 export async function GET(request: Request) {
@@ -149,10 +151,17 @@ export async function POST(request: Request) {
       Number.isInteger(outputHeight) &&
       outputWidth > 0 &&
       outputHeight > 0;
-    const storedBytes = shouldResize
-      ? await resizeImage(source.buffer, outputWidth, outputHeight)
+    const shouldOptimize =
+      body.type === "image" &&
+      Boolean(process.env.RAILWAY_ENVIRONMENT_ID);
+    const storedBytes = shouldOptimize
+      ? await optimizeImage(
+          source.buffer,
+          shouldResize ? outputWidth : undefined,
+          shouldResize ? outputHeight : undefined,
+        )
       : new Uint8Array(source.buffer);
-    const mimeType = shouldResize ? "image/png" : source.mimeType;
+    const mimeType = shouldOptimize ? "image/webp" : source.mimeType;
     await GENERATED_ASSETS.put(objectKey, storedBytes, {
       httpMetadata: { contentType: mimeType },
     });
