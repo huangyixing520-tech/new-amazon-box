@@ -516,7 +516,7 @@ const generationCopy: Record<
   listing: {
     title: "Amazon Listing",
     count: "1 个商品链接",
-    phases: ["识别商品信息", "生成标题与卖点", "生成定价与详情", "排版 A+ 页面"],
+    phases: ["识别商品信息", "生成标题与卖点", "生成商品详情", "排版 A+ 页面"],
   },
   images: {
     title: "商品套图",

@@ -34,7 +34,7 @@ export const DEFAULT_LANDING_CONTENT: LandingContent = {
   sellingPoints: [
     {
       title: "完整 Listing，不止几段文案",
-      body: "标题、五点卖点、价格建议、主副图和 A+ 内容在同一个结果页中交付。",
+      body: "标题、五点卖点、商品信息、主副图和 A+ 内容在同一个结果页中交付。",
     },
     {
       title: "每种任务，都有专门的 Skill",
@@ -63,6 +63,9 @@ export const DEFAULT_LANDING_CONTENT: LandingContent = {
     videoPoster: "/product-lifestyle.png",
   },
 };
+
+const LEGACY_PRICE_SUGGESTION_COPY =
+  "标题、五点卖点、价格建议、主副图和 A+ 内容在同一个结果页中交付。";
 
 function text(value: unknown, fallback: string, maxLength: number) {
   if (typeof value !== "string") return fallback;
@@ -95,18 +98,23 @@ export function normalizeLandingContent(value: unknown): LandingContent {
         Boolean(point) && typeof point === "object"
       )
       .slice(0, 8)
-      .map((point, index) => ({
-        title: text(
-          point.title,
-          DEFAULT_LANDING_CONTENT.sellingPoints[index]?.title || "新卖点",
-          48,
-        ),
-        body: text(
+      .map((point, index) => {
+        const body = text(
           point.body,
           DEFAULT_LANDING_CONTENT.sellingPoints[index]?.body || "请补充卖点说明。",
           160,
-        ),
-      }))
+        );
+        return {
+          title: text(
+            point.title,
+            DEFAULT_LANDING_CONTENT.sellingPoints[index]?.title || "新卖点",
+            48,
+          ),
+          body: body === LEGACY_PRICE_SUGGESTION_COPY
+            ? DEFAULT_LANDING_CONTENT.sellingPoints[0].body
+            : body,
+        };
+      })
     : [];
 
   return {
