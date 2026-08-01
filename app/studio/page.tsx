@@ -3057,6 +3057,7 @@ function InspirationGallery({
   return (
     <section className="inspiration-gallery" aria-labelledby="inspiration-title">
       <header className="inspiration-toolbar">
+        <h2 id="inspiration-title">优秀案例</h2>
         <div className="inspiration-tabs" role="tablist" aria-label="优秀案例分类">
           {inspirationTabs.map((tab) => (
             <button
@@ -3070,10 +3071,6 @@ function InspirationGallery({
               {tab.label}
             </button>
           ))}
-        </div>
-        <div>
-          <h2 id="inspiration-title">优秀案例</h2>
-          <p>选择一个案例，把完整生成设置带回输入框。</p>
         </div>
       </header>
 

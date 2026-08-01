@@ -224,7 +224,11 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /applyInspirationCase/);
   assert.match(page, /setHomeComposerMinimized\(false\)/);
   assert.match(page, /已应用「\$\{item\.title\}」/);
+  assert.doesNotMatch(page, /选择一个案例，把完整生成设置带回输入框/);
+  assert.match(styles, /\.home-stage\s*\{[^}]*padding:\s*72px 28px 190px;/);
   assert.match(styles, /\.inspiration-grid\s*\{[^}]*gap:\s*3px;/);
+  assert.match(styles, /\.inspiration-tabs button\s*\{[^}]*border-radius:\s*12px;/);
+  assert.match(styles, /\.quick-capabilities > button\s*\{[^}]*border-radius:\s*16px;/);
   assert.match(styles, /\.inspiration-card\s*\{[^}]*border-radius:\s*0;/);
   assert.match(styles, /\.inspiration-suite-layout\s*\{[^}]*grid-template-columns:\s*1\.65fr 1fr;/);
   assert.match(styles, /\.home-fixed-composer\s*\{[^}]*position:\s*fixed;/);
