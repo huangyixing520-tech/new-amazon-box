@@ -12,11 +12,13 @@ import {
 import { createPortal } from "react-dom";
 import {
   ArrowUp,
+  ArrowRight,
   CaretDown,
   CaretUp,
   ChatCircle,
   House,
   Images,
+  LinkSimple,
   Play,
   Plus,
   X,
@@ -133,6 +135,7 @@ type AssetRecord = {
   title: string;
   prompt: string;
   url: string;
+  downloadUrl?: string;
   conversationId: string;
   turnId: string;
   role?: "input" | "output";
@@ -140,12 +143,26 @@ type AssetRecord = {
   createdAt: string;
 };
 
+function assetDownloadUrl(url: string, format: "png" | "jpg" = "png") {
+  if (!url.startsWith("/api/assets/")) return url;
+  return `${url.split("?")[0]}?download=1&format=${format}`;
+}
+
 type GenerationSummary = {
   status: "complete" | "partial" | "failed";
   completed: number;
   expected: number;
   failed: number;
 };
+
+function isHttpUrl(value: string) {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 const modes: Option[] = [
   { id: "listing", label: "Listing 生成", description: "生成亚马逊商品链接内容" },
@@ -238,6 +255,56 @@ const skills: SkillOption[] = [
 
 const skillsByMode = (mode: GenerationMode) =>
   skills.filter((item) => item.mode === mode);
+
+const quickCapabilities: Array<{
+  id: string;
+  mode: GenerationMode;
+  skill: string;
+  title: string;
+  body: string;
+  image: string;
+}> = [
+  {
+    id: "quick-link-replica",
+    mode: "listing",
+    skill: "listing-replica",
+    title: "链接复刻",
+    body: "粘贴商品链接，复刻结构与内容",
+    image: "/product-lifestyle.png",
+  },
+  {
+    id: "quick-video-replica",
+    mode: "video",
+    skill: "video-replica",
+    title: "视频复刻",
+    body: "参考一条视频，替换成你的商品",
+    image: "/product-outdoor.png",
+  },
+  {
+    id: "quick-image-suite",
+    mode: "image",
+    skill: "amazon-image-set",
+    title: "套图生成",
+    body: "主副图与 A+ 图一次生成",
+    image: "/product-main.png",
+  },
+  {
+    id: "quick-listing",
+    mode: "listing",
+    skill: "amazon-listing",
+    title: "Listing 生成",
+    body: "文案、套图与商品详情同步生成",
+    image: "/landing-hero.webp",
+  },
+  {
+    id: "quick-talking-video",
+    mode: "video",
+    skill: "talking-product-video",
+    title: "带货口播",
+    body: "生成 15 秒商品口播与演示",
+    image: "/product-lifestyle.png",
+  },
+];
 
 const regions: Option[] = [
   { id: "us", label: "🇺🇸 US（美国）" },
@@ -1289,7 +1356,8 @@ function Composer({
     hasSuiteSettings(skill) &&
     suite.aPlusCount === 0 &&
     suite.mainImageCount === 0;
-  const sendDisabled = disabled || suiteSelectionEmpty;
+  const isLinkReplica = skill === "listing-replica";
+  const sendDisabled = disabled || suiteSelectionEmpty || (isLinkReplica && !isHttpUrl(prompt));
   const isVideoReplica = skill === "video-replica";
 
   useEffect(() => {
@@ -1349,7 +1417,9 @@ function Composer({
     return () => window.clearTimeout(timer);
   }, [compact, deletingPromptIdea, mode, prompt, promptIdea, promptIdeaText]);
 
-  const submitOnShortcut = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+  const submitOnShortcut = (
+    event: KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>,
+  ) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !sendDisabled) {
       event.preventDefault();
       onSend();
@@ -1439,25 +1509,50 @@ function Composer({
           onDrop={dropFiles}
         >
           {materialInput}
-          <textarea
-            id="conversation-prompt"
-            data-testid="conversation-input-minimized"
-            value={prompt}
-            rows={1}
-            aria-label="继续发送新任务"
-            placeholder="继续描述你想生成或修改的内容"
-            onFocus={onExpand}
-            onClick={onExpand}
-            onChange={(event) => onPrompt(event.target.value)}
-            onKeyDown={submitOnShortcut}
-          />
+          {isLinkReplica ? (
+            <label className="link-replica-field is-minimized">
+              <LinkSimple weight="bold" aria-hidden="true" />
+              <input
+                id="conversation-prompt"
+                data-testid="conversation-input-minimized"
+                type="url"
+                inputMode="url"
+                value={prompt}
+                aria-label="复刻对象链接"
+                placeholder="粘贴要复刻的商品链接"
+                onFocus={onExpand}
+                onClick={onExpand}
+                onChange={(event) => onPrompt(event.target.value)}
+                onKeyDown={submitOnShortcut}
+              />
+            </label>
+          ) : (
+            <textarea
+              id="conversation-prompt"
+              data-testid="conversation-input-minimized"
+              value={prompt}
+              rows={1}
+              aria-label="继续发送新任务"
+              placeholder="继续描述你想生成或修改的内容"
+              onFocus={onExpand}
+              onClick={onExpand}
+              onChange={(event) => onPrompt(event.target.value)}
+              onKeyDown={submitOnShortcut}
+            />
+          )}
           <button
             type="button"
             className="send-button"
             aria-label="发送新任务"
             data-testid="conversation-send-minimized"
             disabled={sendDisabled}
-            title={suiteSelectionEmpty ? "请至少选择 1 张主副图或 A+ 图" : undefined}
+            title={
+              suiteSelectionEmpty
+                ? "请至少选择 1 张主副图或 A+ 图"
+                : isLinkReplica && !isHttpUrl(prompt)
+                  ? "请先输入有效的商品链接"
+                  : undefined
+            }
             onClick={onSend}
           >
             <ArrowUp aria-hidden="true" weight="bold" />
@@ -1506,21 +1601,45 @@ function Composer({
             {materialInput}
             <div className="composer-prompt-column">
               <label className="prompt-label" htmlFor={compact ? "conversation-prompt" : "main-prompt"}>
-                {compact ? "继续发送新任务" : "描述你希望生成的内容"}
+                {isLinkReplica ? "复刻对象链接" : compact ? "继续发送新任务" : "描述你希望生成的内容"}
               </label>
-              <textarea
-                id={compact ? "conversation-prompt" : "main-prompt"}
-                data-testid={compact ? "conversation-input" : "prompt-input"}
-                value={prompt}
-                rows={compact ? 2 : 4}
-                placeholder={
-                  compact
-                    ? "例如：再生成一套商品图，突出便携和自加热"
-                    : `让 Mercato 帮我生成${promptIdeaText}`
-                }
-                onChange={(event) => onPrompt(event.target.value)}
-                onKeyDown={submitOnShortcut}
-              />
+              {isLinkReplica ? (
+                <div className={`link-replica-field ${prompt && !isHttpUrl(prompt) ? "is-invalid" : ""}`}>
+                  <LinkSimple weight="bold" aria-hidden="true" />
+                  <input
+                    id={compact ? "conversation-prompt" : "main-prompt"}
+                    data-testid={compact ? "conversation-input" : "prompt-input"}
+                    type="url"
+                    inputMode="url"
+                    value={prompt}
+                    placeholder="https://www.amazon.com/dp/..."
+                    onChange={(event) => onPrompt(event.target.value)}
+                    onKeyDown={submitOnShortcut}
+                    aria-describedby="link-replica-help"
+                  />
+                </div>
+              ) : (
+                <textarea
+                  id={compact ? "conversation-prompt" : "main-prompt"}
+                  data-testid={compact ? "conversation-input" : "prompt-input"}
+                  value={prompt}
+                  rows={compact ? 2 : 4}
+                  placeholder={
+                    compact
+                      ? "例如：再生成一套商品图，突出便携和自加热"
+                      : `让 Mercato 帮我生成${promptIdeaText}`
+                  }
+                  onChange={(event) => onPrompt(event.target.value)}
+                  onKeyDown={submitOnShortcut}
+                />
+              )}
+              {isLinkReplica ? (
+                <small id="link-replica-help" className={prompt && !isHttpUrl(prompt) ? "link-replica-error" : "link-replica-help"}>
+                  {prompt && !isHttpUrl(prompt)
+                    ? "请输入以 http:// 或 https:// 开头的有效链接"
+                    : "粘贴 Amazon 或其他商品详情页链接，Mercato 会参考它的结构与内容。"}
+                </small>
+              ) : null}
             </div>
           </div>
         </div>
@@ -1647,7 +1766,13 @@ function Composer({
             aria-label={compact ? "发送新任务" : "开始生成"}
             data-testid={compact ? "conversation-send" : "send"}
             disabled={sendDisabled}
-            title={suiteSelectionEmpty ? "请至少选择 1 张主副图或 A+ 图" : undefined}
+            title={
+              suiteSelectionEmpty
+                ? "请至少选择 1 张主副图或 A+ 图"
+                : isLinkReplica && !isHttpUrl(prompt)
+                  ? "请先输入有效的商品链接"
+                  : undefined
+            }
             onClick={onSend}
           >
             <ArrowUp aria-hidden="true" weight="bold" />
@@ -2283,7 +2408,7 @@ function ImageSuite({
                     <div><span>{item.group}</span><strong>{item.title}</strong></div>
                     <div>
                       <a
-                        href={item.image}
+                        href={assetDownloadUrl(item.image)}
                         download
                         data-analytics-event="asset_downloaded"
                         data-turn-id={turnId}
@@ -2384,7 +2509,7 @@ function SingleImageResult({
               <div><span>{item.group}</span><strong>{item.title}</strong></div>
               <div>
                 <a
-                  href={item.image}
+                  href={assetDownloadUrl(item.image)}
                   download
                   data-analytics-event="asset_downloaded"
                   data-turn-id={turnId}
@@ -2802,6 +2927,30 @@ function AssetLibrary({
   );
 }
 
+function QuickCapabilities({
+  onSelect,
+}: {
+  onSelect: (mode: GenerationMode, skill: string) => void;
+}) {
+  return (
+    <nav className="quick-capabilities" aria-label="快捷创作能力">
+      {quickCapabilities.map((item) => (
+        <button
+          type="button"
+          key={item.id}
+          data-testid={item.id}
+          onClick={() => onSelect(item.mode, item.skill)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={item.image} alt="" />
+          <span><strong>{item.title}</strong><small>{item.body}</small></span>
+          <ArrowRight weight="bold" aria-hidden="true" />
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 function PreviewModal({
   preview,
   prompt,
@@ -2844,14 +2993,24 @@ function PreviewModal({
         <img src={preview.image} alt={preview.title} />
         <footer>
           <div><span>{preview.group}</span><strong>{preview.title}</strong></div>
-          <a
-            href={preview.image}
-            download
-            data-analytics-event="asset_downloaded"
-            data-turn-id={preview.turnId}
-          >
-            下载原图
-          </a>
+          <div className="preview-downloads">
+            <a
+              href={assetDownloadUrl(preview.image, "png")}
+              download
+              data-analytics-event="asset_downloaded"
+              data-turn-id={preview.turnId}
+            >
+              下载 PNG
+            </a>
+            <a
+              href={assetDownloadUrl(preview.image, "jpg")}
+              download
+              data-analytics-event="asset_downloaded"
+              data-turn-id={preview.turnId}
+            >
+              下载 JPG
+            </a>
+          </div>
         </footer>
         <form
           className="preview-composer"
@@ -3276,6 +3435,25 @@ export default function Home() {
     if (nextMode === "listing") {
       setBrand((current) => ({ ...current, platform: "amazon" }));
     }
+  };
+
+  const selectCapability = (nextMode: GenerationMode, nextSkill: string) => {
+    setMode(nextMode);
+    setSkill(nextSkill);
+    setPrompt("");
+    if (nextMode === "video") {
+      setBrand((current) => ({ ...current, platform: "tiktok-shop" }));
+    } else if (nextMode === "listing") {
+      setBrand((current) => ({ ...current, platform: "amazon" }));
+    }
+    window.requestAnimationFrame(() => {
+      document.getElementById("main-prompt")?.focus();
+    });
+  };
+
+  const changeSkill = (nextSkill: string) => {
+    setSkill(nextSkill);
+    if (nextSkill === "listing-replica") setPrompt("");
   };
 
   const handleFiles = (files: File[]) => {
@@ -3754,7 +3932,11 @@ export default function Home() {
   };
 
   const startGeneration = async () => {
-    if (!uploads.length) {
+    if (selectedSkill.id === "listing-replica" && !isHttpUrl(prompt)) {
+      showNotice("请先输入有效的商品详情页链接");
+      return;
+    }
+    if (selectedSkill.id !== "listing-replica" && !uploads.length) {
       showNotice("请至少上传 1 张商品图片");
       return;
     }
@@ -3772,7 +3954,7 @@ export default function Home() {
     }
     if (!sessionReady || !session) {
       setAccountOpen(true);
-      showNotice("请先使用 Google 登录");
+      showNotice("请先登录");
       return;
     }
     if (!session.hasApiKey) {
@@ -4390,7 +4572,7 @@ export default function Home() {
               brand={brand}
               suite={suite}
               disabled={
-                !uploads.length ||
+                (skill !== "listing-replica" && !uploads.length) ||
                 (skill === "video-replica" && !referenceVideo)
               }
               onPrompt={setPrompt}
@@ -4400,7 +4582,7 @@ export default function Home() {
               onRemove={removeUpload}
               onSend={startGeneration}
               onMode={changeMode}
-              onSkill={setSkill}
+              onSkill={changeSkill}
               onRegion={setRegion}
               onLanguage={setLanguage}
               onBrand={setBrand}
@@ -4533,7 +4715,7 @@ export default function Home() {
               brand={brand}
               suite={suite}
               disabled={
-                !uploads.length ||
+                (skill !== "listing-replica" && !uploads.length) ||
                 (skill === "video-replica" && !referenceVideo)
               }
               onPrompt={setPrompt}
@@ -4543,17 +4725,13 @@ export default function Home() {
               onRemove={removeUpload}
               onSend={startGeneration}
               onMode={changeMode}
-              onSkill={setSkill}
+              onSkill={changeSkill}
               onRegion={setRegion}
               onLanguage={setLanguage}
               onBrand={setBrand}
               onSuite={setSuite}
             />
-            {activeTurns.length ? (
-              <button type="button" className="resume-conversation" onClick={() => openConversation()}>
-                返回当前对话 · {activeTurns.length} 个任务
-              </button>
-            ) : null}
+            <QuickCapabilities onSelect={selectCapability} />
           </div>
         </div>
       </section>

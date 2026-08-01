@@ -38,23 +38,6 @@ async function sourceBytes(sourceUrl: string) {
   };
 }
 
-async function optimizeImage(
-  sourceBuffer: ArrayBuffer,
-  outputWidth?: number,
-  outputHeight?: number,
-) {
-  const { default: sharp } = await import("sharp");
-  const image = sharp(Buffer.from(sourceBuffer)).rotate();
-  if (outputWidth && outputHeight) {
-    image.resize(outputWidth, outputHeight, {
-      fit: "cover",
-      position: "centre",
-      withoutEnlargement: false,
-    });
-  }
-  return image.webp({ quality: 90, effort: 4 }).toBuffer();
-}
-
 export async function GET(request: Request) {
   try {
     const user = await requireUser(request);
@@ -81,7 +64,8 @@ export async function GET(request: Request) {
         role: asset.role,
         slot: asset.slot_index,
         createdAt: asset.created_at,
-        url: `/api/assets/${encodeURIComponent(asset.id)}`,
+        url: `/api/assets/${encodeURIComponent(asset.id)}?preview=1`,
+        downloadUrl: `/api/assets/${encodeURIComponent(asset.id)}?download=1&format=png`,
       })),
     });
   } catch (error) {
@@ -109,8 +93,6 @@ export async function POST(request: Request) {
       createdAt?: string;
       role?: "input" | "output";
       slot?: number;
-      outputWidth?: number;
-      outputHeight?: number;
     };
     if (
       !body.sourceUrl ||
@@ -142,28 +124,8 @@ export async function POST(request: Request) {
     const objectKey = `generated/${user.id}/${body.conversationId}/${id}`;
     const createdAt = body.createdAt || new Date().toISOString();
     const source = await sourceBytes(body.sourceUrl);
-    const outputWidth = Number(body.outputWidth);
-    const outputHeight = Number(body.outputHeight);
-    const shouldResize =
-      body.type === "image" &&
-      role === "output" &&
-      Number.isInteger(outputWidth) &&
-      Number.isInteger(outputHeight) &&
-      outputWidth > 0 &&
-      outputHeight > 0;
-    const shouldOptimize =
-      body.type === "image" &&
-      Boolean(process.env.RAILWAY_ENVIRONMENT_ID);
-    const storedBytes = shouldOptimize
-      ? await optimizeImage(
-          source.buffer,
-          shouldResize ? outputWidth : undefined,
-          shouldResize ? outputHeight : undefined,
-        )
-      : new Uint8Array(source.buffer);
-    const mimeType = shouldOptimize ? "image/webp" : source.mimeType;
-    await GENERATED_ASSETS.put(objectKey, storedBytes, {
-      httpMetadata: { contentType: mimeType },
+    await GENERATED_ASSETS.put(objectKey, source.buffer, {
+      httpMetadata: { contentType: source.mimeType },
     });
     await DB.batch([
       DB.prepare(`
@@ -180,7 +142,7 @@ export async function POST(request: Request) {
         body.prompt || "",
         body.conversationId,
         body.turnId,
-        mimeType,
+        source.mimeType,
         role,
         slot,
         createdAt,
@@ -202,7 +164,8 @@ export async function POST(request: Request) {
         role,
         slot,
         createdAt,
-        url: `/api/assets/${encodeURIComponent(id)}`,
+        url: `/api/assets/${encodeURIComponent(id)}?preview=1`,
+        downloadUrl: `/api/assets/${encodeURIComponent(id)}?download=1&format=png`,
       },
     });
   } catch (error) {

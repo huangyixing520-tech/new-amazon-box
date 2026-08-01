@@ -15,6 +15,7 @@ import {
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useState } from "react";
+import AccountPanel, { type ClientSession } from "./account-panel";
 import type { LandingContent, LandingMedia } from "./lib/landing-copy";
 
 type ResultMode = "listing" | "image" | "video";
@@ -111,6 +112,7 @@ function ProductResult({
 
 export default function LandingPage({ content }: { content: LandingContent }) {
   const [resultMode, setResultMode] = useState<ResultMode>("listing");
+  const [showLogin, setShowLogin] = useState(false);
   const [featuredPoint, skillPoint, brandPoint, taskPoint, deliveryPoint] =
     content.sellingPoints;
   const heroTitleParts = content.heroTitle.split("，");
@@ -127,9 +129,9 @@ export default function LandingPage({ content }: { content: LandingContent }) {
           <a href="#skills">生成技能</a>
           <a href="#workflow">工作流</a>
         </nav>
-        <Link href="/studio" className="landing-login">
+        <button type="button" className="landing-login" onClick={() => setShowLogin(true)}>
           进入工作台 <ArrowRight weight="bold" />
-        </Link>
+        </button>
       </header>
 
       <section className="landing-hero" aria-labelledby="landing-title">
@@ -147,9 +149,9 @@ export default function LandingPage({ content }: { content: LandingContent }) {
           </h1>
           <p>{content.heroSubtitle}</p>
           <div className="landing-hero-actions">
-            <Link href="/studio" className="landing-primary-cta">
+            <button type="button" className="landing-primary-cta" onClick={() => setShowLogin(true)}>
               {content.primaryCta}<ArrowRight weight="bold" />
-            </Link>
+            </button>
             <a href="#results" className="landing-secondary-cta">
               {content.secondaryCta}
             </a>
@@ -214,9 +216,9 @@ export default function LandingPage({ content }: { content: LandingContent }) {
             <span>Listing First</span>
             <h2>{featuredPoint.title}</h2>
             <p>{featuredPoint.body}</p>
-            <Link href="/studio">
+            <button type="button" onClick={() => setShowLogin(true)}>
               生成第一条 Listing <ArrowRight weight="bold" />
-            </Link>
+            </button>
           </div>
           <div className="landing-featured-art">
             <div className="landing-copy-sheet">
@@ -343,9 +345,9 @@ export default function LandingPage({ content }: { content: LandingContent }) {
           <h2>{content.closingTitle}</h2>
           <p>{content.closingBody}</p>
         </div>
-        <Link href="/studio" className="landing-primary-cta">
+        <button type="button" className="landing-primary-cta" onClick={() => setShowLogin(true)}>
           {content.primaryCta}<ArrowRight weight="bold" />
-        </Link>
+        </button>
       </section>
 
       <footer className="landing-footer">
@@ -353,8 +355,17 @@ export default function LandingPage({ content }: { content: LandingContent }) {
           <span aria-hidden="true">♥</span><strong>MERCATO</strong>
         </Link>
         <p>AI commerce content studio</p>
-        <Link href="/studio">进入工作台</Link>
+        <button type="button" onClick={() => setShowLogin(true)}>进入工作台</button>
       </footer>
+      {showLogin ? (
+        <AccountPanel
+          session={null}
+          onClose={() => setShowLogin(false)}
+          onSession={(session: ClientSession) => {
+            if (session) window.location.assign("/studio");
+          }}
+        />
+      ) : null}
     </main>
   );
 }

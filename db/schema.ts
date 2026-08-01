@@ -1,4 +1,4 @@
-import { index, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const createAssetsTableSql = `
   CREATE TABLE IF NOT EXISTS assets (
@@ -34,6 +34,19 @@ export const createUserApiKeysTableSql = `
     user_id TEXT PRIMARY KEY,
     encrypted_key TEXT NOT NULL,
     key_last_four TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )
+`;
+
+export const createEmailCredentialsTableSql = `
+  CREATE TABLE IF NOT EXISTS email_credentials (
+    email TEXT PRIMARY KEY COLLATE NOCASE,
+    user_id TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    password_salt TEXT NOT NULL,
+    iterations INTEGER NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -132,6 +145,18 @@ export const userApiKeys = sqliteTable("user_api_keys", {
   }),
   encryptedKey: text("encrypted_key").notNull(),
   keyLastFour: text("key_last_four").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const emailCredentials = sqliteTable("email_credentials", {
+  email: text("email").primaryKey(),
+  userId: text("user_id").notNull().unique().references(() => users.id, {
+    onDelete: "cascade",
+  }),
+  passwordHash: text("password_hash").notNull(),
+  passwordSalt: text("password_salt").notNull(),
+  iterations: integer("iterations").notNull(),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });

@@ -52,7 +52,7 @@ async function render(pathname = "/") {
   );
 }
 
-test("server-renders the public landing page and creation workspace", async () => {
+test("server-renders the public landing page and protects the creation workspace", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
@@ -62,24 +62,16 @@ test("server-renders the public landing page and creation workspace", async () =
   assert.match(html, /一张图/);
   assert.match(html, /生成一条 Listing/);
   assert.match(html, /一次输入，三种直接可用的结果/);
-  assert.match(html, /href="\/studio"/);
+  assert.match(html, /进入工作台/);
+  assert.doesNotMatch(html, /href="\/studio"/);
   assert.match(html, /落地页导航/);
   assert.match(html, /每张图片，都是独立任务/);
   assert.match(html, /property="og:image"/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
 
   const studioResponse = await render("/studio");
-  assert.equal(studioResponse.status, 200);
-  const studioHtml = await studioResponse.text();
-  assert.match(studioHtml, /一张商品图，生成亚马逊链接/);
-  assert.match(studioHtml, /工作区导航/);
-  assert.match(studioHtml, /个人账户/);
-  assert.match(studioHtml, /data-testid="mode-trigger"/);
-  assert.match(studioHtml, /data-testid="brand-gene-trigger"/);
-  assert.match(studioHtml, /data-testid="skill-trigger"/);
-  assert.match(studioHtml, /data-testid="file-input"/);
-  assert.match(studioHtml, /multiple=""/);
-  assert.match(studioHtml, /data-testid="send"/);
+  assert.equal(studioResponse.status, 307);
+  assert.equal(new URL(studioResponse.headers.get("location"), "http://localhost").pathname, "/");
 });
 
 test("ships the complete generation flow and its assets", async () => {
@@ -98,6 +90,11 @@ test("ships the complete generation flow and its assets", async () => {
     taskBackend,
     accountPanel,
     authLibrary,
+    homePage,
+    studioLayout,
+    emailLoginRoute,
+    emailRegisterRoute,
+    assetDetailRoute,
     historyRoute,
     eventsRoute,
     adminRoute,
@@ -120,6 +117,11 @@ test("ships the complete generation flow and its assets", async () => {
     readFile(new URL("../task-backend/server.mjs", import.meta.url), "utf8"),
     readFile(new URL("../app/account-panel.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/auth/email/login/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/auth/email/register/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/assets/[id]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/history/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/metrics/route.ts", import.meta.url), "utf8"),
@@ -267,7 +269,10 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /对话已删除/);
   assert.match(page, /prefix="技能"/);
   assert.match(page, /account-trigger/);
-  assert.match(accountPanel, /使用 Google 账号登录/);
+  assert.match(accountPanel, /使用 Google 登录/);
+  assert.match(accountPanel, /邮箱登录/);
+  assert.match(accountPanel, /注册账号/);
+  assert.match(accountPanel, /\/api\/auth\/email\/\$\{emailMode\}/);
   assert.match(accountPanel, /添加 API Key|替换 API Key/);
   assert.match(accountPanel, /\/api\/auth\/google/);
   assert.match(accountPanel, /\/api\/account\/api-key/);
@@ -292,6 +297,15 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /asset-library/);
   assert.match(page, /所有生成结果会自动保存，并按日期整理/);
   assert.match(page, /继续修改图片/);
+  assert.doesNotMatch(page, /resume-conversation/);
+  assert.match(page, /QuickCapabilities/);
+  assert.match(page, /链接复刻/);
+  assert.match(page, /视频复刻/);
+  assert.match(page, /套图生成/);
+  assert.match(page, /Listing 生成/);
+  assert.match(page, /带货口播/);
+  assert.match(page, /粘贴要复刻的商品链接/);
+  assert.match(page, /isHttpUrl/);
   assert.doesNotMatch(page, /添加新任务/);
   assert.doesNotMatch(page, /<span>你<\/span>/);
   assert.doesNotMatch(page, /<span>Mercato AI<\/span>/);
@@ -341,11 +355,17 @@ test("ships the complete generation flow and its assets", async () => {
     }).providerSize,
     "1024x1536",
   );
-  assert.match(assetRoute, /await import\("sharp"\)/);
-  assert.match(assetRoute, /optimizeImage/);
-  assert.match(assetRoute, /image\/webp/);
-  assert.match(assetRoute, /outputWidth/);
-  assert.match(assetRoute, /outputHeight/);
+  assert.doesNotMatch(assetRoute, /optimizeImage/);
+  assert.match(assetRoute, /source\.buffer/);
+  assert.match(assetRoute, /source\.mimeType/);
+  assert.match(assetRoute, /\?preview=1/);
+  assert.match(assetRoute, /download=1&format=png/);
+  assert.match(assetDetailRoute, /await import\("sharp"\)/);
+  assert.match(assetDetailRoute, /\.webp\(\{ quality: 88/);
+  assert.match(assetDetailRoute, /"content-type": "image\/webp"/);
+  assert.match(assetDetailRoute, /format"\) === "jpg"/);
+  assert.match(assetDetailRoute, /\.jpeg\(\{ quality: 95/);
+  assert.match(assetDetailRoute, /\.png\(\{ compressionLevel: 9/);
   assert.match(page, /suiteOutputDimensions/);
   assert.match(page, /conversation-send-minimized/);
   assert.match(page, /studioComposerMinimized/);
@@ -385,7 +405,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(adminPage, /\/api\/admin\/landing/);
   assert.match(adminPage, /\/api\/admin\/landing\/media/);
   assert.match(landingPage, /heroTitleParts/);
-  assert.match(landingPage, /href="\/studio"/);
+  assert.match(landingPage, /setShowLogin\(true\)/);
+  assert.match(landingPage, /<AccountPanel/);
   assert.match(landingPage, /landing-result-panel/);
   assert.match(landingPage, /content\.media\.hero/);
   assert.match(landingPage, /media\.videoPoster/);
@@ -417,6 +438,17 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(authLibrary, /AES-GCM/);
   assert.match(authLibrary, /HttpOnly/);
   assert.match(authLibrary, /email_verified/);
+  assert.match(authLibrary, /PBKDF2/);
+  assert.match(authLibrary, /PASSWORD_ITERATIONS = 310_000/);
+  assert.match(authLibrary, /registerEmailUser/);
+  assert.match(authLibrary, /authenticateEmailUser/);
+  assert.match(homePage, /if \(await currentUser\(request\)\) redirect\("\/studio"\)/);
+  assert.match(studioLayout, /if \(!await currentUser\(request\)\) redirect\("\/"\)/);
+  assert.match(emailLoginRoute, /verifySameOrigin/);
+  assert.match(emailLoginRoute, /verifyCsrf/);
+  assert.match(emailLoginRoute, /createSessionToken/);
+  assert.match(emailRegisterRoute, /registerEmailUser/);
+  assert.match(emailRegisterRoute, /setSessionCookie/);
   assert.match(taskBackend, /status: "queued"/);
   assert.match(taskBackend, /status = "running"/);
   assert.match(taskBackend, /status = "succeeded"/);

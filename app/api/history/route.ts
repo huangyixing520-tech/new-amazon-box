@@ -68,7 +68,7 @@ export async function GET(request: Request) {
         .sort((left, right) => left.slot_index - right.slot_index)
         .forEach((asset) => {
           inputImages[asset.slot_index] =
-            `/api/assets/${encodeURIComponent(asset.id)}`;
+            `/api/assets/${encodeURIComponent(asset.id)}?preview=1`;
         });
       const outputImages: string[] = [];
       turnAssets
@@ -76,7 +76,7 @@ export async function GET(request: Request) {
         .sort((left, right) => left.slot_index - right.slot_index)
         .forEach((asset) => {
           outputImages[asset.slot_index] =
-            `/api/assets/${encodeURIComponent(asset.id)}`;
+            `/api/assets/${encodeURIComponent(asset.id)}?preview=1`;
         });
       const outputVideo = turnAssets.find(
         (asset) => asset.role === "output" && asset.type === "video",
@@ -87,7 +87,7 @@ export async function GET(request: Request) {
         productImages: inputImages,
         images: outputImages,
         videoUrl: outputVideo
-          ? `/api/assets/${encodeURIComponent(outputVideo.id)}`
+          ? `/api/assets/${encodeURIComponent(outputVideo.id)}?preview=1`
           : undefined,
       };
       if (turn.running) {
