@@ -217,6 +217,18 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /accept="video\/\*"/);
   assert.match(page, /form\.append\("referenceVideo"/);
   assert.match(page, /请先上传 1 个参考视频/);
+  assert.match(page, /data-testid="inspiration-grid"/);
+  assert.match(page, /case-portable-listing/);
+  assert.match(page, /case-travel-suite/);
+  assert.match(page, /function InspirationGallery/);
+  assert.match(page, /applyInspirationCase/);
+  assert.match(page, /setHomeComposerMinimized\(false\)/);
+  assert.match(page, /已应用「\$\{item\.title\}」/);
+  assert.match(styles, /\.inspiration-grid\s*\{[^}]*gap:\s*3px;/);
+  assert.match(styles, /\.inspiration-card\s*\{[^}]*border-radius:\s*0;/);
+  assert.match(styles, /\.inspiration-suite-layout\s*\{[^}]*grid-template-columns:\s*1\.65fr 1fr;/);
+  assert.match(styles, /\.home-fixed-composer\s*\{[^}]*position:\s*fixed;/);
+  assert.match(styles, /\.composer-minimized\s*\{[^}]*min-height:\s*92px;/);
   assert.match(styles, /\.video-replica-materials\s*\{/);
   assert.match(styles, /\.reference-video-card\s*\{/);
   assert.match(page, /\/api\/demo-video/);

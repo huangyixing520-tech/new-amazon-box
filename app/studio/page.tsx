@@ -143,6 +143,19 @@ type AssetRecord = {
   createdAt: string;
 };
 
+type InspirationCase = {
+  id: string;
+  tab: "featured" | "listing" | "image-set" | "link-replica" | "video";
+  mode: GenerationMode;
+  skill: string;
+  title: string;
+  description: string;
+  prompt: string;
+  images: string[];
+  layout: "suite" | "portrait" | "landscape";
+  suite?: Partial<SuiteSettings>;
+};
+
 function assetDownloadUrl(url: string, format: "png" | "jpg" = "png") {
   if (!url.startsWith("/api/assets/")) return url;
   return `${url.split("?")[0]}?download=1&format=${format}`;
@@ -303,6 +316,85 @@ const quickCapabilities: Array<{
     title: "带货口播",
     body: "生成 15 秒商品口播与演示",
     image: "/product-lifestyle.png",
+  },
+];
+
+const inspirationTabs: Option[] = [
+  { id: "featured", label: "精选" },
+  { id: "listing", label: "Listing" },
+  { id: "image-set", label: "商品套图" },
+  { id: "link-replica", label: "链接复刻" },
+  { id: "video", label: "商品视频" },
+];
+
+const inspirationCases: InspirationCase[] = [
+  {
+    id: "case-portable-listing",
+    tab: "listing",
+    mode: "listing",
+    skill: "amazon-listing",
+    title: "便携咖啡机完整 Listing",
+    description: "主副图、A+ 内容与 Listing 文案",
+    prompt: "为这款便携咖啡机生成完整亚马逊 Listing，突出便携、自加热与户外使用场景",
+    images: ["/product-main.png", "/product-lifestyle.png", "/product-outdoor.png"],
+    layout: "suite",
+    suite: { aPlusType: "advanced", aPlusCount: 5, mainImageCount: 5, mainImageRatio: "1:1" },
+  },
+  {
+    id: "case-travel-suite",
+    tab: "image-set",
+    mode: "image",
+    skill: "amazon-image-set",
+    title: "旅行场景商品套图",
+    description: "一张主图加多张场景与卖点图",
+    prompt: "生成一套适合 Amazon 的商品套图，强调旅行便携、户外使用和快速出杯",
+    images: ["/product-outdoor.png", "/product-main.png", "/product-lifestyle.png"],
+    layout: "suite",
+    suite: { aPlusType: "advanced", aPlusCount: 4, mainImageCount: 4, mainImageRatio: "1:1" },
+  },
+  {
+    id: "case-kitchen-scene",
+    tab: "image-set",
+    mode: "image",
+    skill: "amazon-scene-image",
+    title: "明亮厨房使用场景",
+    description: "自然光下的真实商品使用画面",
+    prompt: "生成一张明亮现代厨房中的真实商品使用场景图，画面自然、有生活感",
+    images: ["/product-lifestyle.png"],
+    layout: "portrait",
+  },
+  {
+    id: "case-link-structure",
+    tab: "link-replica",
+    mode: "listing",
+    skill: "listing-replica",
+    title: "同类商品链接复刻",
+    description: "保留参考结构，替换为你的商品内容",
+    prompt: "https://www.amazon.com/dp/example",
+    images: ["/product-main.png", "/product-lifestyle.png"],
+    layout: "landscape",
+  },
+  {
+    id: "case-outdoor-video",
+    tab: "video",
+    mode: "video",
+    skill: "talking-product-video",
+    title: "15 秒户外带货口播",
+    description: "开场吸引、卖点演示、行动引导",
+    prompt: "生成一支 15 秒户外场景带货口播视频，前三秒突出便携卖点",
+    images: ["/product-outdoor.png"],
+    layout: "portrait",
+  },
+  {
+    id: "case-clean-main-image",
+    tab: "image-set",
+    mode: "image",
+    skill: "white-background-image",
+    title: "平台规范白底精修",
+    description: "保留商品结构，提升材质和边缘质量",
+    prompt: "生成一张平台规范的纯白背景商品图，保持产品结构准确并提升材质细节",
+    images: ["/product-main.png"],
+    layout: "landscape",
   },
 ];
 
@@ -2951,6 +3043,78 @@ function QuickCapabilities({
   );
 }
 
+function InspirationGallery({
+  onUse,
+}: {
+  onUse: (item: InspirationCase) => void;
+}) {
+  const [activeTab, setActiveTab] = useState("featured");
+  const visibleCases =
+    activeTab === "featured"
+      ? inspirationCases
+      : inspirationCases.filter((item) => item.tab === activeTab);
+
+  return (
+    <section className="inspiration-gallery" aria-labelledby="inspiration-title">
+      <header className="inspiration-toolbar">
+        <div className="inspiration-tabs" role="tablist" aria-label="优秀案例分类">
+          {inspirationTabs.map((tab) => (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              className={activeTab === tab.id ? "active" : undefined}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div>
+          <h2 id="inspiration-title">优秀案例</h2>
+          <p>选择一个案例，把完整生成设置带回输入框。</p>
+        </div>
+      </header>
+
+      <div className="inspiration-grid" data-testid="inspiration-grid">
+        {visibleCases.map((item) => (
+          <button
+            type="button"
+            className={`inspiration-card inspiration-card-${item.layout}`}
+            key={item.id}
+            data-testid={item.id}
+            onClick={() => onUse(item)}
+          >
+            <span className="inspiration-card-media" aria-hidden="true">
+              {item.layout === "suite" ? (
+                <span className="inspiration-suite-layout">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={item.images[0]} alt="" />
+                  <span>
+                    {item.images.slice(1, 4).map((image, index) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={image} alt="" key={`${image}-${index}`} />
+                    ))}
+                  </span>
+                </span>
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.images[0]} alt="" />
+              )}
+            </span>
+            <span className="inspiration-card-copy">
+              <strong>{item.title}</strong>
+              <small>{item.description}</small>
+              <span>做同款 <ArrowRight weight="bold" aria-hidden="true" /></span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function PreviewModal({
   preview,
   prompt,
@@ -3158,6 +3322,7 @@ export default function Home() {
   const [sessionReady, setSessionReady] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [studioComposerMinimized, setStudioComposerMinimized] = useState(false);
+  const [homeComposerMinimized, setHomeComposerMinimized] = useState(false);
   const controllers = useRef<Map<string, AbortController>>(new Map());
   const persistenceTimers = useRef<Map<string, number>>(new Map());
   const turnsRef = useRef<Turn[]>([]);
@@ -3446,6 +3611,39 @@ export default function Home() {
     } else if (nextMode === "listing") {
       setBrand((current) => ({ ...current, platform: "amazon" }));
     }
+    window.requestAnimationFrame(() => {
+      setHomeComposerMinimized(false);
+      window.requestAnimationFrame(() => {
+        document.getElementById("main-prompt")?.focus();
+      });
+    });
+  };
+
+  const applyInspirationCase = (item: InspirationCase) => {
+    uploadsRef.current.forEach((upload) => {
+      if (upload.owned) URL.revokeObjectURL(upload.url);
+    });
+    const templateUploads = item.images.slice(0, MAX_UPLOADS).map((url, index) => ({
+      id: `${item.id}-reference-${index}`,
+      name: `${item.title}-参考图-${index + 1}.png`,
+      url,
+    }));
+    uploadsRef.current = templateUploads;
+    setUploads(templateUploads);
+    setReferenceVideo(null);
+    setMode(item.mode);
+    setSkill(item.skill);
+    setPrompt(item.prompt);
+    if (item.suite) {
+      setSuite((current) => ({ ...current, ...item.suite }));
+    }
+    if (item.mode === "video") {
+      setBrand((current) => ({ ...current, platform: "tiktok-shop" }));
+    } else if (item.mode === "listing") {
+      setBrand((current) => ({ ...current, platform: "amazon" }));
+    }
+    setHomeComposerMinimized(false);
+    showNotice(`已应用「${item.title}」，替换成你的商品图后即可生成`);
     window.requestAnimationFrame(() => {
       document.getElementById("main-prompt")?.focus();
     });
@@ -4696,44 +4894,92 @@ export default function Home() {
       />
       <section className="home-workspace" id="create">
         <div className="home-stage">
-          <div className="home-copy">
-            <h1>一张商品图，生成亚马逊链接</h1>
-          </div>
-          <div className="home-composer-wrap">
-            <div className="home-sample-row">
-              <button type="button" className="sample-button" data-testid="sample-product" onClick={addSample}>使用示例商品</button>
+          <header className="home-discovery-head">
+            <div className="home-copy">
+              <h1>一张商品图，生成亚马逊链接</h1>
             </div>
-            <Composer
-              key={`home-composer-${mode}`}
-              prompt={prompt}
-              uploads={uploads}
-              referenceVideo={referenceVideo}
-              mode={mode}
-              skill={skill}
-              region={region}
-              language={language}
-              brand={brand}
-              suite={suite}
-              disabled={
-                (skill !== "listing-replica" && !uploads.length) ||
-                (skill === "video-replica" && !referenceVideo)
-              }
-              onPrompt={setPrompt}
-              onFiles={handleFiles}
-              onReferenceVideo={handleReferenceVideo}
-              onRemoveReferenceVideo={removeReferenceVideo}
-              onRemove={removeUpload}
-              onSend={startGeneration}
-              onMode={changeMode}
-              onSkill={changeSkill}
-              onRegion={setRegion}
-              onLanguage={setLanguage}
-              onBrand={setBrand}
-              onSuite={setSuite}
-            />
-            <QuickCapabilities onSelect={selectCapability} />
-          </div>
+            <button type="button" className="sample-button" data-testid="sample-product" onClick={() => {
+              addSample();
+              setHomeComposerMinimized(false);
+            }}>使用示例商品</button>
+          </header>
+          {!homeComposerMinimized ? (
+            <div className="home-inline-composer">
+              <Composer
+                key={`home-inline-composer-${mode}`}
+                compact
+                prompt={prompt}
+                uploads={uploads}
+                referenceVideo={referenceVideo}
+                mode={mode}
+                skill={skill}
+                region={region}
+                language={language}
+                brand={brand}
+                suite={suite}
+                disabled={
+                  (skill !== "listing-replica" && !uploads.length) ||
+                  (skill === "video-replica" && !referenceVideo)
+                }
+                onPrompt={setPrompt}
+                onFiles={handleFiles}
+                onReferenceVideo={handleReferenceVideo}
+                onRemoveReferenceVideo={removeReferenceVideo}
+                onRemove={removeUpload}
+                onSend={startGeneration}
+                onMode={changeMode}
+                onSkill={changeSkill}
+                onRegion={setRegion}
+                onLanguage={setLanguage}
+                onBrand={setBrand}
+                onSuite={setSuite}
+              />
+              <button
+                type="button"
+                className="home-composer-collapse"
+                aria-label="收起输入框"
+                onClick={() => setHomeComposerMinimized(true)}
+              >
+                <CaretDown weight="bold" aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
+          <QuickCapabilities onSelect={selectCapability} />
+          <InspirationGallery onUse={applyInspirationCase} />
         </div>
+        {homeComposerMinimized ? <div className="home-fixed-composer is-minimized">
+          <Composer
+            key={`home-composer-${mode}`}
+            compact
+            minimized
+            prompt={prompt}
+            uploads={uploads}
+            referenceVideo={referenceVideo}
+            mode={mode}
+            skill={skill}
+            region={region}
+            language={language}
+            brand={brand}
+            suite={suite}
+            disabled={
+              (skill !== "listing-replica" && !uploads.length) ||
+              (skill === "video-replica" && !referenceVideo)
+            }
+            onPrompt={setPrompt}
+            onFiles={handleFiles}
+            onReferenceVideo={handleReferenceVideo}
+            onRemoveReferenceVideo={removeReferenceVideo}
+            onRemove={removeUpload}
+            onSend={startGeneration}
+            onMode={changeMode}
+            onSkill={changeSkill}
+            onRegion={setRegion}
+            onLanguage={setLanguage}
+            onBrand={setBrand}
+            onSuite={setSuite}
+            onExpand={() => setHomeComposerMinimized(false)}
+          />
+        </div> : null}
       </section>
       {accountOpen ? (
         <AccountPanel
