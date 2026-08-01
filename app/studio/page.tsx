@@ -273,6 +273,14 @@ const quickCapabilities: Array<{
     image: "/product-lifestyle.png",
   },
   {
+    id: "quick-listing",
+    mode: "listing",
+    skill: "amazon-listing",
+    title: "Listing 生成",
+    body: "文案、套图与商品详情同步生成",
+    image: "/landing-hero.webp",
+  },
+  {
     id: "quick-video-replica",
     mode: "video",
     skill: "video-replica",
@@ -287,14 +295,6 @@ const quickCapabilities: Array<{
     title: "套图生成",
     body: "主副图与 A+ 图一次生成",
     image: "/product-main.png",
-  },
-  {
-    id: "quick-listing",
-    mode: "listing",
-    skill: "amazon-listing",
-    title: "Listing 生成",
-    body: "文案、套图与商品详情同步生成",
-    image: "/landing-hero.webp",
   },
   {
     id: "quick-talking-video",
