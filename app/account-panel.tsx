@@ -3,9 +3,11 @@
 import {
   CheckCircle,
   ChartBar,
+  EnvelopeSimple,
   Eye,
   EyeSlash,
   Key,
+  LockKey,
   ShieldCheck,
   SignOut,
   X,
@@ -107,6 +109,10 @@ export default function AccountPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [emailMode, setEmailMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -218,6 +224,33 @@ export default function AccountPanel({
     }
   };
 
+  const submitEmailAuth = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (busy || !csrfToken) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/auth/email/${emailMode}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, name, password, csrfToken }),
+      });
+      if (!response.ok) {
+        throw new Error(await responseError(
+          response,
+          emailMode === "login" ? "邮箱登录失败" : "邮箱注册失败",
+        ));
+      }
+      const payload = await response.json();
+      setPassword("");
+      onSession(payload);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "邮箱登录失败");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const removeApiKey = async () => {
     if (busy) return;
     setBusy(true);
@@ -280,7 +313,7 @@ export default function AccountPanel({
           <div className="account-login">
             <span className="account-security-icon"><ShieldCheck weight="duotone" /></span>
             <h3>登录后开始创作</h3>
-            <p>使用 Google 账号登录。你的 API Key、任务和生成资产只属于当前账号。</p>
+            <p>Google 或邮箱均可登录。API Key、任务和生成资产只属于当前账号。</p>
             {configured ? (
               <div
                 className={`google-login-slot ${busy ? "is-busy" : ""}`}
@@ -290,6 +323,79 @@ export default function AccountPanel({
             ) : (
               <p className="account-inline-error">Google 登录尚未完成线上配置。</p>
             )}
+            <div className="account-login-divider"><span>或使用邮箱</span></div>
+            <div className="email-auth-tabs" role="tablist" aria-label="邮箱账号方式">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={emailMode === "login"}
+                className={emailMode === "login" ? "active" : ""}
+                onClick={() => {
+                  setEmailMode("login");
+                  setError("");
+                }}
+              >邮箱登录</button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={emailMode === "register"}
+                className={emailMode === "register" ? "active" : ""}
+                onClick={() => {
+                  setEmailMode("register");
+                  setError("");
+                }}
+              >注册账号</button>
+            </div>
+            <form className="email-auth-form" onSubmit={submitEmailAuth}>
+              {emailMode === "register" ? (
+                <label>
+                  <span>昵称</span>
+                  <input
+                    name="name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    autoComplete="name"
+                    minLength={2}
+                    maxLength={60}
+                    required
+                    placeholder="你的称呼"
+                  />
+                </label>
+              ) : null}
+              <label>
+                <span>邮箱</span>
+                <div><EnvelopeSimple aria-hidden="true" />
+                  <input
+                    name="email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    autoComplete="email"
+                    required
+                    placeholder="name@example.com"
+                  />
+                </div>
+              </label>
+              <label>
+                <span>密码</span>
+                <div><LockKey aria-hidden="true" />
+                  <input
+                    name="password"
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    autoComplete={emailMode === "login" ? "current-password" : "new-password"}
+                    minLength={8}
+                    maxLength={72}
+                    required
+                    placeholder="至少 8 个字符"
+                  />
+                </div>
+              </label>
+              <button type="submit" disabled={busy || !csrfToken}>
+                {busy ? "处理中…" : emailMode === "login" ? "登录工作台" : "创建账号"}
+              </button>
+            </form>
           </div>
         ) : (
           <>
