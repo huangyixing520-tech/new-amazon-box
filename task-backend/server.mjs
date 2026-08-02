@@ -11,6 +11,7 @@ import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import sharp from "sharp";
 import { imageOutputUrl } from "./image-response.mjs";
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -106,6 +107,42 @@ function publicTask(task) {
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
   };
+}
+
+function outputDimensions(task) {
+  const width = Number(task.outputWidth);
+  const height = Number(task.outputHeight);
+  if (!Number.isInteger(width) || !Number.isInteger(height)) return null;
+  if (width < 1 || height < 1 || width > 4096 || height > 4096) return null;
+  return { width, height };
+}
+
+async function imageBytes(sourceUrl) {
+  if (sourceUrl.startsWith("data:")) {
+    const match = sourceUrl.match(/^data:([^;,]+)?(;base64)?,(.*)$/s);
+    if (!match) throw new Error("图片服务返回的图片数据无效");
+    return match[2]
+      ? Buffer.from(match[3], "base64")
+      : Buffer.from(decodeURIComponent(match[3]));
+  }
+  const response = await fetch(sourceUrl, { signal: AbortSignal.timeout(60_000) });
+  if (!response.ok) throw new Error("无法读取图片服务返回的图片");
+  return Buffer.from(await response.arrayBuffer());
+}
+
+async function finalizeImageOutput(sourceUrl, dimensions) {
+  if (!dimensions) return sourceUrl;
+  const finalImage = await sharp(await imageBytes(sourceUrl))
+    .rotate()
+    .resize({
+      width: dimensions.width,
+      height: dimensions.height,
+      fit: "cover",
+      position: "centre",
+    })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+  return `data:image/png;base64,${finalImage.toString("base64")}`;
 }
 
 export function createTaskServer(options = {}) {
@@ -212,6 +249,7 @@ export function createTaskServer(options = {}) {
         await new Promise((resolve) => setTimeout(resolve, retryDelay));
       }
       if (!url) throw new Error("图片服务已响应，但没有返回可用图片");
+      url = await finalizeImageOutput(url, outputDimensions(task));
       task.status = "succeeded";
       task.url = url;
       task.error = undefined;
@@ -335,6 +373,8 @@ export function createTaskServer(options = {}) {
         status: "queued",
         prompt: String(form.get("prompt") ?? ""),
         size: String(form.get("size") ?? "1024x1024"),
+        outputWidth: String(form.get("outputWidth") ?? ""),
+        outputHeight: String(form.get("outputHeight") ?? ""),
         quality: String(form.get("quality") ?? "medium"),
         images: images.map((image) => ({
           name: image.name,

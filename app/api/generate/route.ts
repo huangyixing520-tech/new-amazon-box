@@ -383,6 +383,10 @@ The user's overall request is background context only and must not change this s
           : process.env.IMAGE_DEFAULT_SQUARE_SIZE ?? "1024x1024",
   );
   request.set("quality", process.env.IMAGE_DEFAULT_QUALITY ?? "medium");
+  if (slotType) {
+    request.set("outputWidth", String(outputSpec.outputWidth));
+    request.set("outputHeight", String(outputSpec.outputHeight));
+  }
   images.forEach((image) => request.append("image", image, image.name || "product.png"));
 
   const backend = taskBackend();

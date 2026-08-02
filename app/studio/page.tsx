@@ -630,12 +630,13 @@ function suiteItems(
       const slot = suiteSlot(suite, index);
       const isAPlus = slot.type === "a-plus";
       const isMobile = slot.type === "a-plus-mobile";
+      const aPlusRatio = suite.aPlusType === "standard" ? "8:5" : "61:25";
       return {
         id: `${skillId}-${slot.type}-${slot.index}`,
         group: isMobile
           ? `手机 A+ ${slot.index + 1} · 2:3`
           : isAPlus
-            ? `A+ 图 ${slot.index + 1} · 3:2`
+            ? `A+ 图 ${slot.index + 1} · ${aPlusRatio}`
             : `主副图 ${slot.index + 1} · ${suite.mainImageRatio}`,
         title: isMobile
           ? `手机 A+ 图 ${slot.index + 1}`

@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import sharp from "sharp";
 import { createTaskServer } from "./server.mjs";
 
 function listen(server) {
@@ -68,6 +69,53 @@ test("returns immediately, runs the image job, and exposes its result", async (c
   }
   assert.equal(completed.status, "succeeded");
   assert.equal(completed.url, "data:image/png;base64,generated-image");
+});
+
+test("exports an exact final A+ canvas instead of the provider working ratio", async (context) => {
+  const dataDir = await mkdtemp(join(tmpdir(), "mercato-task-final-canvas-"));
+  context.after(() => rm(dataDir, { recursive: true, force: true }));
+  const sourcePng = Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="1024"><rect width="1536" height="1024" fill="#243447"/></svg>',
+  ).toString("base64");
+  const upstream = createServer((_request, response) => {
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ data: [{ b64_json: sourcePng }] }));
+  });
+  const upstreamPort = await listen(upstream);
+  context.after(() => close(upstream));
+
+  const backend = createTaskServer({
+    dataDir,
+    baseUrl: `http://127.0.0.1:${upstreamPort}`,
+    apiKey: "dola-test",
+    token: "backend-test",
+  });
+  const backendPort = await listen(backend);
+  context.after(() => close(backend));
+
+  const form = new FormData();
+  form.set("image", new File(["product"], "product.png", { type: "image/png" }));
+  form.set("outputWidth", "1464");
+  form.set("outputHeight", "600");
+  const created = await fetch(`http://127.0.0.1:${backendPort}/v1/image-tasks`, {
+    method: "POST",
+    headers: { Authorization: "Bearer backend-test" },
+    body: form,
+  }).then((response) => response.json());
+
+  let completed;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    completed = await fetch(
+      `http://127.0.0.1:${backendPort}/v1/image-tasks/${created.id}`,
+      { headers: { Authorization: "Bearer backend-test" } },
+    ).then((response) => response.json());
+    if (completed.status !== "queued" && completed.status !== "running") break;
+  }
+  assert.equal(completed.status, "succeeded");
+  const finalBuffer = Buffer.from(String(completed.url).split(",")[1], "base64");
+  const metadata = await sharp(finalBuffer).metadata();
+  assert.deepEqual([metadata.width, metadata.height], [1464, 600]);
 });
 
 test("protects task endpoints while keeping health public", async (context) => {

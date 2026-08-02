@@ -6,6 +6,9 @@
   "engines": {
     "node": ">=22.13.0"
   },
+  "dependencies": {
+    "sharp": "0.35.3"
+  },
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test server.test.mjs"

@@ -6,14 +6,18 @@ export function imageOutputSpec({
 } = {}) {
   if (slotType === "a-plus") {
     const standard = aPlusType === "standard";
+    const outputWidth = standard ? 960 : 1464;
+    const outputHeight = 600;
     return {
+      // GPT Image only accepts a constrained set of working canvases. The
+      // task backend turns this working image into the exact final canvas.
       providerSize: "1536x1024",
-      outputWidth: standard ? 960 : 1464,
-      outputHeight: 600,
+      outputWidth,
+      outputHeight,
       label: `${standard ? "Standard" : "Advanced"} Amazon A+ desktop image ${slotIndex + 1}`,
       formatInstruction: standard
-        ? "Compose for an exact 960 x 600 px final canvas (8:5 ratio)."
-        : "Compose for an exact 1464 x 600 px final canvas (61:25 ratio). Keep essential product and copy inside the centered wide safe area.",
+        ? "Create an 8:5 Amazon A+ composition. The final delivered canvas is exactly 960 x 600 px; keep every essential product detail and all copy inside that 8:5 safe area."
+        : "Create an ultra-wide 61:25 Amazon Advanced A+ composition. The final delivered canvas is exactly 1464 x 600 px; keep every essential product detail and all copy inside the centered 61:25 safe area, with no critical content above or below it.",
     };
   }
 

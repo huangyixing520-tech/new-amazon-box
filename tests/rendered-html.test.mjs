@@ -28,6 +28,9 @@ test("maps every suite slot to one task and the correct final canvas", () => {
     [standard.outputWidth, standard.outputHeight],
     [960, 600],
   );
+  assert.match(advanced.formatInstruction, /61:25/);
+  assert.match(advanced.formatInstruction, /1464 x 600/);
+  assert.match(standard.formatInstruction, /960 x 600/);
   assert.match(singleImageTaskBoundary, /one independent image task/i);
   assert.match(singleImageTaskBoundary, /Never create a collage/);
 });
@@ -407,6 +410,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /singleImageTaskBoundary/);
   assert.doesNotMatch(generateRoute, /context\.brandText\} \$\{context\.generationText/);
   assert.match(generateRoute, /slotType/);
+  assert.match(generateRoute, /outputWidth/);
+  assert.match(generateRoute, /outputHeight/);
   assert.match(generateRoute, /a-plus-mobile/);
   assert.match(generateRoute, /Main and secondary image ratio/);
   assert.match(generateRoute, /\[BRAND GENE\]/);
