@@ -1,28 +1,28 @@
 import { authErrorResponse, requireAdmin, verifySameOrigin } from "../../../lib/auth";
-import { saveInspirationCase, type InspirationCaseRecord } from "../../../lib/inspiration-data";
+import {
+  loadInspirationCases,
+  reorderInspirationCases,
+  saveInspirationCase,
+  updateInspirationCase,
+  type InspirationCaseRecord,
+} from "../../../lib/inspiration-data";
 import { runtimeBindings } from "../../../lib/runtime";
-
-const imageTypes = new Map([
-  ["image/jpeg", "jpg"], ["image/png", "png"], ["image/webp", "webp"],
-  ["image/gif", "gif"], ["image/avif", "avif"],
-]);
-const maxFileSize = 10 * 1024 * 1024;
 
 function text(value: FormDataEntryValue | null, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
-async function storeImage(file: File, kind: "result" | "input") {
-  const extension = imageTypes.get(file.type);
-  if (!extension) throw new Error("仅支持 JPG、PNG、WebP、GIF 或 AVIF 图片");
-  if (!file.size || file.size > maxFileSize) throw new Error("单张图片不能超过 10 MB");
-  const { GENERATED_ASSETS } = await runtimeBindings();
-  if (!GENERATED_ASSETS) throw new Error("案例图片存储尚未配置");
-  const key = `inspiration/${kind}/${crypto.randomUUID()}.${extension}`;
-  await GENERATED_ASSETS.put(key, await file.arrayBuffer(), {
-    httpMetadata: { contentType: file.type },
-  });
-  return `/api/inspiration/media?key=${encodeURIComponent(key)}`;
+function selectedTabs(form: FormData) {
+  return form.getAll("tabs").filter(
+    (item): item is "featured" | "image" | "video" =>
+      item === "featured" || item === "image" || item === "video",
+  );
+}
+
+function modeForSkill(skill: string): InspirationCaseRecord["mode"] {
+  if (skill === "video-replica" || skill === "talking-product-video") return "video";
+  if (skill === "amazon-listing" || skill === "listing-replica") return "listing";
+  return "image";
 }
 
 export async function POST(request: Request) {
@@ -30,34 +30,32 @@ export async function POST(request: Request) {
     verifySameOrigin(request);
     const user = await requireAdmin(request);
     const form = await request.formData();
-    const result = form.get("resultImage");
+    const resultUrl = text(form.get("resultUrl"), 800);
     const title = text(form.get("title"), 80);
     const prompt = text(form.get("prompt"), 1600);
-    if (!(result instanceof File) || !title || !prompt) {
-      return Response.json({ error: "请填写标题、提示词并上传结果图" }, { status: 400 });
+    const tabs = selectedTabs(form);
+    if (!resultUrl || !title || !prompt || !tabs.length) {
+      return Response.json({ error: "请填写标题、提示词、分类并上传结果图" }, { status: 400 });
     }
-    const inputFiles = form.getAll("inputImages").filter(
-      (item): item is File => item instanceof File && item.size > 0,
-    );
-    if (inputFiles.length > 9) return Response.json({ error: "输入图最多 9 张" }, { status: 400 });
-    const [resultUrl, ...inputUrls] = await Promise.all([
-      storeImage(result, "result"),
-      ...inputFiles.map((file) => storeImage(file, "input")),
-    ]);
+    const inputUrls = form.getAll("inputUrls").filter(
+      (item): item is string => typeof item === "string" && item.startsWith("/api/inspiration/media?key="),
+    ).slice(0, 9);
     const { DB } = await runtimeBindings();
     if (!DB) return Response.json({ error: "案例数据库尚未就绪" }, { status: 503 });
     const createdAt = new Date().toISOString();
+    const skill = text(form.get("skill"), 80) || "white-background-image";
     const record: InspirationCaseRecord = {
       id: `case-${crypto.randomUUID()}`,
-      tab: "image",
-      mode: "image",
-      skill: text(form.get("skill"), 80) || "white-background-image",
+      tabs,
+      mode: modeForSkill(skill),
+      skill,
       title,
       description: text(form.get("description"), 180),
       prompt,
       images: [resultUrl],
       inputImages: inputUrls,
       layout: "landscape",
+      orderByTab: Object.fromEntries(tabs.map((tab) => [tab, -Date.now()])),
       createdAt,
     };
     return Response.json({ case: await saveInspirationCase(DB, record, user.email) });
@@ -66,6 +64,79 @@ export async function POST(request: Request) {
     if (message.includes("仅支持") || message.includes("不能超过")) {
       return Response.json({ error: message }, { status: 415 });
     }
+    return authErrorResponse(error);
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    await requireAdmin(request);
+    const { DB } = await runtimeBindings();
+    return Response.json({ cases: await loadInspirationCases(DB) });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    verifySameOrigin(request);
+    const user = await requireAdmin(request);
+    const form = await request.formData();
+    const id = text(form.get("id"), 80);
+    const { DB } = await runtimeBindings();
+    if (!DB) return Response.json({ error: "案例数据库尚未就绪" }, { status: 503 });
+    const current = (await loadInspirationCases(DB)).find((item) => item.id === id);
+    if (!current) return Response.json({ error: "案例不存在" }, { status: 404 });
+    const title = text(form.get("title"), 80);
+    const prompt = text(form.get("prompt"), 1600);
+    const tabs = selectedTabs(form);
+    if (!title || !prompt || !tabs.length) {
+      return Response.json({ error: "请填写标题、提示词和至少一个分类" }, { status: 400 });
+    }
+    const skill = text(form.get("skill"), 80) || current.skill;
+    const uploadedResultUrl = text(form.get("resultUrl"), 800);
+    const uploadedInputUrls = form.getAll("inputUrls").filter(
+      (item): item is string => typeof item === "string" && item.startsWith("/api/inspiration/media?key="),
+    ).slice(0, 9);
+    const resultUrl = uploadedResultUrl || current.images[0];
+    const inputUrls = uploadedInputUrls.length ? uploadedInputUrls : current.inputImages;
+    const next: InspirationCaseRecord = {
+      ...current,
+      tabs,
+      mode: modeForSkill(skill),
+      skill,
+      title,
+      description: text(form.get("description"), 180),
+      prompt,
+      images: [resultUrl],
+      inputImages: inputUrls,
+      orderByTab: Object.fromEntries(tabs.map((tab) => [
+        tab,
+        current.orderByTab[tab] ?? -new Date(current.createdAt).getTime(),
+      ])),
+    };
+    return Response.json({ case: await updateInspirationCase(DB, next, user.email) });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    verifySameOrigin(request);
+    const user = await requireAdmin(request);
+    const body = await request.json() as { tab?: string; orderedIds?: string[] };
+    if (
+      (body.tab !== "featured" && body.tab !== "image" && body.tab !== "video") ||
+      !Array.isArray(body.orderedIds)
+    ) return Response.json({ error: "排序信息无效" }, { status: 400 });
+    const { DB } = await runtimeBindings();
+    if (!DB) return Response.json({ error: "案例数据库尚未就绪" }, { status: 503 });
+    return Response.json({
+      cases: await reorderInspirationCases(DB, body.tab, body.orderedIds, user.email),
+    });
+  } catch (error) {
     return authErrorResponse(error);
   }
 }

@@ -1757,25 +1757,63 @@ button:active, a:active { transform: translateY(1px); }
 .admin-selling-points article > button svg { width: 13px; height: 13px; }
 .admin-landing-closing > div { display: grid; grid-template-columns: minmax(0,.8fr) minmax(0,1.2fr); align-items: start; gap: 14px; }
 .admin-landing-closing label + label { margin-top: 0; }
-.admin-inspiration-editor { margin-top: 28px; padding: 24px; border: 1px solid var(--line); border-radius: 22px; background: #fff; }
+.admin-inspiration-workspace { margin-top: 28px; display: grid; gap: 18px; }
+.admin-inspiration-editor { padding: 24px; border: 1px solid var(--line); border-radius: 22px; background: #fff; }
 .admin-inspiration-editor > header { display: flex; align-items: center; justify-content: space-between; gap: 22px; }
 .admin-inspiration-editor h2 { margin: 0; font-size: 21px; letter-spacing: -.035em; }
 .admin-inspiration-editor p { margin: 6px 0 0; color: var(--muted); font-size: 10px; }
+.admin-inspiration-editor > header > div:first-child > span { display: block; margin-bottom: 5px; color: #71842f; font-size: 8px; font-weight: 780; letter-spacing: .08em; text-transform: uppercase; }
 .admin-inspiration-editor > header > div:last-child { display: flex; align-items: center; gap: 12px; }
 .admin-inspiration-editor > header span { color: #64782d; font-size: 9px; }
 .admin-inspiration-editor > header button { min-height: 42px; padding: 0 16px; border: 0; border-radius: 13px; background: var(--text); color: var(--bg); cursor: pointer; font-size: 10px; font-weight: 740; }
+.admin-inspiration-editor > header button.secondary { border: 1px solid var(--line); background: #fff; color: var(--text); }
 .admin-inspiration-editor > header button:disabled { cursor: not-allowed; opacity: .45; }
 .admin-inspiration-form { margin-top: 24px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
 .admin-inspiration-form label { display: grid; gap: 7px; color: var(--muted); font-size: 9px; font-weight: 680; }
 .admin-inspiration-form label:nth-child(3) { grid-column: 1 / -1; }
-.admin-inspiration-form input, .admin-inspiration-form textarea { width: 100%; border: 1px solid var(--line); border-radius: 13px; outline: 0; background: #f8faf6; color: var(--text); font-size: 11px; line-height: 1.55; }
+.admin-inspiration-form input, .admin-inspiration-form textarea, .admin-inspiration-form select { width: 100%; border: 1px solid var(--line); border-radius: 13px; outline: 0; background: #f8faf6; color: var(--text); font-size: 11px; line-height: 1.55; }
 .admin-inspiration-form input { height: 43px; padding: 0 12px; }
+.admin-inspiration-form select { height: 43px; padding: 0 12px; }
 .admin-inspiration-form textarea { min-height: 96px; padding: 11px 12px; resize: vertical; }
 .admin-case-skill, .admin-case-upload { min-height: 96px; padding: 15px; border: 1px solid var(--line); border-radius: 15px; background: #f8faf6; }
 .admin-case-skill { display: grid; align-content: center; gap: 7px; color: var(--muted); font-size: 9px; font-weight: 680; }
 .admin-case-skill strong { color: var(--text); font-size: 13px; }
 .admin-case-upload input { height: auto; padding: 0; background: transparent; font-size: 10px; }
 .admin-case-upload small { color: var(--muted); font-size: 9px; }
+.admin-case-upload > img { width: 92px; height: 72px; border-radius: 10px; object-fit: cover; }
+.admin-current-inputs { width: max-content; padding: 5px 8px; border-radius: 8px; background: #e9eee2; color: #586a29 !important; }
+.admin-case-tabs { min-width: 0; margin: 0; padding: 15px; border: 1px solid var(--line); border-radius: 15px; background: #f8faf6; }
+.admin-case-tabs legend { padding: 0; color: var(--muted); font-size: 9px; font-weight: 680; }
+.admin-case-tabs > div { margin-top: 12px; display: flex; gap: 8px; }
+.admin-case-tabs label { display: block; cursor: pointer; }
+.admin-case-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+.admin-case-tabs span { min-height: 36px; padding: 0 13px; display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 11px; background: #fff; color: var(--muted); font-size: 10px; }
+.admin-case-tabs input:checked + span { border-color: var(--text); background: var(--text); color: var(--bg); }
+.admin-case-tabs input:focus-visible + span { outline: 3px solid rgb(201 243 62 / .35); outline-offset: 2px; }
+.admin-inspiration-library { padding: 24px; border: 1px solid var(--line); border-radius: 22px; background: #fff; }
+.admin-inspiration-library > header { display: flex; align-items: start; justify-content: space-between; gap: 20px; }
+.admin-inspiration-library h2 { margin: 0; font-size: 19px; letter-spacing: -.035em; }
+.admin-inspiration-library p { margin: 6px 0 0; color: var(--muted); font-size: 10px; }
+.admin-inspiration-library > header > span { padding: 7px 10px; border-radius: 9px; background: #eef2e8; color: #66752e; font-size: 9px; font-weight: 750; }
+.admin-case-filter { margin-top: 20px; display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.admin-case-filter button { min-height: 38px; padding: 0 12px; display: inline-flex; align-items: center; gap: 7px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); cursor: pointer; font-size: 10px; font-weight: 720; }
+.admin-case-filter button.active { border-bottom-color: var(--text); color: var(--text); }
+.admin-case-filter b { min-width: 20px; padding: 3px 5px; border-radius: 7px; background: #edf1e8; font-size: 8px; }
+.admin-case-list { margin-top: 12px; display: grid; gap: 6px; }
+.admin-case-list article { min-width: 0; padding: 8px 10px; display: grid; grid-template-columns: 24px minmax(0,1fr) auto; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 15px; background: #fafbf9; }
+.admin-case-list article:hover { border-color: #bac8a4; background: #fff; }
+.admin-case-list article > svg { width: 18px; height: 18px; color: #899284; cursor: grab; }
+.admin-case-open { min-width: 0; padding: 0; display: grid; grid-template-columns: 74px minmax(0,1fr); align-items: center; gap: 12px; border: 0; background: transparent; color: var(--text); cursor: pointer; text-align: left; }
+.admin-case-open img { width: 74px; height: 56px; border-radius: 10px; object-fit: cover; }
+.admin-case-open > span { min-width: 0; display: grid; gap: 3px; }
+.admin-case-open strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-case-open small { color: var(--muted); font-size: 9px; }
+.admin-case-open em { color: #687a31; font-size: 8px; font-style: normal; }
+.admin-case-order { display: flex; gap: 4px; }
+.admin-case-order button { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--muted); cursor: pointer; }
+.admin-case-order button:disabled { cursor: not-allowed; opacity: .3; }
+.admin-case-order svg { width: 13px; height: 13px; }
+.admin-case-empty { min-height: 140px; margin-top: 12px; display: grid; place-items: center; border: 1px dashed #cdd5c5; border-radius: 15px; color: var(--muted); font-size: 10px; }
 .template-preview-inputs h2 { margin: 0 0 9px; font-size: 12px; }
 .template-preview-inputs > div { display: flex; gap: 8px; overflow-x: auto; }
 .template-preview-inputs img { width: 76px; height: 76px; flex: 0 0 auto; border-radius: 10px; object-fit: cover; }
@@ -2414,6 +2452,13 @@ button:active, a:active { transform: translateY(1px); }
   .admin-landing-editor > header { align-items: flex-start; flex-direction: column; padding: 18px; }
   .admin-landing-editor > header > div:last-child { width: 100%; align-items: stretch; flex-direction: column; }
   .admin-landing-editor > header > div:last-child > span { max-width: none; text-align: left; }
+  .admin-inspiration-editor, .admin-inspiration-library { padding: 18px; }
+  .admin-inspiration-editor > header { align-items: flex-start; flex-direction: column; }
+  .admin-inspiration-editor > header > div:last-child { width: 100%; align-items: stretch; flex-direction: column; }
+  .admin-inspiration-form { grid-template-columns: 1fr; }
+  .admin-inspiration-form label:nth-child(3) { grid-column: auto; }
+  .admin-case-list article { grid-template-columns: 20px minmax(0,1fr); }
+  .admin-case-order { grid-column: 2; justify-content: flex-end; }
   .admin-landing-grid > section,
   .admin-landing-media,
   .admin-selling-points,

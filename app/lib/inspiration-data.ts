@@ -6,7 +6,7 @@ import type { D1Binding } from "./runtime";
 
 export type InspirationCaseRecord = {
   id: string;
-  tab: "featured" | "image" | "video";
+  tabs: Array<"featured" | "image" | "video">;
   mode: "image" | "video" | "listing";
   skill: string;
   title: string;
@@ -15,6 +15,7 @@ export type InspirationCaseRecord = {
   images: string[];
   inputImages: string[];
   layout: "suite" | "portrait" | "landscape";
+  orderByTab: Partial<Record<"featured" | "image" | "video", number>>;
   createdAt: string;
 };
 
@@ -38,6 +39,24 @@ function imageList(value: unknown) {
   ).slice(0, 9);
 }
 
+function tabList(value: unknown, legacyTab: unknown) {
+  const candidates = Array.isArray(value) ? value : [legacyTab];
+  const tabs = candidates.filter((item): item is "featured" | "image" | "video" =>
+    item === "featured" || item === "image" || item === "video",
+  );
+  return [...new Set(tabs.length ? tabs : ["image" as const])];
+}
+
+function orderMap(value: unknown) {
+  if (!value || typeof value !== "object") return {};
+  const source = value as Record<string, unknown>;
+  const result: InspirationCaseRecord["orderByTab"] = {};
+  for (const tab of ["featured", "image", "video"] as const) {
+    if (Number.isFinite(source[tab])) result[tab] = Number(source[tab]);
+  }
+  return result;
+}
+
 export function normalizeInspirationCase(value: unknown): InspirationCaseRecord | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
@@ -48,7 +67,7 @@ export function normalizeInspirationCase(value: unknown): InspirationCaseRecord 
   if (!id || !title || !prompt || !images.length) return null;
   return {
     id,
-    tab: item.tab === "video" || item.tab === "featured" ? item.tab : "image",
+    tabs: tabList(item.tabs, item.tab),
     mode: item.mode === "video" || item.mode === "listing" ? item.mode : "image",
     skill: cleanText(item.skill, 80) || "white-background-image",
     title,
@@ -57,6 +76,7 @@ export function normalizeInspirationCase(value: unknown): InspirationCaseRecord 
     images,
     inputImages: imageList(item.inputImages),
     layout: item.layout === "suite" || item.layout === "portrait" ? item.layout : "landscape",
+    orderByTab: orderMap(item.orderByTab),
     createdAt: cleanText(item.createdAt, 40) || new Date().toISOString(),
   };
 }
@@ -86,4 +106,36 @@ export async function saveInspirationCase(
     VALUES (?, ?, ?, ?)
   `).bind(value.id, JSON.stringify(value), value.createdAt, createdBy).run();
   return value;
+}
+
+export async function updateInspirationCase(
+  db: D1Binding,
+  value: InspirationCaseRecord,
+  updatedBy: string,
+) {
+  await ensureInspirationCasesSchema(db);
+  await db.prepare(`
+    UPDATE inspiration_cases SET case_json = ?, created_by = ? WHERE id = ?
+  `).bind(JSON.stringify(value), updatedBy, value.id).run();
+  return value;
+}
+
+export async function reorderInspirationCases(
+  db: D1Binding,
+  tab: "featured" | "image" | "video",
+  orderedIds: string[],
+  updatedBy: string,
+) {
+  const cases = await loadInspirationCases(db);
+  const positions = new Map(orderedIds.map((id, index) => [id, index]));
+  const updates = cases
+    .filter((item) => positions.has(item.id))
+    .map((item) => db.prepare(
+      "UPDATE inspiration_cases SET case_json = ?, created_by = ? WHERE id = ?",
+    ).bind(JSON.stringify({
+      ...item,
+      orderByTab: { ...item.orderByTab, [tab]: positions.get(item.id) },
+    }), updatedBy, item.id));
+  if (updates.length) await db.batch(updates);
+  return loadInspirationCases(db);
 }

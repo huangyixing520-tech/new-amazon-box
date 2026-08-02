@@ -2,10 +2,13 @@
 
 import {
   ArrowCounterClockwise,
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   Article,
   ChartLineUp,
   DownloadSimple,
+  DotsSixVertical,
   FileText,
   ImageSquare,
   MagnifyingGlass,
@@ -453,54 +456,150 @@ function LandingConfigEditor({
 }
 
 function InspirationCaseUploader() {
+  type CaseTab = "featured" | "image" | "video";
+  type AdminCase = {
+    id: string; tabs: CaseTab[]; skill: string; title: string; description: string;
+    prompt: string; images: string[]; inputImages: string[]; createdAt: string;
+    orderByTab: Partial<Record<CaseTab, number>>;
+  };
+  const tabOptions: Array<[CaseTab, string]> = [["featured", "精选"], ["image", "图片"], ["video", "视频"]];
+  const skillOptions = [
+    ["white-background-image", "商品白底图"], ["amazon-image-set", "商品套图"],
+    ["ecommerce-image-set", "跨境电商套图"], ["amazon-scene-image", "人物场景图"],
+    ["china-ecommerce-main-image", "国内电商主图"], ["china-seeding-image", "种草组图"],
+    ["amazon-listing", "亚马逊 Listing"], ["listing-replica", "链接复刻"],
+    ["video-replica", "视频复刻"], ["talking-product-video", "带货口播"],
+  ];
+  const [cases, setCases] = useState<AdminCase[]>([]);
+  const [editingId, setEditingId] = useState("");
   const [title, setTitle] = useState("办公椅白底商品图精修");
   const [description, setDescription] = useState("生成纯白背景商品图，保留商品结构与细节");
   const [prompt, setPrompt] = useState("请帮我生成一张白底商品图。");
+  const [skill, setSkill] = useState("white-background-image");
+  const [tabs, setTabs] = useState<CaseTab[]>(["featured", "image"]);
   const [resultImage, setResultImage] = useState<File | null>(null);
   const [inputImages, setInputImages] = useState<File[]>([]);
+  const [currentResult, setCurrentResult] = useState("");
+  const [currentInputs, setCurrentInputs] = useState<string[]>([]);
+  const [activeListTab, setActiveListTab] = useState<CaseTab>("featured");
+  const [draggedId, setDraggedId] = useState("");
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
 
-  async function publish() {
-    if (!resultImage || saving) return;
-    setSaving(true);
-    setStatus("");
+  const sortedCases = cases.filter((item) => item.tabs.includes(activeListTab)).sort((left, right) => {
+    const leftRank = left.orderByTab[activeListTab] ?? -new Date(left.createdAt).getTime();
+    const rightRank = right.orderByTab[activeListTab] ?? -new Date(right.createdAt).getTime();
+    return leftRank - rightRank;
+  });
+
+  useEffect(() => {
+    void fetch("/api/admin/inspiration", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json() as { cases?: AdminCase[]; error?: string };
+        if (!response.ok) throw new Error(payload.error || "无法读取优秀案例");
+        setCases(payload.cases ?? []);
+      })
+      .catch((reason) => setStatus(reason instanceof Error ? reason.message : "无法读取优秀案例"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  function resetForm() {
+    setEditingId(""); setTitle(""); setDescription(""); setPrompt("");
+    setSkill("white-background-image"); setTabs(["featured", "image"]);
+    setResultImage(null); setInputImages([]); setCurrentResult(""); setCurrentInputs([]); setStatus("");
+  }
+
+  function editCase(item: AdminCase) {
+    setEditingId(item.id); setTitle(item.title); setDescription(item.description); setPrompt(item.prompt);
+    setSkill(item.skill); setTabs(item.tabs); setResultImage(null); setInputImages([]);
+    setCurrentResult(item.images[0] ?? ""); setCurrentInputs(item.inputImages ?? []); setStatus("");
+    document.querySelector(".admin-inspiration-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function saveCase() {
+    if ((!editingId && !resultImage) || saving || !tabs.length) return;
+    setSaving(true); setStatus("");
     try {
+      async function uploadImage(file: File, kind: "result" | "input") {
+        const uploadBody = new FormData();
+        uploadBody.set("kind", kind); uploadBody.set("file", file);
+        const uploadResponse = await fetch("/api/admin/inspiration/media", { method: "POST", body: uploadBody });
+        const uploadPayload = await uploadResponse.json().catch(() => ({})) as { url?: string; error?: string };
+        if (!uploadResponse.ok || !uploadPayload.url) {
+          throw new Error(uploadResponse.status === 413 ? "图片过大，请压缩后重试" : uploadPayload.error || "图片上传失败");
+        }
+        return uploadPayload.url;
+      }
+      const resultUrl = resultImage ? await uploadImage(resultImage, "result") : currentResult;
+      const inputUrls = inputImages.length ? [] : currentInputs;
+      for (const file of inputImages) inputUrls.push(await uploadImage(file, "input"));
       const body = new FormData();
-      body.set("title", title);
-      body.set("description", description);
-      body.set("prompt", prompt);
-      body.set("skill", "white-background-image");
-      body.set("resultImage", resultImage);
-      inputImages.forEach((file) => body.append("inputImages", file));
-      const response = await fetch("/api/admin/inspiration", { method: "POST", body });
-      const payload = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(payload.error || "案例上传失败");
-      setStatus("案例已发布到优秀案例");
-      setResultImage(null);
-      setInputImages([]);
+      if (editingId) body.set("id", editingId);
+      body.set("title", title); body.set("description", description); body.set("prompt", prompt); body.set("skill", skill);
+      tabs.forEach((tab) => body.append("tabs", tab));
+      if (resultUrl) body.set("resultUrl", resultUrl);
+      inputUrls.forEach((url) => body.append("inputUrls", url));
+      const response = await fetch("/api/admin/inspiration", { method: editingId ? "PUT" : "POST", body });
+      const payload = await response.json().catch(() => ({})) as { case?: AdminCase; error?: string };
+      if (!response.ok || !payload.case) throw new Error(payload.error || "保存失败");
+      setCases((current) => editingId
+        ? current.map((item) => item.id === payload.case?.id ? payload.case : item)
+        : [payload.case as AdminCase, ...current]);
+      editCase(payload.case);
+      setStatus(editingId ? "修改已实时保存" : "案例已发布");
     } catch (reason) {
-      setStatus(reason instanceof Error ? reason.message : "案例上传失败");
-    } finally {
-      setSaving(false);
-    }
+      setStatus(reason instanceof Error ? reason.message : "保存失败");
+    } finally { setSaving(false); }
+  }
+
+  async function persistOrder(next: AdminCase[]) {
+    setCases((current) => current.map((item) => {
+      const index = next.findIndex((candidate) => candidate.id === item.id);
+      return index < 0 ? item : { ...item, orderByTab: { ...item.orderByTab, [activeListTab]: index } };
+    }));
+    const response = await fetch("/api/admin/inspiration", {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ tab: activeListTab, orderedIds: next.map((item) => item.id) }),
+    });
+    const payload = await response.json() as { cases?: AdminCase[]; error?: string };
+    if (!response.ok) setStatus(payload.error || "排序保存失败");
+    else if (payload.cases) { setCases(payload.cases); setStatus("排序已保存"); }
+  }
+
+  function moveCase(id: string, offset: number) {
+    const index = sortedCases.findIndex((item) => item.id === id);
+    const target = index + offset;
+    if (index < 0 || target < 0 || target >= sortedCases.length) return;
+    const next = [...sortedCases];
+    [next[index], next[target]] = [next[target], next[index]];
+    void persistOrder(next);
   }
 
   return (
-    <section className="admin-inspiration-editor">
-      <header>
-        <div><h2>上传优秀案例</h2><p>结果图会展示在首页，输入图、提示词和 Skill 会保留在案例详情。</p></div>
-        <div>{status ? <span role="status">{status}</span> : null}<button type="button" onClick={() => void publish()} disabled={!resultImage || !title.trim() || !prompt.trim() || saving}>{saving ? "正在发布" : "上传并发布"}</button></div>
-      </header>
-      <div className="admin-inspiration-form">
-        <label>案例标题<input value={title} maxLength={80} onChange={(event) => setTitle(event.target.value)} /></label>
-        <label>案例说明<input value={description} maxLength={180} onChange={(event) => setDescription(event.target.value)} /></label>
-        <label>Prompt<textarea value={prompt} maxLength={1600} rows={4} onChange={(event) => setPrompt(event.target.value)} /></label>
-        <div className="admin-case-skill"><span>选择的 Skill</span><strong>商品白底图</strong></div>
-        <label className="admin-case-upload">结果图（首页展示）<input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" onChange={(event) => setResultImage(event.target.files?.[0] ?? null)} /><small>{resultImage?.name || "上传 1 张生成结果图"}</small></label>
-        <label className="admin-case-upload">输入图<input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif" onChange={(event) => setInputImages(Array.from(event.target.files ?? []).slice(0, 9))} /><small>{inputImages.length ? `已选择 ${inputImages.length} 张输入图` : "最多 9 张"}</small></label>
-      </div>
-    </section>
+    <div className="admin-inspiration-workspace">
+      <section className="admin-inspiration-editor">
+        <header>
+          <div><span>{editingId ? "编辑模式" : "新增案例"}</span><h2>{editingId ? "编辑优秀案例" : "新增优秀案例"}</h2><p>结果图用于首页展示，输入图、Prompt、Skill 和分类会保留在案例详情。</p></div>
+          <div>{status ? <span role="status">{status}</span> : null}{editingId ? <button type="button" className="secondary" onClick={resetForm}>新增案例</button> : null}<button type="button" onClick={() => void saveCase()} disabled={(!editingId && !resultImage) || !title.trim() || !prompt.trim() || !tabs.length || saving}>{saving ? "正在保存" : editingId ? "保存更改" : "上传并发布"}</button></div>
+        </header>
+        <div className="admin-inspiration-form">
+          <label>案例标题<input value={title} maxLength={80} onChange={(event) => setTitle(event.target.value)} /></label>
+          <label>案例说明<input value={description} maxLength={180} onChange={(event) => setDescription(event.target.value)} /></label>
+          <label>Prompt<textarea value={prompt} maxLength={1600} rows={4} onChange={(event) => setPrompt(event.target.value)} /></label>
+          <label className="admin-case-select">选择的 Skill<select value={skill} onChange={(event) => setSkill(event.target.value)}>{skillOptions.map(([id, label]) => <option value={id} key={id}>{label}</option>)}</select></label>
+          <fieldset className="admin-case-tabs"><legend>所属分类（可多选）</legend><div>{tabOptions.map(([id, label]) => <label key={id}><input type="checkbox" checked={tabs.includes(id)} onChange={(event) => setTabs((current) => event.target.checked ? [...current, id] : current.filter((tab) => tab !== id))} /><span>{label}</span></label>)}</div></fieldset>
+          <label className="admin-case-upload">结果图（首页展示）{currentResult ? <img src={currentResult} alt="当前结果图" /> : null}<input key={`result-${editingId}-${currentResult}`} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" onChange={(event) => setResultImage(event.target.files?.[0] ?? null)} /><small>{resultImage?.name || (currentResult ? "未选择新图，将保留当前结果图" : "上传 1 张生成结果图")}</small></label>
+          <label className="admin-case-upload">输入图{currentInputs.length ? <span className="admin-current-inputs">当前 {currentInputs.length} 张</span> : null}<input key={`inputs-${editingId}-${currentInputs.join("|")}`} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif" onChange={(event) => setInputImages(Array.from(event.target.files ?? []).slice(0, 9))} /><small>{inputImages.length ? `将替换为 ${inputImages.length} 张输入图` : currentInputs.length ? "未选择新图，将保留当前输入图" : "最多 9 张"}</small></label>
+        </div>
+      </section>
+
+      <section className="admin-inspiration-library">
+        <header><div><h2>已上传案例</h2><p>点击案例进行编辑；拖拽调整当前分类内的顺序，新案例默认置顶。</p></div><span>{cases.length} 个案例</span></header>
+        <div className="admin-case-filter" role="tablist" aria-label="案例分类">{tabOptions.map(([id, label]) => <button type="button" role="tab" aria-selected={activeListTab === id} className={activeListTab === id ? "active" : ""} onClick={() => setActiveListTab(id)} key={id}>{label}<b>{cases.filter((item) => item.tabs.includes(id)).length}</b></button>)}</div>
+        {loading ? <div className="admin-case-empty">正在读取已上传案例</div> : sortedCases.length ? <div className="admin-case-list">{sortedCases.map((item, index) => <article key={item.id} draggable onDragStart={() => setDraggedId(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => { const from = sortedCases.findIndex((candidate) => candidate.id === draggedId); if (from < 0 || from === index) return; const next = [...sortedCases]; const [moved] = next.splice(from, 1); next.splice(index, 0, moved); void persistOrder(next); setDraggedId(""); }}><DotsSixVertical weight="bold" aria-label="拖动排序" /><button type="button" className="admin-case-open" onClick={() => editCase(item)}><img src={item.images[0]} alt="" /><span><strong>{item.title}</strong><small>{skillOptions.find(([id]) => id === item.skill)?.[1] || item.skill}</small><em>{item.tabs.map((tab) => tabOptions.find(([id]) => id === tab)?.[1]).join(" · ")}</em></span></button><div className="admin-case-order"><button type="button" aria-label={`上移 ${item.title}`} disabled={index === 0} onClick={() => moveCase(item.id, -1)}><ArrowUp weight="bold" /></button><button type="button" aria-label={`下移 ${item.title}`} disabled={index === sortedCases.length - 1} onClick={() => moveCase(item.id, 1)}><ArrowDown weight="bold" /></button></div></article>)}</div> : <div className="admin-case-empty">该分类还没有案例</div>}
+      </section>
+    </div>
   );
 }
 
@@ -552,6 +651,7 @@ export default function AdminPage() {
   const [landingSaving, setLandingSaving] = useState(false);
   const [landingStatus, setLandingStatus] = useState("");
   const [session, setSession] = useState<ClientSession>(null);
+  const [sessionReady, setSessionReady] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const resultsRequestId = useRef(0);
@@ -560,10 +660,12 @@ export default function AdminPage() {
     void fetch("/api/auth/session", { cache: "no-store" })
       .then((response) => response.ok ? response.json() : { user: null })
       .then((payload) => setSession(payload.user ? payload : null))
-      .catch(() => setSession(null));
+      .catch(() => setSession(null))
+      .finally(() => setSessionReady(true));
   }, []);
 
   useEffect(() => {
+    if (!sessionReady) return;
     void fetch(`/api/admin/metrics?days=${days}`, { cache: "no-store" })
       .then(async (response) => {
         const payload = await response.json();
@@ -573,7 +675,7 @@ export default function AdminPage() {
       .catch((reason) => setError(
         reason instanceof Error ? reason.message : "无法读取数据",
       ));
-  }, [days, reloadKey]);
+  }, [days, reloadKey, sessionReady]);
 
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();

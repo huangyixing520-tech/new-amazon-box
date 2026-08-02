@@ -146,7 +146,8 @@ type AssetRecord = {
 
 type InspirationCase = {
   id: string;
-  tab: "featured" | "image" | "video";
+  tab?: "featured" | "image" | "video";
+  tabs?: Array<"featured" | "image" | "video">;
   mode: GenerationMode;
   skill: string;
   title: string;
@@ -155,6 +156,8 @@ type InspirationCase = {
   images: string[];
   inputImages?: string[];
   layout: "suite" | "portrait" | "landscape";
+  orderByTab?: Partial<Record<"featured" | "image" | "video", number>>;
+  createdAt?: string;
   suite?: Partial<SuiteSettings>;
 };
 
@@ -3113,11 +3116,18 @@ function InspirationGallery({
   const [uploadedCases, setUploadedCases] = useState<InspirationCase[]>([]);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const galleryEndRef = useRef<HTMLDivElement>(null);
-  const allCases = [...uploadedCases, ...inspirationCases];
-  const visibleCases =
-    activeTab === "featured"
-      ? allCases
-      : allCases.filter((item) => item.tab === activeTab);
+  const visibleCases = [...uploadedCases, ...inspirationCases]
+    .filter((item) => (item.tabs ?? (item.tab ? [item.tab] : [])).includes(
+      activeTab as "featured" | "image" | "video",
+    ))
+    .sort((left, right) => {
+      const tab = activeTab as "featured" | "image" | "video";
+      const leftRank = left.orderByTab?.[tab]
+        ?? (left.createdAt ? -new Date(left.createdAt).getTime() : Number.MAX_SAFE_INTEGER);
+      const rightRank = right.orderByTab?.[tab]
+        ?? (right.createdAt ? -new Date(right.createdAt).getTime() : Number.MAX_SAFE_INTEGER);
+      return leftRank - rightRank;
+    });
 
   useEffect(() => {
     void fetch("/api/inspiration", { cache: "no-store" })
