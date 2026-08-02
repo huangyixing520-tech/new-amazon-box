@@ -3,7 +3,7 @@ import "./globals.css";
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
-  "https://mercato-web-production-d504.up.railway.app";
+  "https://mercato-ai-studio-production.up.railway.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
