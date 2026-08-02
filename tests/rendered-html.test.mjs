@@ -230,6 +230,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.doesNotMatch(page, /\{ id: "link-replica", label: "链接复刻" \}/);
   assert.match(page, /applyInspirationCase/);
   assert.match(page, /setHomeComposerMinimized\(false\)/);
+  assert.doesNotMatch(page, /home-composer-collapse/);
+  assert.doesNotMatch(page, /aria-label="收起输入框"/);
   assert.match(page, /已应用「\$\{item\.title\}」/);
   assert.doesNotMatch(page, /选择一个案例，把完整生成设置带回输入框/);
   assert.match(styles, /\.home-stage\s*\{[^}]*padding:\s*72px 28px 190px;/);

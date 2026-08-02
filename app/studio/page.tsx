@@ -4996,14 +4996,6 @@ export default function Home() {
                 onBrand={setBrand}
                 onSuite={setSuite}
               />
-              <button
-                type="button"
-                className="home-composer-collapse"
-                aria-label="收起输入框"
-                onClick={() => setHomeComposerMinimized(true)}
-              >
-                <CaretDown weight="bold" aria-hidden="true" />
-              </button>
             </div>
           ) : null}
           <QuickCapabilities onSelect={selectCapability} />

@@ -1256,9 +1256,6 @@ button:active, a:active { transform: translateY(1px); }
 .home-fixed-composer { position: fixed; width: min(calc(100vw - 310px), 1120px); left: calc(50% + 119px); bottom: 18px; z-index: 32; transform: translateX(-50%); transition: width .28s cubic-bezier(.16,1,.3,1); }
 .home-fixed-composer.is-minimized { width: min(calc(100vw - 390px), 920px); }
 .home-fixed-composer .composer { border-color: rgb(205 212 200 / .94); box-shadow: 0 24px 72px rgb(24 31 21 / .2); }
-.home-composer-collapse { position: absolute; width: 30px; height: 30px; top: 10px; right: 68px; z-index: 35; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 10px; background: rgb(247 249 245 / .92); color: var(--muted); cursor: pointer; }
-.home-composer-collapse:hover { background: var(--accent-soft); color: var(--text); }
-.home-composer-collapse svg { width: 15px; height: 15px; }
 @keyframes composer-minimize {
   from { opacity: .75; transform: translateY(10px) scale(.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
