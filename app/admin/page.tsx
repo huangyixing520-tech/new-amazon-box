@@ -18,6 +18,7 @@ import {
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import AccountPanel, { type ClientSession } from "../account-panel";
 import {
   DEFAULT_LANDING_CONTENT,
   type LandingContent,
@@ -550,7 +551,17 @@ export default function AdminPage() {
   const [landingLoading, setLandingLoading] = useState(false);
   const [landingSaving, setLandingSaving] = useState(false);
   const [landingStatus, setLandingStatus] = useState("");
+  const [session, setSession] = useState<ClientSession>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const resultsRequestId = useRef(0);
+
+  useEffect(() => {
+    void fetch("/api/auth/session", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : { user: null })
+      .then((payload) => setSession(payload.user ? payload : null))
+      .catch(() => setSession(null));
+  }, []);
 
   useEffect(() => {
     void fetch(`/api/admin/metrics?days=${days}`, { cache: "no-store" })
@@ -562,7 +573,7 @@ export default function AdminPage() {
       .catch((reason) => setError(
         reason instanceof Error ? reason.message : "无法读取数据",
       ));
-  }, [days]);
+  }, [days, reloadKey]);
 
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -728,7 +739,9 @@ export default function AdminPage() {
       {error ? (
         <section className="admin-state" role="alert">
           <strong>暂时无法进入后台</strong>
-          <p>{error}</p>
+          {error.includes("请先登录") ? (
+            <p><button type="button" className="admin-login-link" onClick={() => setAccountOpen(true)}>请先登录</button>，登录后将自动返回管理后台。</p>
+          ) : <p>{error}</p>}
         </section>
       ) : !data ? (
         <section className="admin-state">
@@ -1096,6 +1109,20 @@ export default function AdminPage() {
             </figcaption>
           </figure>
         </div>
+      ) : null}
+      {accountOpen ? (
+        <AccountPanel
+          session={session}
+          onClose={() => setAccountOpen(false)}
+          onSession={(nextSession) => {
+            setSession(nextSession);
+            if (nextSession) {
+              setAccountOpen(false);
+              setError("");
+              setReloadKey((value) => value + 1);
+            }
+          }}
+        />
       ) : null}
     </main>
   );
