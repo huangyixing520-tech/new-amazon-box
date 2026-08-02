@@ -3975,14 +3975,13 @@ export default function Home() {
         const event = JSON.parse(data);
         generated += event.choices?.[0]?.delta?.content ?? "";
       }
-      patchTurn(turn.id, { agentText: visibleAgentText(generated) });
     }
 
     const listing = parseListingJson(generated);
     if (!suiteImageCount) {
       patchTurn(turn.id, {
         listing,
-        agentText: visibleAgentText(generated),
+        agentText: "",
         phase: "生成完成",
         completed: generationCopy.listing.phases.length,
         running: false,
@@ -3992,7 +3991,7 @@ export default function Home() {
 
     patchTurn(turn.id, {
       listing,
-      agentText: visibleAgentText(generated),
+      agentText: "",
       phase: `Listing 已完成，正在生成 0 / ${suiteImageCount} 张套图`,
       completed: 1,
     });
@@ -4783,12 +4782,6 @@ export default function Home() {
                             <strong>生成失败</strong>
                             <p>{turn.error}</p>
                           </div>
-                        ) : null}
-                        {turn.kind === "listing" && turn.agentText && !ready ? (
-                          <pre className="agent-stream" aria-live="polite">
-                            {turn.agentText}
-                            <span aria-hidden="true">▋</span>
-                          </pre>
                         ) : null}
                         {turn.kind === "listing" ? (
                           <ListingResult
