@@ -3420,6 +3420,7 @@ export default function Home() {
   const uploadsRef = useRef<Upload[]>([]);
   const referenceVideoRef = useRef<Upload | null>(null);
   const sessionTracked = useRef(false);
+  const pendingConversationBottomRef = useRef<string | null>(null);
 
   const modeSkills = skillsByMode(mode);
   const selectedSkill =
@@ -4549,16 +4550,24 @@ export default function Home() {
     if (!conversations.length) return;
     const targetConversationId =
       conversationId ?? conversations[conversations.length - 1].id;
+    pendingConversationBottomRef.current = targetConversationId;
     setActiveConversationId(targetConversationId);
     setStudioComposerMinimized(false);
     setScreen("studio");
-    window.setTimeout(() => {
-      document.getElementById("conversation-top")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 0);
   };
+
+  useEffect(() => {
+    const targetConversationId = pendingConversationBottomRef.current;
+    if (screen !== "studio" || activeConversationId !== targetConversationId) {
+      return;
+    }
+
+    const bottomAnchor = document.getElementById("conversation-bottom");
+    if (!bottomAnchor) return;
+
+    bottomAnchor.scrollIntoView({ behavior: "auto", block: "end" });
+    pendingConversationBottomRef.current = null;
+  }, [activeConversationId, screen, turns]);
 
   const renameConversation = (conversationId: string, title: string) => {
     setConversations((current) =>
@@ -4853,6 +4862,11 @@ export default function Home() {
                 </article>
               );
             })}
+            <div
+              id="conversation-bottom"
+              className="conversation-bottom-anchor"
+              aria-hidden="true"
+            />
           </section>
 
           <div className={`studio-composer ${studioComposerMinimized ? "is-minimized" : ""}`}>

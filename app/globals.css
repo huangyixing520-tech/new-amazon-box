@@ -975,6 +975,7 @@ button:active, a:active { transform: translateY(1px); }
 
 .conversation-stream { margin-top: 34px; display: grid; gap: 56px; }
 .conversation-turn { scroll-margin-top: 28px; display: grid; gap: 22px; }
+.conversation-bottom-anchor { height: 1px; scroll-margin-bottom: 180px; }
 .user-message, .assistant-message { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: start; gap: 12px; }
 .user-message { grid-template-columns: minmax(0, 1fr) 34px; }
 .user-message .message-avatar { grid-column: 2; grid-row: 1; }

@@ -254,6 +254,11 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /function InspirationTemplatePreview/);
   assert.match(page, /data-testid="template-preview-page"/);
   assert.match(page, /aria-label="回到顶部"/);
+  assert.match(page, /pendingConversationBottomRef.current = targetConversationId/);
+  assert.match(page, /id="conversation-bottom"/);
+  assert.match(page, /bottomAnchor.scrollIntoView\(\{ behavior: "auto", block: "end" \}\)/);
+  assert.doesNotMatch(page, /conversation-top"\)\?\.scrollIntoView/);
+  assert.match(styles, /\.conversation-bottom-anchor\s*\{[^}]*scroll-margin-bottom:\s*180px;/);
   assert.match(page, /做同款/);
   assert.match(page, /商品图片/);
   assert.doesNotMatch(page, /\{ id: "listing", label: "Listing" \}/);
