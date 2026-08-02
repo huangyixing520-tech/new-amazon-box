@@ -18,6 +18,18 @@ export const createAssetsTableSql = `
 export const createAssetsDateIndexSql =
   "CREATE INDEX IF NOT EXISTS assets_created_at_idx ON assets(created_at DESC)";
 
+export const createInspirationCasesTableSql = `
+  CREATE TABLE IF NOT EXISTS inspiration_cases (
+    id TEXT PRIMARY KEY,
+    case_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL
+  )
+`;
+
+export const createInspirationCasesDateIndexSql =
+  "CREATE INDEX IF NOT EXISTS inspiration_cases_created_at_idx ON inspiration_cases(created_at DESC)";
+
 export const createUsersTableSql = `
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,

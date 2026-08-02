@@ -451,6 +451,58 @@ function LandingConfigEditor({
   );
 }
 
+function InspirationCaseUploader() {
+  const [title, setTitle] = useState("办公椅白底商品图精修");
+  const [description, setDescription] = useState("生成纯白背景商品图，保留商品结构与细节");
+  const [prompt, setPrompt] = useState("请帮我生成一张白底商品图。");
+  const [resultImage, setResultImage] = useState<File | null>(null);
+  const [inputImages, setInputImages] = useState<File[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState("");
+
+  async function publish() {
+    if (!resultImage || saving) return;
+    setSaving(true);
+    setStatus("");
+    try {
+      const body = new FormData();
+      body.set("title", title);
+      body.set("description", description);
+      body.set("prompt", prompt);
+      body.set("skill", "white-background-image");
+      body.set("resultImage", resultImage);
+      inputImages.forEach((file) => body.append("inputImages", file));
+      const response = await fetch("/api/admin/inspiration", { method: "POST", body });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "案例上传失败");
+      setStatus("案例已发布到优秀案例");
+      setResultImage(null);
+      setInputImages([]);
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : "案例上传失败");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="admin-inspiration-editor">
+      <header>
+        <div><h2>上传优秀案例</h2><p>结果图会展示在首页，输入图、提示词和 Skill 会保留在案例详情。</p></div>
+        <div>{status ? <span role="status">{status}</span> : null}<button type="button" onClick={() => void publish()} disabled={!resultImage || !title.trim() || !prompt.trim() || saving}>{saving ? "正在发布" : "上传并发布"}</button></div>
+      </header>
+      <div className="admin-inspiration-form">
+        <label>案例标题<input value={title} maxLength={80} onChange={(event) => setTitle(event.target.value)} /></label>
+        <label>案例说明<input value={description} maxLength={180} onChange={(event) => setDescription(event.target.value)} /></label>
+        <label>Prompt<textarea value={prompt} maxLength={1600} rows={4} onChange={(event) => setPrompt(event.target.value)} /></label>
+        <div className="admin-case-skill"><span>选择的 Skill</span><strong>商品白底图</strong></div>
+        <label className="admin-case-upload">结果图（首页展示）<input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" onChange={(event) => setResultImage(event.target.files?.[0] ?? null)} /><small>{resultImage?.name || "上传 1 张生成结果图"}</small></label>
+        <label className="admin-case-upload">输入图<input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif" onChange={(event) => setInputImages(Array.from(event.target.files ?? []).slice(0, 9))} /><small>{inputImages.length ? `已选择 ${inputImages.length} 张输入图` : "最多 9 张"}</small></label>
+      </div>
+    </section>
+  );
+}
+
 const skillNames: Record<string, string> = {
   "amazon-listing": "亚马逊 Listing",
   "listing-replica": "链接复刻",
@@ -479,7 +531,7 @@ function matchesResultFilter(turn: ResultTurn, filter: ResultFilter) {
 }
 
 export default function AdminPage() {
-  const [section, setSection] = useState<"overview" | "results" | "landing">(
+  const [section, setSection] = useState<"overview" | "results" | "landing" | "inspiration">(
     "overview",
   );
   const [days, setDays] = useState(30);
@@ -668,6 +720,9 @@ export default function AdminPage() {
         >
           <Article weight="bold" />落地页配置
         </button>
+        <button type="button" className={section === "inspiration" ? "active" : ""} onClick={() => setSection("inspiration")}>
+          <Sparkle weight="bold" />优秀案例
+        </button>
       </nav>
 
       {error ? (
@@ -814,6 +869,8 @@ export default function AdminPage() {
             onSave={saveLanding}
           />
         )
+      ) : section === "inspiration" ? (
+        <InspirationCaseUploader />
       ) : (
         <section className="admin-results-layout">
           <aside className="admin-user-directory">

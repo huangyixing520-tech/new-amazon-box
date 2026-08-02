@@ -153,6 +153,7 @@ type InspirationCase = {
   description: string;
   prompt: string;
   images: string[];
+  inputImages?: string[];
   layout: "suite" | "portrait" | "landscape";
   suite?: Partial<SuiteSettings>;
 };
@@ -3109,12 +3110,25 @@ function InspirationGallery({
   onOpen: (item: InspirationCase) => void;
 }) {
   const [activeTab, setActiveTab] = useState("featured");
+  const [uploadedCases, setUploadedCases] = useState<InspirationCase[]>([]);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const galleryEndRef = useRef<HTMLDivElement>(null);
+  const allCases = [...uploadedCases, ...inspirationCases];
   const visibleCases =
     activeTab === "featured"
-      ? inspirationCases
-      : inspirationCases.filter((item) => item.tab === activeTab);
+      ? allCases
+      : allCases.filter((item) => item.tab === activeTab);
+
+  useEffect(() => {
+    void fetch("/api/inspiration", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return [];
+        const payload = await response.json() as { cases?: InspirationCase[] };
+        return Array.isArray(payload.cases) ? payload.cases : [];
+      })
+      .then(setUploadedCases)
+      .catch(() => setUploadedCases([]));
+  }, []);
 
   useEffect(() => {
     const target = galleryEndRef.current;
@@ -3210,6 +3224,17 @@ function InspirationTemplatePreview({
           <h2>生成内容</h2>
           <p>{item.prompt}</p>
         </div>
+        {item.inputImages?.length ? (
+          <div className="template-preview-inputs">
+            <h2>输入图片</h2>
+            <div>
+              {item.inputImages.map((url) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={url} alt="案例输入图" key={url} />
+              ))}
+            </div>
+          </div>
+        ) : null}
         <dl className="template-preview-settings">
           <div><dt>技能</dt><dd>{skillLabel}</dd></div>
           {item.suite ? (
