@@ -7,6 +7,7 @@ import { ensureAssetsSchema } from "../../lib/assets-data";
 import {
   runtimeBindings,
 } from "../../lib/runtime";
+import { normalizedImageOutputDimensions } from "../../asset-output-spec.mjs";
 
 type AssetRow = {
   id: string;
@@ -93,6 +94,8 @@ export async function POST(request: Request) {
       createdAt?: string;
       role?: "input" | "output";
       slot?: number;
+      outputWidth?: number;
+      outputHeight?: number;
     };
     if (
       !body.sourceUrl ||
@@ -124,8 +127,31 @@ export async function POST(request: Request) {
     const objectKey = `generated/${user.id}/${body.conversationId}/${id}`;
     const createdAt = body.createdAt || new Date().toISOString();
     const source = await sourceBytes(body.sourceUrl);
-    await GENERATED_ASSETS.put(objectKey, source.buffer, {
-      httpMetadata: { contentType: source.mimeType },
+    const requestedDimensions = body.type === "image" && role === "output"
+      ? normalizedImageOutputDimensions(body.outputWidth, body.outputHeight)
+      : null;
+    let storedBuffer = source.buffer;
+    let storedMimeType = source.mimeType;
+    if (requestedDimensions) {
+      const { default: sharp } = await import("sharp");
+      const resized = await sharp(Buffer.from(source.buffer))
+        .rotate()
+        .resize({
+          width: requestedDimensions.width,
+          height: requestedDimensions.height,
+          fit: "cover",
+          position: "centre",
+        })
+        .png({ compressionLevel: 9 })
+        .toBuffer();
+      storedBuffer = resized.buffer.slice(
+        resized.byteOffset,
+        resized.byteOffset + resized.byteLength,
+      );
+      storedMimeType = "image/png";
+    }
+    await GENERATED_ASSETS.put(objectKey, storedBuffer, {
+      httpMetadata: { contentType: storedMimeType },
     });
     await DB.batch([
       DB.prepare(`
@@ -142,7 +168,7 @@ export async function POST(request: Request) {
         body.prompt || "",
         body.conversationId,
         body.turnId,
-        source.mimeType,
+        storedMimeType,
         role,
         slot,
         createdAt,

@@ -2421,54 +2421,42 @@ function ListingResult({
       </section>
 
       <section className="a-plus">
-        <p className="a-plus-label">From the brand</p>
-        <div className="a-plus-hero">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={generatedAPlusImages[0] ?? productImage}
-            alt={`${brand} 品牌场景`}
+        <p className="a-plus-label">Product description</p>
+        <div className="a-plus-copy-editor">
+          <textarea
+            className="editable-field a-plus-title-input"
+            value={aPlusHeadline}
+            onChange={(event) => {
+              setAPlusHeadline(event.target.value);
+              onListingChange(
+                listingDraft({ aPlusHeadline: event.target.value }),
+              );
+            }}
+            aria-label="编辑 A+ 标题"
+            rows={2}
           />
-          <div>
-            <span>{brand.toUpperCase()}</span>
-            <textarea
-              className="editable-field a-plus-title-input"
-              value={aPlusHeadline}
-              onChange={(event) => {
-                setAPlusHeadline(event.target.value);
-                onListingChange(
-                  listingDraft({ aPlusHeadline: event.target.value }),
-                );
-              }}
-              aria-label="编辑 A+ 标题"
-              rows={2}
-            />
-            <textarea
-              className="editable-field description-input"
-              value={description}
-              onChange={(event) => {
-                setDescription(event.target.value);
-                onListingChange(
-                  listingDraft({ description: event.target.value }),
-                );
-              }}
-              aria-label="编辑商品描述"
-              data-testid="listing-description-input"
-              rows={5}
-            />
-          </div>
+          <textarea
+            className="editable-field description-input"
+            value={description}
+            onChange={(event) => {
+              setDescription(event.target.value);
+              onListingChange(
+                listingDraft({ description: event.target.value }),
+              );
+            }}
+            aria-label="编辑商品描述"
+            data-testid="listing-description-input"
+            rows={4}
+          />
         </div>
-        {featureStats.length ? (
-          <div className="a-plus-features">
-            {featureStats.map(([label, value]) => (
-              <div key={label}><b>{label}</b><span>{value}</span></div>
-            ))}
-          </div>
-        ) : null}
-        {generatedAPlusImages.length > 1 ? (
-          <div className="listing-a-plus-gallery" aria-label="生成的 A+ 图片">
-            {generatedAPlusImages.slice(1).map((image, index) => (
+        {generatedAPlusImages.length ? (
+          <div
+            className={`listing-a-plus-gallery ${suite.aPlusType === "standard" ? "is-standard" : "is-advanced"}`}
+            aria-label="生成的 A+ 图片"
+          >
+            {generatedAPlusImages.map((image, index) => (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={image} alt={`A+ 图片 ${index + 2}`} key={`${image}-${index}`} />
+              <img src={image} alt={`A+ 图片 ${index + 1}`} key={`${image}-${index}`} />
             ))}
           </div>
         ) : null}

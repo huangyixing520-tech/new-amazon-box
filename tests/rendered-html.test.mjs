@@ -7,6 +7,7 @@ import {
   imageOutputSpec,
   singleImageTaskBoundary,
 } from "../app/image-output-spec.mjs";
+import { normalizedImageOutputDimensions } from "../app/asset-output-spec.mjs";
 
 test("maps every suite slot to one task and the correct final canvas", () => {
   const advanced = imageOutputSpec({
@@ -29,6 +30,18 @@ test("maps every suite slot to one task and the correct final canvas", () => {
   );
   assert.match(singleImageTaskBoundary, /one independent image task/i);
   assert.match(singleImageTaskBoundary, /Never create a collage/);
+});
+
+test("asset output dimensions accept only supported exact canvases", () => {
+  assert.deepEqual(normalizedImageOutputDimensions(1464, 600), {
+    width: 1464,
+    height: 600,
+  });
+  assert.deepEqual(normalizedImageOutputDimensions(960, 600), {
+    width: 960,
+    height: 600,
+  });
+  assert.equal(normalizedImageOutputDimensions(1536, 1024), null);
 });
 
 async function render(pathname = "/") {
@@ -200,9 +213,12 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /image-result/);
   assert.match(page, /single-image-result/);
   assert.match(page, /video-result/);
+  assert.match(styles, /\.listing-a-plus-gallery\s*\{[^}]*flex-direction:\s*column;/);
+  assert.match(styles, /\.listing-a-plus-gallery\.is-advanced\s*\{[^}]*max-width:\s*1464px;/);
+  assert.match(styles, /\.listing-a-plus-gallery\.is-standard\s*\{[^}]*max-width:\s*960px;/);
   assert.match(
     styles,
-    /\.listing-a-plus-gallery img\s*\{[^}]*height:\s*min\(320px, 38vw\);[^}]*object-fit:\s*contain;/,
+    /\.listing-a-plus-gallery img\s*\{[^}]*height:\s*auto;[^}]*object-fit:\s*contain;/,
   );
   assert.match(styles, /\.listing-loader-product\s*\{[^}]*grid-template-columns:/);
   assert.match(styles, /\.listing-loader-gallery\s*\{[^}]*grid-template-columns:/);
@@ -289,7 +305,9 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /<think>\[\\s\\S\]/);
   assert.match(page, /AI-generated draft/);
   assert.match(page, /Review all claims before publishing/);
-  assert.match(page, /featureStats\.map/);
+  assert.match(page, /generatedAPlusImages\.map/);
+  assert.match(page, /suite\.aPlusType === "standard"/);
+  assert.doesNotMatch(page, /generatedAPlusImages\.slice\(1\)/);
   assert.match(page, /\^not confirmed\$/i);
   assert.doesNotMatch(page, /<div><b>20 BAR<\/b>/);
   assert.doesNotMatch(page, /1,284 ratings/);
@@ -397,9 +415,11 @@ test("ships the complete generation flow and its assets", async () => {
     }).providerSize,
     "1024x1536",
   );
-  assert.doesNotMatch(assetRoute, /optimizeImage/);
-  assert.match(assetRoute, /source\.buffer/);
-  assert.match(assetRoute, /source\.mimeType/);
+  assert.match(assetRoute, /normalizedImageOutputDimensions/);
+  assert.match(assetRoute, /fit:\s*"cover"/);
+  assert.match(assetRoute, /position:\s*"centre"/);
+  assert.match(assetRoute, /storedBuffer/);
+  assert.match(assetRoute, /storedMimeType/);
   assert.match(assetRoute, /\?preview=1/);
   assert.match(assetRoute, /download=1&format=png/);
   assert.match(assetDetailRoute, /await import\("sharp"\)/);
