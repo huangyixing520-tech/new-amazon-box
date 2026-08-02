@@ -666,6 +666,15 @@ function progressTotal(turn: Turn) {
   return turn.imageTaskCount ?? generationCopy[turn.kind].phases.length;
 }
 
+function isListingReady(turn: Turn) {
+  if (turn.kind !== "listing" || turn.running || !turn.listing || turn.error) {
+    return false;
+  }
+  const expectedImages = turn.imageTaskCount ?? 0;
+  const generatedImages = (turn.images ?? []).filter(Boolean).length;
+  return generatedImages === expectedImages && !(turn.failedImageSlots?.length);
+}
+
 const generationCopy: Record<
   SkillKind,
   { title: string; count: string; phases: string[] }
@@ -2054,12 +2063,54 @@ function ListingResult({
 
   if (!ready) {
     return (
-      <div className="listing-shell listing-loading" data-testid="listing-result">
-        <div className="listing-loader-head" />
-        <div className="listing-loader-grid">
-          <i />
-          <i />
-          <i />
+      <div
+        className="listing-shell listing-loading"
+        data-testid="listing-loading-skeleton"
+        aria-label="正在生成 Amazon Listing"
+        aria-busy="true"
+      >
+        <div className="listing-loader-nav">
+          <i className="listing-loader-logo" />
+          <i className="listing-loader-delivery" />
+          <i className="listing-loader-search" />
+          <i className="listing-loader-account" />
+          <i className="listing-loader-cart" />
+        </div>
+        <div className="listing-loader-subnav">
+          <i /><i /><i /><i /><i />
+        </div>
+        <div className="listing-loader-toolbar">
+          <i /><i />
+        </div>
+        <div className="listing-loader-breadcrumb"><i /></div>
+        <div className="listing-loader-product">
+          <div className="listing-loader-gallery">
+            <div className="listing-loader-thumbs"><i /><i /><i /><i /></div>
+            <i className="listing-loader-image" />
+          </div>
+          <div className="listing-loader-copy">
+            <i className="loader-line loader-line-title" />
+            <i className="loader-line loader-line-title-short" />
+            <i className="loader-line loader-line-store" />
+            <i className="loader-line loader-line-rating" />
+            <hr />
+            <i className="loader-line loader-line-price" />
+            <i className="loader-line loader-line-meta" />
+            <i className="loader-line loader-line-swatch" />
+            <i className="loader-line loader-line-heading" />
+            <i className="loader-line" />
+            <i className="loader-line" />
+            <i className="loader-line loader-line-short" />
+          </div>
+          <div className="listing-loader-buybox">
+            <i className="loader-line loader-line-price" />
+            <i className="loader-line" />
+            <i className="loader-line loader-line-short" />
+            <i className="listing-loader-button" />
+            <i className="listing-loader-button secondary" />
+            <i className="loader-line" />
+            <i className="loader-line loader-line-short" />
+          </div>
         </div>
       </div>
     );
@@ -4609,7 +4660,7 @@ export default function Home() {
               const generation = generationCopy[turn.kind];
               const total = progressTotal(turn);
               const ready = turn.kind === "listing"
-                ? Boolean(turn.listing)
+                ? isListingReady(turn)
                 : turn.completed === total && !turn.running;
               return (
                 <article className="conversation-turn" id={turn.id} key={turn.id} data-testid={`conversation-turn-${index}`}>

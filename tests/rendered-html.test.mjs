@@ -186,6 +186,17 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /openBrandMenu === "font-style"/);
   assert.doesNotMatch(page, /<select[\s\S]*?data-testid="font-style-select"/);
   assert.match(page, /listing-result/);
+  assert.match(page, /function isListingReady\(turn: Turn\)/);
+  assert.match(
+    page,
+    /generatedImages === expectedImages && !\(turn\.failedImageSlots\?\.length\)/,
+  );
+  assert.match(page, /data-testid="listing-loading-skeleton"/);
+  assert.match(page, /listing-loader-nav/);
+  assert.match(page, /listing-loader-gallery/);
+  assert.match(page, /listing-loader-copy/);
+  assert.match(page, /listing-loader-buybox/);
+  assert.doesNotMatch(page, /listing-loader-grid/);
   assert.match(page, /image-result/);
   assert.match(page, /single-image-result/);
   assert.match(page, /video-result/);
@@ -193,6 +204,9 @@ test("ships the complete generation flow and its assets", async () => {
     styles,
     /\.listing-a-plus-gallery img\s*\{[^}]*height:\s*min\(320px, 38vw\);[^}]*object-fit:\s*contain;/,
   );
+  assert.match(styles, /\.listing-loader-product\s*\{[^}]*grid-template-columns:/);
+  assert.match(styles, /\.listing-loader-gallery\s*\{[^}]*grid-template-columns:/);
+  assert.match(styles, /\.listing-loader-buybox\s*\{[^}]*border:/);
   assert.match(
     styles,
     /\.asset-wide \.asset-visual img\s*\{[^}]*height:\s*100%;[^}]*aspect-ratio:\s*auto;[^}]*object-fit:\s*contain;/,

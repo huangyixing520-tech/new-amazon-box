@@ -1141,10 +1141,42 @@ button:active, a:active { transform: translateY(1px); }
 .a-plus-features div { padding: 25px; display: grid; gap: 5px; text-align: center; }
 .a-plus-features b { color: #d2ed7c; font-size: 24px; }
 .a-plus-features span { color: #c4c9c2; font-size: 10px; }
-.listing-loading { min-height: 720px; padding: 22px; }
-.listing-loader-head { height: 58px; border-radius: 5px; background: #18222e; }
-.listing-loader-grid { margin-top: 36px; display: grid; grid-template-columns: 1fr 1fr 240px; gap: 24px; }
-.listing-loader-grid i { height: 520px; display: block; border-radius: 10px; background: linear-gradient(110deg,#edf1e7 8%,#e2ebd3 20%,#eff2ea 34%); background-size: 260% 100%; animation: shimmer 3.8s cubic-bezier(.45,0,.55,1) infinite; }
+.listing-loading { min-height: 720px; }
+.listing-loading i { display: block; background: linear-gradient(105deg, #e7ebe4 8%, #dce5d2 20%, #e8ece5 34%); background-size: 260% 100%; animation: shimmer 4.8s cubic-bezier(.45,0,.55,1) infinite; }
+.listing-loader-nav { min-height: 60px; padding: 9px 14px; display: grid; grid-template-columns: 84px 88px minmax(240px, 1fr) 90px 50px; align-items: center; gap: 15px; background: #131921; }
+.listing-loader-nav i { height: 27px; border-radius: 5px; background: linear-gradient(105deg, #293542 8%, #344456 20%, #293542 34%); background-size: 260% 100%; }
+.listing-loader-nav .listing-loader-logo { height: 33px; }
+.listing-loader-nav .listing-loader-delivery { height: 22px; }
+.listing-loader-nav .listing-loader-search { height: 40px; background: linear-gradient(90deg, #e7e7e7 0 10%, #f5f5f5 10% 92%, #e9aa58 92%); animation: none; }
+.listing-loader-nav .listing-loader-account { height: 28px; }
+.listing-loader-nav .listing-loader-cart { height: 22px; }
+.listing-loader-subnav { min-height: 37px; padding: 0 19px; display: flex; align-items: center; gap: 22px; background: #232f3e; }
+.listing-loader-subnav i { width: 54px; height: 9px; border-radius: 4px; background: #435062; animation: none; }
+.listing-loader-toolbar { min-height: 48px; padding: 9px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e7e7e7; background: #f7f8f8; }
+.listing-loader-toolbar i:first-child { width: 230px; height: 10px; border-radius: 5px; }
+.listing-loader-toolbar i:last-child { width: 150px; height: 28px; border-radius: 7px; }
+.listing-loader-breadcrumb { padding: 16px 22px 4px; }
+.listing-loader-breadcrumb i { width: min(330px, 48%); height: 9px; border-radius: 5px; }
+.listing-loader-product { padding: 20px 22px 36px; display: grid; grid-template-columns: minmax(360px, 1.05fr) minmax(330px, 1fr) 240px; gap: 26px; align-items: start; }
+.listing-loader-gallery { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 14px; }
+.listing-loader-thumbs { display: grid; align-content: start; gap: 9px; }
+.listing-loader-thumbs i { width: 54px; height: 54px; border-radius: 7px; }
+.listing-loader-image { width: 100%; min-height: 450px; border-radius: 4px; }
+.listing-loader-copy { display: grid; align-content: start; gap: 11px; padding-top: 2px; }
+.listing-loader-copy hr { width: 100%; margin: 3px 0 4px; border: 0; border-top: 1px solid #e7e7e7; }
+.loader-line { width: 100%; height: 11px; border-radius: 6px; }
+.loader-line-title { height: 21px; }
+.loader-line-title-short { width: 78%; height: 21px; }
+.loader-line-store { width: 34%; height: 9px; margin-top: 7px; }
+.loader-line-rating { width: 58%; height: 9px; }
+.loader-line-price { width: 38%; height: 30px; margin: 5px 0; }
+.loader-line-meta { width: 72%; height: 9px; }
+.loader-line-swatch { width: 54px; height: 54px; margin: 7px 0; border-radius: 6px; }
+.loader-line-heading { width: 31%; height: 14px; margin-top: 5px; }
+.loader-line-short { width: 68%; }
+.listing-loader-buybox { min-height: 320px; padding: 16px; display: grid; align-content: start; gap: 13px; border: 1px solid #d5d9d9; border-radius: 9px; }
+.listing-loader-button { width: 100%; height: 32px; border-radius: 99px; background: linear-gradient(105deg, #f5d34a 8%, #ead57a 20%, #f5d34a 34%) !important; }
+.listing-loader-button.secondary { background: linear-gradient(105deg, #efb04b 8%, #e8bf79 20%, #efb04b 34%) !important; }
 
 .result-section-head { margin-bottom: 18px; display: flex; align-items: end; justify-content: space-between; gap: 22px; }
 .result-section-head span { color: var(--muted); font-size: 9px; font-weight: 780; letter-spacing: .12em; }
@@ -2117,6 +2149,8 @@ button:active, a:active { transform: translateY(1px); }
 @media (max-width: 1280px) {
   .market-product { grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr); }
   .buy-box { grid-column: 2; }
+  .listing-loader-product { grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr); }
+  .listing-loader-buybox { grid-column: 2; }
   .market-main-image { min-height: 420px; }
   .market-main-image img { height: 390px; }
   .asset-card { grid-column: span 4; }
@@ -2141,6 +2175,8 @@ button:active, a:active { transform: translateY(1px); }
   .market-nav { grid-template-columns: auto auto 1fr; }
   .market-product { grid-template-columns: 1fr; }
   .buy-box { grid-column: auto; }
+  .listing-loader-product { grid-template-columns: 1fr; }
+  .listing-loader-buybox { grid-column: auto; }
   .video-layout { grid-template-columns: 1fr; }
   .video-stage { min-height: 580px; }
   .brand-gene-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2410,8 +2446,10 @@ button:active, a:active { transform: translateY(1px); }
   .a-plus-hero { min-height: 390px; }
   .a-plus-hero div { width: 86%; padding: 50px 26px; }
   .a-plus-features { grid-template-columns: 1fr; }
-  .listing-loader-grid { grid-template-columns: 1fr; }
-  .listing-loader-grid i:not(:first-child) { display: none; }
+  .listing-loader-nav { grid-template-columns: 70px minmax(150px, 1fr) 44px; }
+  .listing-loader-delivery, .listing-loader-account { display: none !important; }
+  .listing-loader-product { grid-template-columns: 1fr; }
+  .listing-loader-copy, .listing-loader-buybox { display: none; }
   .asset-card, .asset-card.asset-wide { grid-column: 1 / -1; }
   .seeding-suite .asset-card { grid-column: 1 / -1; }
   .single-asset-visual { height: min(380px, 64vh); }
