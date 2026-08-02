@@ -125,6 +125,10 @@ button:active, a:active { transform: translateY(1px); }
 .upload-deck { position: relative; width: 136px; height: 112px; flex: 0 0 136px; }
 .upload-deck.has-uploads.is-expanded,
 .upload-deck.has-uploads:focus-within { z-index: 30; }
+.upload-deck.has-uploads.is-expanded,
+.upload-deck.has-uploads:has(.upload-deck-preview:focus-visible) {
+  width: var(--deck-expanded-width, 136px);
+}
 .upload-deck-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .upload-deck-empty,
 .upload-deck-add-card {

@@ -238,8 +238,13 @@ test("ships the complete generation flow and its assets", async () => {
     /\.upload-deck\.has-uploads:hover \.upload-deck-add-card/,
   );
   assert.match(styles, /\.upload-deck\.is-expanded \.upload-deck-card/);
+  assert.match(
+    styles,
+    /\.upload-deck\.has-uploads\.is-expanded,[\s\S]*?\.upload-deck\.has-uploads:has\(\.upload-deck-preview:focus-visible\)\s*\{[^}]*width:\s*var\(--deck-expanded-width, 136px\)/,
+  );
   assert.match(styles, /rotate\(var\(--deck-rotation\)\)/);
   assert.match(page, /"--deck-spread":\s*"84px"/);
+  assert.match(page, /"--deck-expanded-width":\s*`\$\{expandedDeckWidth\}px`/);
   assert.match(page, /onPointerEnter=\{\(\) => setExpanded\(true\)\}/);
   assert.match(page, /onPointerLeave=\{\(\) => setExpanded\(false\)\}/);
   assert.match(page, /data-testid="video-replica-materials"/);

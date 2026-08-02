@@ -1144,6 +1144,12 @@ function UploadDeck({
   const inputRef = useRef<HTMLInputElement>(null);
   const [expanded, setExpanded] = useState(false);
   const atLimit = uploads.length >= MAX_UPLOADS;
+  const expandedDeckWidth =
+    uploads.length > 1
+      ? (atLimit
+          ? 10 + (uploads.length - 1) * 84 + 74
+          : 13 + uploads.length * 84 + 72) + 16
+      : 136;
 
   const openFilePicker = () => {
     if (!atLimit) inputRef.current?.click();
@@ -1161,6 +1167,7 @@ function UploadDeck({
       style={
         {
           "--deck-spread": "84px",
+          "--deck-expanded-width": `${expandedDeckWidth}px`,
         } as CSSProperties
       }
     >
