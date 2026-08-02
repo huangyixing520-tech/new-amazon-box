@@ -444,9 +444,9 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(styles, /\.composer-minimized/);
   assert.match(generateRoute, /Gulf Cooperation Council \/ Middle East/);
   assert.match(generateRoute, /Portuguese/);
-  assert.match(generateRoute, /never as "one-touch operation"/);
-  assert.match(generateRoute, /Only return salePrice or listPrice when the user explicitly supplied/);
-  assert.match(generateRoute, /otherwise return an empty string/);
+  assert.match(generateRoute, /Do not invent certifications[\s\S]*operating mechanism, price/);
+  assert.match(generateRoute, /"salePrice": "user-supplied numeric string or empty string"/);
+  assert.match(generateRoute, /"listPrice": "user-supplied numeric string or empty string"/);
   assert.match(generateRoute, /userApiKey\(request\)/);
   assert.doesNotMatch(generateRoute, /process\.env\.DOLA_API_KEY/);
   assert.doesNotMatch(generateRoute, /DOLA_API_KEY\s*=\s*["'][^"']+["']/);
@@ -528,6 +528,18 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(taskBackend, /TASK_CONCURRENCY/);
   assert.match(taskBackend, /USER_KEY_ENCRYPTION_SECRET/);
   assert.match(taskBackend, /x-mercato-upstream-key/);
+});
+
+test("returns the home composer to its inline position at the top", async () => {
+  const [page, styles] = await Promise.all([
+    readFile(new URL("../app/studio/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /homeComposerAnchor/);
+  assert.match(page, /setHomeComposerMinimized\(!entry\.isIntersecting\)/);
+  assert.match(page, /aria-hidden=\{homeComposerMinimized \|\| undefined\}/);
+  assert.match(styles, /\.home-inline-composer\.is-docked/);
 });
 
 test("accepts common direct and nested image response shapes", () => {

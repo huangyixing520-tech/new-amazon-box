@@ -3437,6 +3437,7 @@ export default function Home() {
   const [studioComposerMinimized, setStudioComposerMinimized] = useState(false);
   const [homeComposerMinimized, setHomeComposerMinimized] = useState(false);
   const [selectedInspiration, setSelectedInspiration] = useState<InspirationCase | null>(null);
+  const homeComposerAnchor = useRef<HTMLDivElement | null>(null);
   const controllers = useRef<Map<string, AbortController>>(new Map());
   const persistenceTimers = useRef<Map<string, number>>(new Map());
   const turnsRef = useRef<Turn[]>([]);
@@ -3472,6 +3473,19 @@ export default function Home() {
   useEffect(() => {
     uploadsRef.current = uploads;
   }, [uploads]);
+
+  useEffect(() => {
+    if (screen !== "home" || selectedInspiration) return;
+    const anchor = homeComposerAnchor.current;
+    if (!anchor) return;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      setHomeComposerMinimized(!entry.isIntersecting);
+    }, { threshold: 0.01 });
+
+    observer.observe(anchor);
+    return () => observer.disconnect();
+  }, [screen, selectedInspiration]);
 
   useEffect(() => {
     referenceVideoRef.current = referenceVideo;
@@ -5020,8 +5034,11 @@ export default function Home() {
               setHomeComposerMinimized(false);
             }}>使用示例商品</button>
           </header>
-          {!homeComposerMinimized ? (
-            <div className="home-inline-composer">
+          <div
+            ref={homeComposerAnchor}
+            className={`home-inline-composer${homeComposerMinimized ? " is-docked" : ""}`}
+            aria-hidden={homeComposerMinimized || undefined}
+          >
               <Composer
                 key={`home-inline-composer-${mode}`}
                 compact
@@ -5051,8 +5068,7 @@ export default function Home() {
                 onBrand={setBrand}
                 onSuite={setSuite}
               />
-            </div>
-          ) : null}
+          </div>
           <QuickCapabilities onSelect={selectCapability} />
           <InspirationGallery onOpen={setSelectedInspiration} />
         </div>
@@ -5086,7 +5102,6 @@ export default function Home() {
             onLanguage={setLanguage}
             onBrand={setBrand}
             onSuite={setSuite}
-            onExpand={() => setHomeComposerMinimized(false)}
           />
         </div> : null}
         </>}

@@ -921,6 +921,7 @@ button:active, a:active { transform: translateY(1px); }
 .home-copy h1 { margin: 0; text-align: center; white-space: nowrap; font-size: clamp(24px, 2.2vw, 32px); line-height: 1; letter-spacing: -.045em; }
 .home-discovery-head .sample-button { position: absolute; right: 0; top: 50%; border-color: rgb(216 221 213 / .88); background: rgb(255 255 255 / .84); color: var(--muted); transform: translateY(-50%); }
 .home-inline-composer { position: relative; width: min(1100px, 100%); margin: 16px auto 0; }
+.home-inline-composer.is-docked { visibility: hidden; pointer-events: none; }
 .home-inline-composer .composer { border-color: rgb(205 212 200 / .94); box-shadow: 0 18px 48px rgb(24 31 21 / .12); }
 .home-inline-composer .composer-body { min-height: 76px; padding-top: 12px; }
 .home-inline-composer .composer-input-row { min-height: 78px; }
