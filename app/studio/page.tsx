@@ -3455,15 +3455,24 @@ export default function Home() {
   }, [referenceVideo]);
 
   useEffect(() => {
-    if (screen !== "studio") return;
-    const minimizeComposer = () => setStudioComposerMinimized(true);
+    if (screen !== "studio" && screen !== "home") return;
+    if (screen === "home" && selectedInspiration) return;
+    const minimizeComposer = (event: WheelEvent | TouchEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(".option-popover, .brand-gene-panel, .upload-preview-backdrop")
+      ) return;
+      if (screen === "home") setHomeComposerMinimized(true);
+      else setStudioComposerMinimized(true);
+    };
     window.addEventListener("wheel", minimizeComposer, { passive: true });
     window.addEventListener("touchmove", minimizeComposer, { passive: true });
     return () => {
       window.removeEventListener("wheel", minimizeComposer);
       window.removeEventListener("touchmove", minimizeComposer);
     };
-  }, [screen]);
+  }, [screen, selectedInspiration]);
 
   useEffect(() => {
     void fetch("/api/auth/session", { cache: "no-store" })
@@ -3707,6 +3716,19 @@ export default function Home() {
       window.requestAnimationFrame(() => {
         document.getElementById("main-prompt")?.focus();
       });
+    });
+  };
+
+  const expandHomeComposer = () => {
+    setHomeComposerMinimized(false);
+    document.getElementById("create")?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+      block: "start",
+    });
+    window.requestAnimationFrame(() => {
+      document.getElementById("main-prompt")?.focus({ preventScroll: true });
     });
   };
 
@@ -5070,7 +5092,7 @@ export default function Home() {
             onLanguage={setLanguage}
             onBrand={setBrand}
             onSuite={setSuite}
-            onExpand={() => setHomeComposerMinimized(false)}
+            onExpand={expandHomeComposer}
           />
         </div> : null}
         </>}

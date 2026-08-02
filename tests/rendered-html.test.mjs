@@ -274,7 +274,21 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(styles, /\.template-preview-use\s*\{[^}]*background:\s*var\(--accent\)/);
   assert.match(styles, /\.inspiration-scroll-top\s*\{[^}]*position:\s*fixed;/);
   assert.match(styles, /\.home-fixed-composer\s*\{[^}]*position:\s*fixed;/);
-  assert.match(styles, /\.composer-minimized\s*\{[^}]*min-height:\s*92px;/);
+  assert.match(
+    styles,
+    /\.home-inline-composer \.option-popover,[\s\S]*?top:\s*calc\(100% \+ 10px\);\s*bottom:\s*auto;/,
+  );
+  assert.match(
+    styles,
+    /\.home-inline-composer \.brand-gene-panel\s*\{[^}]*top:\s*calc\(100% \+ 10px\);\s*bottom:\s*auto;/,
+  );
+  assert.match(page, /screen === "home"\) setHomeComposerMinimized\(true\)/);
+  assert.match(page, /const expandHomeComposer = \(\) =>/);
+  assert.match(styles, /\.composer-minimized\s*\{[^}]*min-height:\s*104px;[^}]*padding:\s*13px 16px 17px;/);
+  assert.match(
+    styles,
+    /\.composer-minimized \.upload-deck\s*\{[^}]*transform-origin:\s*left top;/,
+  );
   assert.match(styles, /\.video-replica-materials\s*\{/);
   assert.match(styles, /\.reference-video-card\s*\{/);
   assert.match(page, /\/api\/demo-video/);
