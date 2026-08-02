@@ -3444,6 +3444,7 @@ export default function Home() {
   const uploadsRef = useRef<Upload[]>([]);
   const referenceVideoRef = useRef<Upload | null>(null);
   const sessionTracked = useRef(false);
+  const pendingHomeConversationId = useRef<string | null>(null);
 
   const modeSkills = skillsByMode(mode);
   const selectedSkill =
@@ -4256,7 +4257,7 @@ export default function Home() {
     }
   };
 
-  const startGeneration = async () => {
+  const startGeneration = async (origin: "home" | "conversation") => {
     if (selectedSkill.id === "listing-replica" && !isHttpUrl(prompt)) {
       showNotice("请先输入有效的商品详情页链接");
       return;
@@ -4289,11 +4290,16 @@ export default function Home() {
     }
     const id = `turn-${crypto.randomUUID()}`;
     const taskPrompt = prompt.trim() || selectedSkill.starter;
-    const conversationId =
-      activeConversationId ??
-      `conversation-${crypto.randomUUID()}`;
+    const pendingConversationId =
+      origin === "home" ? pendingHomeConversationId.current : null;
+    const conversationId = origin === "home"
+      ? pendingConversationId ?? `conversation-${crypto.randomUUID()}`
+      : activeConversationId ?? `conversation-${crypto.randomUUID()}`;
     let conversationToPersist: Conversation | undefined;
-    if (!activeConversationId) {
+    const existingConversation = conversations.find(
+      (conversation) => conversation.id === conversationId,
+    );
+    if (!existingConversation) {
       conversationToPersist = {
         id: conversationId,
         title: taskPrompt.slice(0, 22),
@@ -4302,12 +4308,10 @@ export default function Home() {
       setConversations((current) => [...current, conversationToPersist!]);
       setActiveConversationId(conversationId);
     } else {
-      const currentConversation = conversations.find(
-        (conversation) => conversation.id === conversationId,
-      );
-      if (currentConversation?.title === "新对话") {
+      setActiveConversationId(conversationId);
+      if (existingConversation.title === "新对话") {
         conversationToPersist = {
-          ...currentConversation,
+          ...existingConversation,
           title: taskPrompt.slice(0, 22),
         };
         setConversations((current) =>
@@ -4319,6 +4323,7 @@ export default function Home() {
         );
       }
     }
+    if (origin === "home") pendingHomeConversationId.current = null;
     const configuredImageCount = hasSuiteSettings(selectedSkill.id)
       ? suiteTaskCount(selectedSkill.id, suite, taskPrompt)
       : imageTaskCount(selectedKind, taskPrompt);
@@ -4563,6 +4568,7 @@ export default function Home() {
     if (!conversations.length) return;
     const targetConversationId =
       conversationId ?? conversations[conversations.length - 1].id;
+    pendingHomeConversationId.current = null;
     setActiveConversationId(targetConversationId);
     setStudioComposerMinimized(false);
     setScreen("studio");
@@ -4598,6 +4604,9 @@ export default function Home() {
   };
 
   const deleteConversation = (conversationId: string) => {
+    if (pendingHomeConversationId.current === conversationId) {
+      pendingHomeConversationId.current = null;
+    }
     turns
       .filter((turn) => turn.conversationId === conversationId)
       .forEach((turn) => {
@@ -4649,9 +4658,16 @@ export default function Home() {
     void persistConversation(conversation).catch(() =>
       showNotice("新对话暂未保存，请检查网络"),
     );
+    pendingHomeConversationId.current = id;
     setActiveConversationId(id);
     setScreen("home");
     window.setTimeout(() => document.getElementById("main-prompt")?.focus(), 0);
+  };
+
+  const openHome = () => {
+    pendingHomeConversationId.current = null;
+    setActiveConversationId(null);
+    setScreen("home");
   };
 
   if (screen === "studio") {
@@ -4662,7 +4678,7 @@ export default function Home() {
           conversations={conversations}
           turns={turns}
           activeConversationId={activeConversationId}
-          onHome={() => setScreen("home")}
+          onHome={openHome}
           onConversation={openConversation}
           onAssets={() => setScreen("assets")}
           onNewConversation={openNewConversation}
@@ -4899,7 +4915,7 @@ export default function Home() {
               onReferenceVideo={handleReferenceVideo}
               onRemoveReferenceVideo={removeReferenceVideo}
               onRemove={removeUpload}
-              onSend={startGeneration}
+              onSend={() => startGeneration("conversation")}
               onMode={changeMode}
               onSkill={changeSkill}
               onRegion={setRegion}
@@ -4948,7 +4964,7 @@ export default function Home() {
           conversations={conversations}
           turns={turns}
           activeConversationId={activeConversationId}
-          onHome={() => setScreen("home")}
+          onHome={openHome}
           onConversation={openConversation}
           onAssets={() => setScreen("assets")}
           onNewConversation={openNewConversation}
@@ -5003,7 +5019,7 @@ export default function Home() {
         conversations={conversations}
         turns={turns}
         activeConversationId={activeConversationId}
-        onHome={() => setScreen("home")}
+        onHome={openHome}
         onConversation={openConversation}
         onAssets={() => setScreen("assets")}
         onNewConversation={openNewConversation}
@@ -5060,7 +5076,7 @@ export default function Home() {
                 onReferenceVideo={handleReferenceVideo}
                 onRemoveReferenceVideo={removeReferenceVideo}
                 onRemove={removeUpload}
-                onSend={startGeneration}
+                onSend={() => startGeneration("home")}
                 onMode={changeMode}
                 onSkill={changeSkill}
                 onRegion={setRegion}
@@ -5095,7 +5111,7 @@ export default function Home() {
             onReferenceVideo={handleReferenceVideo}
             onRemoveReferenceVideo={removeReferenceVideo}
             onRemove={removeUpload}
-            onSend={startGeneration}
+            onSend={() => startGeneration("home")}
             onMode={changeMode}
             onSkill={changeSkill}
             onRegion={setRegion}

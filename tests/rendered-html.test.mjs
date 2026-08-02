@@ -362,6 +362,11 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /<span className="brand-mark" aria-hidden="true">♥<\/span>/);
   assert.match(page, /<ArrowUp aria-hidden="true" weight="bold" \/>/);
   assert.match(page, /添加新对话/);
+  assert.match(page, /startGeneration = async \(origin: "home" \| "conversation"\)/);
+  assert.match(page, /origin === "home"[\s\S]*pendingHomeConversationId\.current/);
+  assert.match(page, /onSend=\{\(\) => startGeneration\("home"\)\}/);
+  assert.match(page, /onSend=\{\(\) => startGeneration\("conversation"\)\}/);
+  assert.match(page, /const openHome = \(\) => \{[\s\S]*setActiveConversationId\(null\)/);
   assert.match(page, /asset-library/);
   assert.match(page, /所有生成结果会自动保存，并按日期整理/);
   assert.match(page, /继续修改图片/);
