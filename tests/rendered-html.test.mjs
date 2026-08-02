@@ -334,12 +334,11 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /listing-title-input/);
   assert.match(page, /download-listing/);
   assert.match(page, /conversation-turn/);
-  assert.match(page, /pendingTurnAnchorRef\.current = id/);
-  assert.match(
-    page,
-    /turnElement\.scrollIntoView\(\{ behavior: "auto", block: "start" \}\)/,
-  );
-  assert.match(page, /pendingTurnAnchorRef\.current = null/);
+  assert.match(page, /const startsFromHome = screen === "home"/);
+  assert.match(page, /const conversationId = startsFromHome \|\| !activeConversationId/);
+  assert.match(page, /if \(startsFromHome \|\| !activeConversationId\)/);
+  assert.match(page, /const openNewConversation = \(\) => \{[\s\S]*?setActiveConversationId\(null\);[\s\S]*?setScreen\("home"\);/);
+  assert.doesNotMatch(page, /pendingTurnAnchorRef/);
   assert.match(page, /const conversationTitle = "便携咖啡机创作"/);
   assert.match(page, /<strong>\{conversation\.title\}<\/strong>/);
   assert.match(page, /screen === "studio"/);

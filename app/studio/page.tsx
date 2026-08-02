@@ -3419,7 +3419,6 @@ export default function Home() {
   const turnsRef = useRef<Turn[]>([]);
   const uploadsRef = useRef<Upload[]>([]);
   const referenceVideoRef = useRef<Upload | null>(null);
-  const pendingTurnAnchorRef = useRef<string | null>(null);
   const sessionTracked = useRef(false);
 
   const modeSkills = skillsByMode(mode);
@@ -3454,15 +3453,6 @@ export default function Home() {
   useEffect(() => {
     referenceVideoRef.current = referenceVideo;
   }, [referenceVideo]);
-
-  useEffect(() => {
-    const turnId = pendingTurnAnchorRef.current;
-    if (screen !== "studio" || !turnId) return;
-    const turnElement = document.getElementById(turnId);
-    if (!turnElement) return;
-    turnElement.scrollIntoView({ behavior: "auto", block: "start" });
-    pendingTurnAnchorRef.current = null;
-  }, [activeConversationId, screen, turns]);
 
   useEffect(() => {
     if (screen !== "studio" && screen !== "home") return;
@@ -4285,11 +4275,12 @@ export default function Home() {
     }
     const id = `turn-${crypto.randomUUID()}`;
     const taskPrompt = prompt.trim() || selectedSkill.starter;
-    const conversationId =
-      activeConversationId ??
-      `conversation-${crypto.randomUUID()}`;
+    const startsFromHome = screen === "home";
+    const conversationId = startsFromHome || !activeConversationId
+      ? `conversation-${crypto.randomUUID()}`
+      : activeConversationId;
     let conversationToPersist: Conversation | undefined;
-    if (!activeConversationId) {
+    if (startsFromHome || !activeConversationId) {
       conversationToPersist = {
         id: conversationId,
         title: taskPrompt.slice(0, 22),
@@ -4343,7 +4334,6 @@ export default function Home() {
       imageTaskCount: configuredImageCount || undefined,
     };
     const nextTurns = [...turnsRef.current, turn];
-    pendingTurnAnchorRef.current = id;
     turnsRef.current = nextTurns;
     setTurns(nextTurns);
     setStudioComposerMinimized(false);
@@ -4632,20 +4622,7 @@ export default function Home() {
   };
 
   const openNewConversation = () => {
-    const id = `conversation-${crypto.randomUUID()}`;
-    const conversation = {
-      id,
-      title: "新对话",
-      createdAt: new Date().toISOString(),
-    };
-    setConversations((current) => [
-      ...current,
-      conversation,
-    ]);
-    void persistConversation(conversation).catch(() =>
-      showNotice("新对话暂未保存，请检查网络"),
-    );
-    setActiveConversationId(id);
+    setActiveConversationId(null);
     setScreen("home");
     window.setTimeout(() => document.getElementById("main-prompt")?.focus(), 0);
   };
