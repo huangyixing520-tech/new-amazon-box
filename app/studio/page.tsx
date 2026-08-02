@@ -84,6 +84,7 @@ type ListingData = {
   aPlusHeadline?: string;
   specifications?: Record<string, string>;
   productUrlSlug?: string;
+  keywords?: Record<"core" | "highWeight" | "title" | "bullet" | "description" | "backend", string[]>;
 };
 
 type Turn = {
@@ -2011,6 +2012,9 @@ function ListingResult({
   onListingChange: (listing: ListingData) => void;
 }) {
   const copy = listingCopy[language as keyof typeof listingCopy] ?? listingCopy.en;
+  const keywordGroups = data?.keywords
+    ? Object.entries(data.keywords).filter(([, values]) => values?.length)
+    : [];
   const currencySymbol = currencySymbols[region] ?? "$";
   const [galleryImage, setGalleryImage] = useState("");
   const [title, setTitle] = useState(
@@ -2419,6 +2423,17 @@ function ListingResult({
           </table>
         </div>
       </section>
+
+      {keywordGroups.length ? (
+        <section className="product-details listing-keywords" aria-label="Listing 关键词">
+          <h2>关键词布局</h2>
+          <div className="details-grid">
+            {keywordGroups.map(([group, values]) => (
+              <p key={group}><b>{group}</b><br />{values.join(" · ")}</p>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="a-plus">
         <p className="a-plus-label">Product description</p>
