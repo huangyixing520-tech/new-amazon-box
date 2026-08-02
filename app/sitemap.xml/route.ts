@@ -1,6 +1,6 @@
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
-  "https://mercato-web-production-d504.up.railway.app";
+  "https://mercato-ai-studio-production.up.railway.app";
 
 export async function GET() {
   return new Response(

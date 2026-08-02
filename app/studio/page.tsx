@@ -146,14 +146,18 @@ type AssetRecord = {
 
 type InspirationCase = {
   id: string;
-  tab: "featured" | "image" | "video";
+  tab?: "featured" | "image" | "video";
+  tabs?: Array<"featured" | "image" | "video">;
   mode: GenerationMode;
   skill: string;
   title: string;
   description: string;
   prompt: string;
   images: string[];
+  inputImages?: string[];
   layout: "suite" | "portrait" | "landscape";
+  orderByTab?: Partial<Record<"featured" | "image" | "video", number>>;
+  createdAt?: string;
   suite?: Partial<SuiteSettings>;
 };
 
@@ -3109,12 +3113,32 @@ function InspirationGallery({
   onOpen: (item: InspirationCase) => void;
 }) {
   const [activeTab, setActiveTab] = useState("featured");
+  const [uploadedCases, setUploadedCases] = useState<InspirationCase[]>([]);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const galleryEndRef = useRef<HTMLDivElement>(null);
-  const visibleCases =
-    activeTab === "featured"
-      ? inspirationCases
-      : inspirationCases.filter((item) => item.tab === activeTab);
+  const visibleCases = [...uploadedCases, ...inspirationCases]
+    .filter((item) => (item.tabs ?? (item.tab ? [item.tab] : [])).includes(
+      activeTab as "featured" | "image" | "video",
+    ))
+    .sort((left, right) => {
+      const tab = activeTab as "featured" | "image" | "video";
+      const leftRank = left.orderByTab?.[tab]
+        ?? (left.createdAt ? -new Date(left.createdAt).getTime() : Number.MAX_SAFE_INTEGER);
+      const rightRank = right.orderByTab?.[tab]
+        ?? (right.createdAt ? -new Date(right.createdAt).getTime() : Number.MAX_SAFE_INTEGER);
+      return leftRank - rightRank;
+    });
+
+  useEffect(() => {
+    void fetch("/api/inspiration", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return [];
+        const payload = await response.json() as { cases?: InspirationCase[] };
+        return Array.isArray(payload.cases) ? payload.cases : [];
+      })
+      .then(setUploadedCases)
+      .catch(() => setUploadedCases([]));
+  }, []);
 
   useEffect(() => {
     const target = galleryEndRef.current;
@@ -3210,6 +3234,17 @@ function InspirationTemplatePreview({
           <h2>生成内容</h2>
           <p>{item.prompt}</p>
         </div>
+        {item.inputImages?.length ? (
+          <div className="template-preview-inputs">
+            <h2>输入图片</h2>
+            <div>
+              {item.inputImages.map((url) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={url} alt="案例输入图" key={url} />
+              ))}
+            </div>
+          </div>
+        ) : null}
         <dl className="template-preview-settings">
           <div><dt>技能</dt><dd>{skillLabel}</dd></div>
           {item.suite ? (
