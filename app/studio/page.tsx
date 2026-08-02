@@ -145,7 +145,7 @@ type AssetRecord = {
 
 type InspirationCase = {
   id: string;
-  tab: "featured" | "listing" | "image-set" | "link-replica" | "video";
+  tab: "featured" | "image" | "video";
   mode: GenerationMode;
   skill: string;
   title: string;
@@ -321,16 +321,14 @@ const quickCapabilities: Array<{
 
 const inspirationTabs: Option[] = [
   { id: "featured", label: "精选" },
-  { id: "listing", label: "Listing" },
-  { id: "image-set", label: "商品套图" },
-  { id: "link-replica", label: "链接复刻" },
+  { id: "image", label: "商品图片" },
   { id: "video", label: "商品视频" },
 ];
 
 const inspirationCases: InspirationCase[] = [
   {
     id: "case-portable-listing",
-    tab: "listing",
+    tab: "featured",
     mode: "listing",
     skill: "amazon-listing",
     title: "便携咖啡机完整 Listing",
@@ -342,7 +340,7 @@ const inspirationCases: InspirationCase[] = [
   },
   {
     id: "case-travel-suite",
-    tab: "image-set",
+    tab: "image",
     mode: "image",
     skill: "amazon-image-set",
     title: "旅行场景商品套图",
@@ -354,7 +352,7 @@ const inspirationCases: InspirationCase[] = [
   },
   {
     id: "case-kitchen-scene",
-    tab: "image-set",
+    tab: "image",
     mode: "image",
     skill: "amazon-scene-image",
     title: "明亮厨房使用场景",
@@ -365,7 +363,7 @@ const inspirationCases: InspirationCase[] = [
   },
   {
     id: "case-link-structure",
-    tab: "link-replica",
+    tab: "featured",
     mode: "listing",
     skill: "listing-replica",
     title: "同类商品链接复刻",
@@ -387,7 +385,7 @@ const inspirationCases: InspirationCase[] = [
   },
   {
     id: "case-clean-main-image",
-    tab: "image-set",
+    tab: "image",
     mode: "image",
     skill: "white-background-image",
     title: "平台规范白底精修",
@@ -3044,15 +3042,28 @@ function QuickCapabilities({
 }
 
 function InspirationGallery({
-  onUse,
+  onOpen,
 }: {
-  onUse: (item: InspirationCase) => void;
+  onOpen: (item: InspirationCase) => void;
 }) {
   const [activeTab, setActiveTab] = useState("featured");
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const galleryEndRef = useRef<HTMLDivElement>(null);
   const visibleCases =
     activeTab === "featured"
       ? inspirationCases
       : inspirationCases.filter((item) => item.tab === activeTab);
+
+  useEffect(() => {
+    const target = galleryEndRef.current;
+    if (!target) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowScrollTop(entry.isIntersecting),
+      { threshold: 0.15 },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [activeTab]);
 
   return (
     <section className="inspiration-gallery" aria-labelledby="inspiration-title">
@@ -3081,33 +3092,76 @@ function InspirationGallery({
             className={`inspiration-card inspiration-card-${item.layout}`}
             key={item.id}
             data-testid={item.id}
-            onClick={() => onUse(item)}
+            aria-label={`预览${item.title}`}
+            onClick={() => onOpen(item)}
           >
             <span className="inspiration-card-media" aria-hidden="true">
-              {item.layout === "suite" ? (
-                <span className="inspiration-suite-layout">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={item.images[0]} alt="" />
-                  <span>
-                    {item.images.slice(1, 4).map((image, index) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={image} alt="" key={`${image}-${index}`} />
-                    ))}
-                  </span>
-                </span>
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.images[0]} alt="" />
-              )}
-            </span>
-            <span className="inspiration-card-copy">
-              <strong>{item.title}</strong>
-              <small>{item.description}</small>
-              <span>做同款 <ArrowRight weight="bold" aria-hidden="true" /></span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={item.images[0]} alt="" />
             </span>
           </button>
         ))}
       </div>
+      <div ref={galleryEndRef} className="inspiration-end-marker" aria-hidden="true" />
+      {showScrollTop ? (
+        <button
+          type="button"
+          className="inspiration-scroll-top"
+          aria-label="回到顶部"
+          onClick={() => document.getElementById("create")?.scrollIntoView({ behavior: "smooth" })}
+        >
+          <CaretUp weight="bold" aria-hidden="true" />
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+function InspirationTemplatePreview({
+  item,
+  onClose,
+  onUse,
+}: {
+  item: InspirationCase;
+  onClose: () => void;
+  onUse: (item: InspirationCase) => void;
+}) {
+  const modeLabel = item.mode === "video" ? "视频生成" : item.mode === "listing" ? "Listing 生成" : "图片生成";
+  const skillLabel = skills.find((skillItem) => skillItem.id === item.skill)?.label ?? item.title;
+
+  return (
+    <section className="template-preview-page" data-testid="template-preview-page">
+      <div className="template-preview-media">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={item.images[0]} alt={item.title} />
+      </div>
+      <aside className="template-preview-details">
+        <button type="button" className="template-preview-close" aria-label="返回优秀案例" onClick={onClose}>
+          <X weight="bold" aria-hidden="true" />
+        </button>
+        <div className="template-preview-heading">
+          <span>{modeLabel}</span>
+          <h1>{item.title}</h1>
+          <p>{item.description}</p>
+        </div>
+        <div className="template-preview-prompt">
+          <h2>生成内容</h2>
+          <p>{item.prompt}</p>
+        </div>
+        <dl className="template-preview-settings">
+          <div><dt>技能</dt><dd>{skillLabel}</dd></div>
+          {item.suite ? (
+            <>
+              <div><dt>A+ 图</dt><dd>{item.suite.aPlusCount ?? 0} 张</dd></div>
+              <div><dt>主副图</dt><dd>{item.suite.mainImageCount ?? 0} 张</dd></div>
+              <div><dt>图片比例</dt><dd>{item.suite.mainImageRatio ?? "1:1"}</dd></div>
+            </>
+          ) : null}
+        </dl>
+        <button type="button" className="template-preview-use" onClick={() => onUse(item)}>
+          做同款 <ArrowRight weight="bold" aria-hidden="true" />
+        </button>
+      </aside>
     </section>
   );
 }
@@ -3320,6 +3374,7 @@ export default function Home() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [studioComposerMinimized, setStudioComposerMinimized] = useState(false);
   const [homeComposerMinimized, setHomeComposerMinimized] = useState(false);
+  const [selectedInspiration, setSelectedInspiration] = useState<InspirationCase | null>(null);
   const controllers = useRef<Map<string, AbortController>>(new Map());
   const persistenceTimers = useRef<Map<string, number>>(new Map());
   const turnsRef = useRef<Turn[]>([]);
@@ -4890,6 +4945,16 @@ export default function Home() {
         onAccount={() => setAccountOpen(true)}
       />
       <section className="home-workspace" id="create">
+        {selectedInspiration ? (
+          <InspirationTemplatePreview
+            item={selectedInspiration}
+            onClose={() => setSelectedInspiration(null)}
+            onUse={(item) => {
+              applyInspirationCase(item);
+              setSelectedInspiration(null);
+            }}
+          />
+        ) : <>
         <div className="home-stage">
           <header className="home-discovery-head">
             <div className="home-copy">
@@ -4942,7 +5007,7 @@ export default function Home() {
             </div>
           ) : null}
           <QuickCapabilities onSelect={selectCapability} />
-          <InspirationGallery onUse={applyInspirationCase} />
+          <InspirationGallery onOpen={setSelectedInspiration} />
         </div>
         {homeComposerMinimized ? <div className="home-fixed-composer is-minimized">
           <Composer
@@ -4977,6 +5042,7 @@ export default function Home() {
             onExpand={() => setHomeComposerMinimized(false)}
           />
         </div> : null}
+        </>}
       </section>
       {accountOpen ? (
         <AccountPanel
