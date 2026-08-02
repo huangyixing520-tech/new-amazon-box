@@ -3419,6 +3419,7 @@ export default function Home() {
   const turnsRef = useRef<Turn[]>([]);
   const uploadsRef = useRef<Upload[]>([]);
   const referenceVideoRef = useRef<Upload | null>(null);
+  const pendingTurnAnchorRef = useRef<string | null>(null);
   const sessionTracked = useRef(false);
 
   const modeSkills = skillsByMode(mode);
@@ -3453,6 +3454,15 @@ export default function Home() {
   useEffect(() => {
     referenceVideoRef.current = referenceVideo;
   }, [referenceVideo]);
+
+  useEffect(() => {
+    const turnId = pendingTurnAnchorRef.current;
+    if (screen !== "studio" || !turnId) return;
+    const turnElement = document.getElementById(turnId);
+    if (!turnElement) return;
+    turnElement.scrollIntoView({ behavior: "auto", block: "start" });
+    pendingTurnAnchorRef.current = null;
+  }, [activeConversationId, screen, turns]);
 
   useEffect(() => {
     if (screen !== "studio" && screen !== "home") return;
@@ -4333,6 +4343,7 @@ export default function Home() {
       imageTaskCount: configuredImageCount || undefined,
     };
     const nextTurns = [...turnsRef.current, turn];
+    pendingTurnAnchorRef.current = id;
     turnsRef.current = nextTurns;
     setTurns(nextTurns);
     setStudioComposerMinimized(false);
@@ -4391,7 +4402,6 @@ export default function Home() {
     }
     window.setTimeout(() => {
       void runGeneration(turn, turnUploads, turnReferenceVideo);
-      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 0);
   };
 
