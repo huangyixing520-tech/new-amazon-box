@@ -8,12 +8,14 @@ import {
   imageOutputSpec,
   singleImageTaskBoundary,
 } from "../../image-output-spec.mjs";
+import videoReplicaAnalysisPrompt from "../../../skills/video-replica/references/video-analysis-prompt.md?raw";
 
 const BASE_URL =
   process.env.DOLA_BASE_URL?.replace(/\/$/, "") ??
   "https://api.dolaio.cn/aigateway/cisco/v1";
 const AGENT_MODEL = process.env.AGENT_MODEL ?? "MiniMax-M3";
 const VIDEO_MODEL = process.env.VIDEO_MODEL ?? "novai/seedance-2.0-mini";
+const VIDEO_ANALYSIS_MODEL = process.env.VIDEO_ANALYSIS_MODEL ?? "gemini-2.5-pro";
 const MAX_UPLOADS = 9;
 
 const languageNames: Record<string, string> = {
@@ -185,6 +187,60 @@ function videoTask(payload: unknown) {
     videoUrl: taskField(payload, ["video_url", "videoUrl"]),
     posterUrl: taskField(payload, ["poster_url", "posterUrl", "thumbnail_url"]),
   };
+}
+
+function completionText(payload: unknown) {
+  if (!payload || typeof payload !== "object") return undefined;
+  const choices = (payload as { choices?: Array<{ message?: { content?: unknown } }> }).choices;
+  const content = choices?.[0]?.message?.content;
+  if (typeof content === "string") return content.trim();
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => item && typeof item === "object" && "text" in item
+        ? String((item as { text?: unknown }).text ?? "")
+        : "")
+      .join("\n")
+      .trim();
+  }
+}
+
+async function analyzeReferenceVideo(
+  videoDataUrl: string,
+  userPrompt: string,
+  apiKey: string,
+) {
+  const response = await fetch(`${BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: VIDEO_ANALYSIS_MODEL,
+      temperature: 0.1,
+      stream: false,
+      messages: [
+        { role: "system", content: videoReplicaAnalysisPrompt },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Analyze this reference video. User replacement request: ${userPrompt || "Replace the source product with the uploaded product while preserving the reference structure."}`,
+            },
+            { type: "video_url", video_url: { url: videoDataUrl } },
+          ],
+        },
+      ],
+    }),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(upstreamError(payload, `参考视频分析失败 (${response.status})`));
+  }
+  const storyboard = completionText(payload);
+  if (!storyboard) throw new Error("参考视频分析没有返回分镜脚本");
+  return storyboard;
 }
 
 async function fileDataUrl(file: File) {
@@ -437,6 +493,9 @@ async function createVideo(
     ? await fileDataUrl(referenceVideo)
     : undefined;
   const context = formContext(form);
+  const replicaStoryboard = skill === "video-replica" && referenceVideoDataUrl
+    ? await analyzeReferenceVideo(referenceVideoDataUrl, prompt, apiKey)
+    : "";
   const skillDirection = skill === "talking-product-video"
     ? "Create a direct-response product demonstration with a natural presenter-led sales rhythm, clear product handling and believable spoken-delivery pacing."
     : "Recreate the reference video's shot order, camera movement, pacing, transitions and product demonstration rhythm. Treat the reference video only as motion and composition guidance. Replace its subject with the supplied product and preserve the supplied product identity exactly.";
@@ -469,7 +528,7 @@ async function createVideo(
           type: "text",
           text: `${skillDirection} ${context.brandText} ${
             prompt || "Create a polished 15-second ecommerce product video."
-          } The first product image is the primary identity reference; the remaining product images provide supplementary views and details. Do not copy visible brands, text or people from the reference video. Keep the exact supplied product identity. No subtitles, overlays, prices, watermarks or newly generated visible text.`,
+          } ${replicaStoryboard ? `Reference-video storyboard:\n${replicaStoryboard}\nUse this storyboard as the shot-by-shot generation structure.` : ""} The first product image is the primary identity reference; the remaining product images provide supplementary views and details. Replace the source product with the supplied product. Do not copy visible brands, platform UI, usernames, watermarks or unsupported claims from the reference video. Only reproduce on-screen captions identified by the storyboard. Keep the exact supplied product identity.`,
         },
         ...referenceContent,
         ...productContent,
