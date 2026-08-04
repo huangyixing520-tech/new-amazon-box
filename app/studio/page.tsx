@@ -26,6 +26,16 @@ import {
 import AccountPanel, { type ClientSession } from "../account-panel";
 import { imageOutputSpec } from "../image-output-spec.mjs";
 import { imageTaskCount } from "../image-task-count.mjs";
+import {
+  DEFAULT_IMAGE_MODEL,
+  DEFAULT_VIDEO_MODEL,
+  generationModelLabel,
+  imageModelOptions,
+  videoModelOptions,
+  type GenerationModelKey,
+  type ImageModelKey,
+  type VideoModelKey,
+} from "../lib/generation-models";
 
 type Option = {
   id: string;
@@ -94,6 +104,7 @@ type Turn = {
   title: string;
   prompt: string;
   mode: GenerationMode;
+  model?: GenerationModelKey;
   skill: string;
   kind: SkillKind;
   region: string;
@@ -113,6 +124,7 @@ type Turn = {
   images?: string[];
   imageTaskCount?: number;
   failedImageSlots?: number[];
+  failedImageErrors?: Record<number, string>;
   videoUrl?: string;
 };
 
@@ -328,77 +340,6 @@ const inspirationTabs: Option[] = [
   { id: "featured", label: "精选" },
   { id: "image", label: "商品图片" },
   { id: "video", label: "商品视频" },
-];
-
-const inspirationCases: InspirationCase[] = [
-  {
-    id: "case-portable-listing",
-    tab: "featured",
-    mode: "listing",
-    skill: "amazon-listing",
-    title: "便携咖啡机完整 Listing",
-    description: "主副图、A+ 内容与 Listing 文案",
-    prompt: "为这款便携咖啡机生成完整亚马逊 Listing，突出便携、自加热与户外使用场景",
-    images: ["/product-main.png", "/product-lifestyle.png", "/product-outdoor.png"],
-    layout: "suite",
-    suite: { aPlusType: "advanced", aPlusCount: 5, mainImageCount: 5, mainImageRatio: "1:1" },
-  },
-  {
-    id: "case-travel-suite",
-    tab: "image",
-    mode: "image",
-    skill: "amazon-image-set",
-    title: "旅行场景商品套图",
-    description: "一张主图加多张场景与卖点图",
-    prompt: "生成一套适合 Amazon 的商品套图，强调旅行便携、户外使用和快速出杯",
-    images: ["/product-outdoor.png", "/product-main.png", "/product-lifestyle.png"],
-    layout: "suite",
-    suite: { aPlusType: "advanced", aPlusCount: 4, mainImageCount: 4, mainImageRatio: "1:1" },
-  },
-  {
-    id: "case-kitchen-scene",
-    tab: "image",
-    mode: "image",
-    skill: "amazon-scene-image",
-    title: "明亮厨房使用场景",
-    description: "自然光下的真实商品使用画面",
-    prompt: "生成一张明亮现代厨房中的真实商品使用场景图，画面自然、有生活感",
-    images: ["/product-lifestyle.png"],
-    layout: "portrait",
-  },
-  {
-    id: "case-link-structure",
-    tab: "featured",
-    mode: "listing",
-    skill: "listing-replica",
-    title: "同类商品链接复刻",
-    description: "保留参考结构，替换为你的商品内容",
-    prompt: "https://www.amazon.com/dp/example",
-    images: ["/product-main.png", "/product-lifestyle.png"],
-    layout: "landscape",
-  },
-  {
-    id: "case-outdoor-video",
-    tab: "video",
-    mode: "video",
-    skill: "talking-product-video",
-    title: "15 秒户外带货口播",
-    description: "开场吸引、卖点演示、行动引导",
-    prompt: "生成一支 15 秒户外场景带货口播视频，前三秒突出便携卖点",
-    images: ["/product-outdoor.png"],
-    layout: "portrait",
-  },
-  {
-    id: "case-clean-main-image",
-    tab: "image",
-    mode: "image",
-    skill: "white-background-image",
-    title: "平台规范白底精修",
-    description: "保留商品结构，提升材质和边缘质量",
-    prompt: "生成一张平台规范的纯白背景商品图，保持产品结构准确并提升材质细节",
-    images: ["/product-main.png"],
-    layout: "landscape",
-  },
 ];
 
 const regions: Option[] = [
@@ -673,12 +614,32 @@ function progressTotal(turn: Turn) {
 }
 
 function isListingReady(turn: Turn) {
-  if (turn.kind !== "listing" || turn.running || !turn.listing || turn.error) {
+  if (turn.kind !== "listing" || turn.running || !turn.listing) {
     return false;
   }
   const expectedImages = turn.imageTaskCount ?? 0;
   const generatedImages = (turn.images ?? []).filter(Boolean).length;
-  return generatedImages === expectedImages && !(turn.failedImageSlots?.length);
+  const failedImages = new Set(turn.failedImageSlots ?? []).size;
+  return generatedImages + failedImages >= expectedImages;
+}
+
+function settledTurnProgress(turn: Turn) {
+  return Math.min(
+    progressTotal(turn),
+    turn.completed + new Set(turn.failedImageSlots ?? []).size,
+  );
+}
+
+function isTurnReady(turn: Turn) {
+  if (turn.kind === "listing") return isListingReady(turn);
+  if (turn.running) return false;
+  if (turn.kind === "images" || turn.kind === "seeding" || turn.kind === "single") {
+    const expected = turn.imageTaskCount ?? 1;
+    const generated = (turn.images ?? []).filter(Boolean).length;
+    const failed = new Set(turn.failedImageSlots ?? []).size;
+    return generated + failed >= expected;
+  }
+  return Boolean(turn.videoUrl) && !turn.error;
 }
 
 const generationCopy: Record<
@@ -1407,6 +1368,7 @@ function Composer({
   uploads,
   referenceVideo,
   mode,
+  model,
   skill,
   region,
   language,
@@ -1420,6 +1382,7 @@ function Composer({
   onRemove,
   onSend,
   onMode,
+  onModel,
   onSkill,
   onRegion,
   onLanguage,
@@ -1433,6 +1396,7 @@ function Composer({
   uploads: Upload[];
   referenceVideo: Upload | null;
   mode: GenerationMode;
+  model: GenerationModelKey;
   skill: string;
   region: string;
   language: string;
@@ -1446,6 +1410,7 @@ function Composer({
   onRemove: (id: string) => void;
   onSend: () => void;
   onMode: (value: GenerationMode) => void;
+  onModel: (value: GenerationModelKey) => void;
   onSkill: (value: string) => void;
   onRegion: (value: string) => void;
   onLanguage: (value: string) => void;
@@ -1464,6 +1429,7 @@ function Composer({
   const brandGenePanelRef = useRef<HTMLElement>(null);
   const dragDepthRef = useRef(0);
   const modeSkills = skillsByMode(mode);
+  const modelOptions = mode === "video" ? videoModelOptions : imageModelOptions;
   const suiteSelectionEmpty =
     hasSuiteSettings(skill) &&
     suite.aPlusCount === 0 &&
@@ -1771,6 +1737,20 @@ function Composer({
             }}
             accent
             testId="mode-trigger"
+          />
+          <OptionMenu
+            label={mode === "video" ? "选择生视频模型" : "选择生图模型"}
+            options={modelOptions}
+            value={model}
+            open={openMenu === "model"}
+            onOpen={() => setOpenMenu(openMenu === "model" ? null : "model")}
+            onDismiss={() => setOpenMenu(null)}
+            onChange={(value) => {
+              onModel(value as GenerationModelKey);
+              setOpenMenu(null);
+            }}
+            prefix="模型"
+            testId="model-trigger"
           />
           <div className="brand-gene-control" ref={brandGeneTriggerRef}>
             <button
@@ -2507,6 +2487,7 @@ function ImageSuite({
   suite,
   generatedImages = [],
   failedSlots = [],
+  failedErrors = {},
   onPreview,
   onRegenerate,
   regenerating,
@@ -2517,6 +2498,7 @@ function ImageSuite({
   suite?: SuiteSettings;
   generatedImages?: string[];
   failedSlots?: number[];
+  failedErrors?: Record<number, string>;
   onPreview: (item: GalleryItem, slot: number) => void;
   onRegenerate: (item: GalleryItem) => void;
   regenerating: string | null;
@@ -2577,13 +2559,18 @@ function ImageSuite({
                 </>
               ) : (
                 <div className={`asset-skeleton ${failedSlots.includes(index) ? "asset-failed" : ""}`}>
-                  <span>
-                    {regenerating === item.id
-                      ? "正在重做"
-                      : failedSlots.includes(index)
-                        ? "本张生成失败"
-                        : `第 ${index + 1} 张 · 正在生成`}
-                  </span>
+                  <div>
+                    <span>
+                      {regenerating === item.id
+                        ? "正在重做"
+                        : failedSlots.includes(index)
+                          ? `第 ${index + 1} 张 · 生成失败`
+                          : `第 ${index + 1} 张 · 正在生成`}
+                    </span>
+                    {failedSlots.includes(index) && failedErrors[index] ? (
+                      <p>{failedErrors[index]}</p>
+                    ) : null}
+                  </div>
                   {failedSlots.includes(index) ? (
                     <button type="button" onClick={() => onRegenerate(item)}>重试本张</button>
                   ) : null}
@@ -3116,7 +3103,7 @@ function InspirationGallery({
   const [uploadedCases, setUploadedCases] = useState<InspirationCase[]>([]);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const galleryEndRef = useRef<HTMLDivElement>(null);
-  const visibleCases = [...uploadedCases, ...inspirationCases]
+  const visibleCases = uploadedCases
     .filter((item) => (item.tabs ?? (item.tab ? [item.tab] : [])).includes(
       activeTab as "featured" | "image" | "video",
     ))
@@ -3175,7 +3162,7 @@ function InspirationGallery({
         {visibleCases.map((item) => (
           <button
             type="button"
-            className={`inspiration-card inspiration-card-${item.layout}`}
+            className="inspiration-card"
             key={item.id}
             data-testid={item.id}
             aria-label={`预览${item.title}`}
@@ -3452,6 +3439,8 @@ export default function Home() {
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [referenceVideo, setReferenceVideo] = useState<Upload | null>(null);
   const [mode, setMode] = useState<GenerationMode>("listing");
+  const [imageModel, setImageModel] = useState<ImageModelKey>(DEFAULT_IMAGE_MODEL);
+  const [videoModel, setVideoModel] = useState<VideoModelKey>(DEFAULT_VIDEO_MODEL);
   const [skill, setSkill] = useState("amazon-listing");
   const [region, setRegion] = useState("us");
   const [language, setLanguage] = useState("en");
@@ -3482,6 +3471,11 @@ export default function Home() {
   const pendingHomeConversationId = useRef<string | null>(null);
 
   const modeSkills = skillsByMode(mode);
+  const selectedModel: GenerationModelKey = mode === "video" ? videoModel : imageModel;
+  const changeModel = (nextModel: GenerationModelKey) => {
+    if (mode === "video") setVideoModel(nextModel as VideoModelKey);
+    else setImageModel(nextModel as ImageModelKey);
+  };
   const selectedSkill =
     modeSkills.find((item) => item.id === skill) ?? modeSkills[0];
   const selectedKind = selectedSkill.kind;
@@ -3919,6 +3913,7 @@ export default function Home() {
     const form = new FormData();
     form.set("action", action);
     form.set("mode", turn.mode);
+    form.set("model", turn.model ?? (turn.mode === "video" ? DEFAULT_VIDEO_MODEL : DEFAULT_IMAGE_MODEL));
     form.set("skill", turn.skill);
     form.set("region", turn.region);
     form.set("language", turn.language);
@@ -4003,6 +3998,7 @@ export default function Home() {
       completed: suiteImageCount ? 0 : 1,
       images: suiteImageCount ? [] : turn.images,
       failedImageSlots: suiteImageCount ? [] : turn.failedImageSlots,
+      failedImageErrors: suiteImageCount ? {} : turn.failedImageErrors,
     });
     const response = await fetch("/api/generate", {
       method: "POST",
@@ -4056,8 +4052,8 @@ export default function Home() {
 
     const results = new Array<string>(suiteImageCount);
     const failedSlots: number[] = [];
+    const failedErrors: Record<number, string> = {};
     let nextSlot = 0;
-    let firstError = "";
 
     const worker = async () => {
       while (nextSlot < suiteImageCount) {
@@ -4082,12 +4078,14 @@ export default function Home() {
         } catch (error) {
           if ((error as Error).name === "AbortError") throw error;
           failedSlots.push(slot);
-          firstError ||= error instanceof Error ? error.message : "图片生成失败";
+          const message = error instanceof Error ? error.message : "图片生成失败";
+          failedErrors[slot] = message;
         }
         const done = results.filter(Boolean).length;
         patchTurn(turn.id, {
           images: [...results],
           failedImageSlots: [...failedSlots],
+          failedImageErrors: { ...failedErrors },
           completed: 1 + done,
           phase: failedSlots.length
             ? `Listing 已完成 · 套图 ${done} / ${suiteImageCount} 张 · ${failedSlots.length} 张失败`
@@ -4100,18 +4098,20 @@ export default function Home() {
       Array.from({ length: Math.min(2, suiteImageCount) }, worker),
     );
     const done = results.filter(Boolean).length;
-    if (!done) throw new Error(firstError || "Listing 文案已完成，但套图生成失败");
     patchTurn(turn.id, {
       images: results,
       failedImageSlots: failedSlots,
+      failedImageErrors: failedErrors,
       phase: failedSlots.length
-        ? `Listing 与 ${done} / ${suiteImageCount} 张套图已完成`
+        ? `生成已结束 · Listing 完成 · 图片 ${done} 张成功、${failedSlots.length} 张失败`
         : "生成完成",
       completed: 1 + done,
       running: false,
     });
     return {
-      status: failedSlots.length ? "partial" : "complete",
+      status: failedSlots.length
+        ? (done ? "partial" : "failed")
+        : "complete",
       completed: done,
       expected: suiteImageCount,
       failed: failedSlots.length,
@@ -4129,11 +4129,12 @@ export default function Home() {
       completed: 0,
       images: [],
       failedImageSlots: [],
+      failedImageErrors: {},
     });
     const results = new Array<string>(count);
     const failedSlots: number[] = [];
+    const failedErrors: Record<number, string> = {};
     let nextSlot = 0;
-    let firstError = "";
 
     const worker = async () => {
       while (nextSlot < count) {
@@ -4162,12 +4163,14 @@ export default function Home() {
         } catch (error) {
           if ((error as Error).name === "AbortError") throw error;
           failedSlots.push(slot);
-          firstError ||= error instanceof Error ? error.message : "图片生成失败";
+          const message = error instanceof Error ? error.message : "图片生成失败";
+          failedErrors[slot] = message;
         }
         const done = results.filter(Boolean).length;
         patchTurn(turn.id, {
           images: [...results],
           failedImageSlots: [...failedSlots],
+          failedImageErrors: { ...failedErrors },
           completed: done,
           phase: failedSlots.length
             ? `已完成 ${done} / ${count} 张 · ${failedSlots.length} 张失败`
@@ -4178,18 +4181,20 @@ export default function Home() {
 
     await Promise.all(Array.from({ length: Math.min(2, count) }, worker));
     const done = results.filter(Boolean).length;
-    if (!done) throw new Error(firstError || "图片生成失败");
     patchTurn(turn.id, {
       images: results,
       failedImageSlots: failedSlots,
+      failedImageErrors: failedErrors,
       phase: failedSlots.length
-        ? `已生成 ${done} / ${count} 张，可单独重试失败图片`
+        ? `生成已结束 · ${done} 张成功、${failedSlots.length} 张失败`
         : "生成完成",
       completed: done,
       running: false,
     });
     return {
-      status: failedSlots.length ? "partial" : "complete",
+      status: failedSlots.length
+        ? (done ? "partial" : "failed")
+        : "complete",
       completed: done,
       expected: count,
       failed: failedSlots.length,
@@ -4371,6 +4376,7 @@ export default function Home() {
       title: taskPrompt.slice(0, 22),
       prompt: taskPrompt,
       mode,
+      model: selectedModel,
       skill: selectedSkill.id,
       kind: selectedKind,
       region,
@@ -4497,14 +4503,19 @@ export default function Home() {
         images[slot] = stored.url;
         const failedImageSlots = (currentTurn.failedImageSlots ?? [])
           .filter((failedSlot) => failedSlot !== slot);
+        const failedImageErrors = { ...(currentTurn.failedImageErrors ?? {}) };
+        delete failedImageErrors[slot];
         const done = images.filter(Boolean).length;
-        const total = currentTurn.imageTaskCount ?? 1;
+        const completed = done + (currentTurn.kind === "listing" && currentTurn.listing ? 1 : 0);
         return {
           ...currentTurn,
           images,
           failedImageSlots,
-          completed: done,
-          phase: done === total ? "生成完成" : `已生成 ${done} / ${total} 张`,
+          failedImageErrors,
+          completed,
+          phase: failedImageSlots.length
+            ? `生成已结束 · ${done} 张成功、${failedImageSlots.length} 张失败`
+            : "生成完成",
           error: undefined,
         };
       });
@@ -4534,6 +4545,7 @@ export default function Home() {
       title: preview.title,
       prompt: previewPrompt.trim(),
       mode: "image",
+      model: imageModel,
       skill: selectedSkill.mode === "image" ? selectedSkill.id : "amazon-image-set",
       kind: selectedSkill.mode === "image" ? selectedSkill.kind : "images",
       region,
@@ -4734,9 +4746,9 @@ export default function Home() {
             {activeTurns.map((turn, index) => {
               const generation = generationCopy[turn.kind];
               const total = progressTotal(turn);
-              const ready = turn.kind === "listing"
-                ? isListingReady(turn)
-                : turn.completed === total && !turn.running;
+              const ready = isTurnReady(turn);
+              const settled = settledTurnProgress(turn);
+              const failedCount = new Set(turn.failedImageSlots ?? []).size;
               return (
                 <article className="conversation-turn" id={turn.id} key={turn.id} data-testid={`conversation-turn-${index}`}>
                   <div className="user-message">
@@ -4780,6 +4792,7 @@ export default function Home() {
                         <p>{turn.prompt}</p>
                         <div className="request-tags">
                           <span>{modes.find((item) => item.id === turn.mode)?.label}</span>
+                          <span>{generationModelLabel(turn.model) ?? (turn.mode === "video" ? "Seedance 2.0 mini" : "Image 2")}</span>
                           <span>{skills.find((item) => item.id === turn.skill)?.label}</span>
                           <span>{regions.find((item) => item.id === turn.region)?.label}</span>
                           <span>{languages.find((item) => item.id === turn.language)?.label}</span>
@@ -4817,11 +4830,11 @@ export default function Home() {
                           <strong data-testid={`progress-${index}`}>
                             {turn.phase}
                           </strong>
-                          <span>{turn.completed} / {total}</span>
+                          <span>{settled} / {total}</span>
                         </div>
                         {turn.running ? (
                           <button type="button" onClick={() => stopGeneration(turn.id)}>停止生成</button>
-                        ) : turn.completed < total ? (
+                        ) : settled < total ? (
                           <button
                             type="button"
                             onClick={() => void runGeneration(
@@ -4846,10 +4859,41 @@ export default function Home() {
                         ) : null}
                       </div>
                       <div className="progress-meter" aria-hidden="true">
-                        <span style={{ transform: `scaleX(${turn.completed / total})` }} />
+                        <span style={{ transform: `scaleX(${settled / total})` }} />
                       </div>
 
                       <div className={`dynamic-result dynamic-${turn.kind}`}>
+                        {!turn.running && failedCount ? (
+                          <section className="partial-generation-summary" role="status">
+                            <div>
+                              <strong>
+                                生成已完成，{(turn.images ?? []).filter(Boolean).length} 张成功，{failedCount} 张失败
+                              </strong>
+                              <p>成功结果已保留。失败项可在下方对应位置单独重试。</p>
+                            </div>
+                            <ul>
+                              {(turn.failedImageSlots ?? []).map((slot) => (
+                                <li key={slot}>
+                                  <span>图片 {slot + 1}</span>
+                                  <small>{turn.failedImageErrors?.[slot] ?? "生成服务未返回具体原因"}</small>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const item = suiteItems(
+                                        turn.skill,
+                                        turn.imageTaskCount ?? 1,
+                                        turn.suite,
+                                      )[slot];
+                                      if (item) void regenerate(turn, item);
+                                    }}
+                                  >
+                                    重试本张
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        ) : null}
                         {turn.error ? (
                           <div className="generation-error" role="alert">
                             <strong>生成失败</strong>
@@ -4881,6 +4925,7 @@ export default function Home() {
                             suite={turn.suite}
                             generatedImages={turn.images}
                             failedSlots={turn.failedImageSlots}
+                            failedErrors={turn.failedImageErrors}
                             onPreview={(item, slot) => openPreview(turn, item, slot)}
                             onRegenerate={(item) => void regenerate(turn, item)}
                             regenerating={regenerating}
@@ -4894,6 +4939,7 @@ export default function Home() {
                             suite={turn.suite}
                             generatedImages={turn.images}
                             failedSlots={turn.failedImageSlots}
+                            failedErrors={turn.failedImageErrors}
                             onPreview={(item, slot) => openPreview(turn, item, slot)}
                             onRegenerate={(item) => void regenerate(turn, item)}
                             regenerating={regenerating}
@@ -4936,6 +4982,7 @@ export default function Home() {
               uploads={uploads}
               referenceVideo={referenceVideo}
               mode={mode}
+              model={selectedModel}
               skill={skill}
               region={region}
               language={language}
@@ -4952,6 +4999,7 @@ export default function Home() {
               onRemove={removeUpload}
               onSend={() => startGeneration("conversation")}
               onMode={changeMode}
+              onModel={changeModel}
               onSkill={changeSkill}
               onRegion={setRegion}
               onLanguage={setLanguage}
@@ -5097,6 +5145,7 @@ export default function Home() {
                 uploads={uploads}
                 referenceVideo={referenceVideo}
                 mode={mode}
+                model={selectedModel}
                 skill={skill}
                 region={region}
                 language={language}
@@ -5113,6 +5162,7 @@ export default function Home() {
                 onRemove={removeUpload}
                 onSend={() => startGeneration("home")}
                 onMode={changeMode}
+                onModel={changeModel}
                 onSkill={changeSkill}
                 onRegion={setRegion}
                 onLanguage={setLanguage}
@@ -5132,6 +5182,7 @@ export default function Home() {
             uploads={uploads}
             referenceVideo={referenceVideo}
             mode={mode}
+            model={selectedModel}
             skill={skill}
             region={region}
             language={language}
@@ -5148,6 +5199,7 @@ export default function Home() {
             onRemove={removeUpload}
             onSend={() => startGeneration("home")}
             onMode={changeMode}
+            onModel={changeModel}
             onSkill={changeSkill}
             onRegion={setRegion}
             onLanguage={setLanguage}

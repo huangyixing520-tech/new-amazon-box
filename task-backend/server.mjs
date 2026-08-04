@@ -215,7 +215,7 @@ export function createTaskServer(options = {}) {
         : config.apiKey;
       if (!upstreamKey) throw new Error("任务没有可用的模型 API Key");
       const request = new FormData();
-      request.set("model", config.model);
+      request.set("model", task.model || config.model);
       request.set("prompt", task.prompt);
       request.set("size", task.size);
       request.set("quality", task.quality);
@@ -372,6 +372,7 @@ export function createTaskServer(options = {}) {
         id,
         status: "queued",
         prompt: String(form.get("prompt") ?? ""),
+        model: String(form.get("model") ?? config.model),
         size: String(form.get("size") ?? "1024x1024"),
         outputWidth: String(form.get("outputWidth") ?? ""),
         outputHeight: String(form.get("outputHeight") ?? ""),

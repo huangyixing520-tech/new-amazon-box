@@ -9,14 +9,35 @@ import {
   singleImageTaskBoundary,
 } from "../../image-output-spec.mjs";
 import videoReplicaAnalysisPrompt from "../../../skills/video-replica/references/video-analysis-prompt.md?raw";
+import { analyzeReferenceVideoWithFallback } from "../../lib/video-analysis.mjs";
 
 const BASE_URL =
   process.env.DOLA_BASE_URL?.replace(/\/$/, "") ??
   "https://api.dolaio.cn/aigateway/cisco/v1";
 const AGENT_MODEL = process.env.AGENT_MODEL ?? "MiniMax-M3";
 const VIDEO_MODEL = process.env.VIDEO_MODEL ?? "novai/seedance-2.0-mini";
-const VIDEO_ANALYSIS_MODEL = process.env.VIDEO_ANALYSIS_MODEL ?? "gemini-2.5-pro";
+const VIDEO_ANALYSIS_MODEL =
+  process.env.VIDEO_ANALYSIS_MODEL ?? "yunwu/claude-opus-4-8";
+const VIDEO_ANALYSIS_FALLBACK_MODEL =
+  process.env.VIDEO_ANALYSIS_FALLBACK_MODEL ?? "dolaio/gpt-5.6-terra";
 const MAX_UPLOADS = 9;
+
+const imageModels: Record<string, string> = {
+  "image-2": process.env.IMAGE_MODEL_IMAGE_2 ?? process.env.IMAGE_MODEL ?? "gpt-image-2",
+  "nano-2-lite": process.env.IMAGE_MODEL_NANO_2_LITE ?? "nano-banana-2-lite",
+  "nano-2": process.env.IMAGE_MODEL_NANO_2 ?? "nano-banana-2",
+};
+
+const videoModels: Record<string, string> = {
+  "seedance-2-fast": process.env.VIDEO_MODEL_SEEDANCE_FAST ?? "novai/seedance-2.0-fast",
+  "seedance-2-mini": process.env.VIDEO_MODEL_SEEDANCE_MINI ?? VIDEO_MODEL,
+  "seedance-2-pro": process.env.VIDEO_MODEL_SEEDANCE_PRO ?? "novai/seedance-2.0",
+};
+
+function selectedModel(form: FormData, models: Record<string, string>, fallback: string) {
+  const key = String(form.get("model") ?? fallback);
+  return models[key];
+}
 
 const languageNames: Record<string, string> = {
   en: "English",
@@ -189,58 +210,26 @@ function videoTask(payload: unknown) {
   };
 }
 
-function completionText(payload: unknown) {
-  if (!payload || typeof payload !== "object") return undefined;
-  const choices = (payload as { choices?: Array<{ message?: { content?: unknown } }> }).choices;
-  const content = choices?.[0]?.message?.content;
-  if (typeof content === "string") return content.trim();
-  if (Array.isArray(content)) {
-    return content
-      .map((item) => item && typeof item === "object" && "text" in item
-        ? String((item as { text?: unknown }).text ?? "")
-        : "")
-      .join("\n")
-      .trim();
-  }
-}
-
 async function analyzeReferenceVideo(
   videoDataUrl: string,
   userPrompt: string,
   apiKey: string,
 ) {
-  const response = await fetch(`${BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
+  return analyzeReferenceVideoWithFallback({
+    baseUrl: BASE_URL,
+    apiKey,
+    videoDataUrl,
+    userPrompt,
+    systemPrompt: videoReplicaAnalysisPrompt,
+    primaryModel: VIDEO_ANALYSIS_MODEL,
+    fallbackModel: VIDEO_ANALYSIS_FALLBACK_MODEL,
+    onFallback: (details: unknown) => {
+      console.warn(
+        "Reference video analysis primary model failed; using fallback",
+        details,
+      );
     },
-    body: JSON.stringify({
-      model: VIDEO_ANALYSIS_MODEL,
-      temperature: 0.1,
-      stream: false,
-      messages: [
-        { role: "system", content: videoReplicaAnalysisPrompt },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `Analyze this reference video. User replacement request: ${userPrompt || "Replace the source product with the uploaded product while preserving the reference structure."}`,
-            },
-            { type: "video_url", video_url: { url: videoDataUrl } },
-          ],
-        },
-      ],
-    }),
   });
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(upstreamError(payload, `参考视频分析失败 (${response.status})`));
-  }
-  const storyboard = completionText(payload);
-  if (!storyboard) throw new Error("参考视频分析没有返回分镜脚本");
-  return storyboard;
 }
 
 async function fileDataUrl(file: File) {
@@ -394,6 +383,8 @@ async function createImage(
 ) {
   const images = uploadedImages(form);
   if (!images.length) return jsonError("请上传商品图片", 400);
+  const model = selectedModel(form, imageModels, "image-2");
+  if (!model) return jsonError("不支持所选生图模型", 400);
 
   const skill = String(form.get("skill") ?? "amazon-scene-image");
   const slot = Math.max(0, Number(form.get("slot") ?? 0));
@@ -418,6 +409,7 @@ async function createImage(
         ? mobileAPlusPrompts[slotIndex % mobileAPlusPrompts.length]
         : imagePrompts[skill]?.[slot] ?? imagePrompts["amazon-scene-image"][0];
   const request = new FormData();
+  request.set("model", model);
   request.set(
     "prompt",
     `${singleImageTaskBoundary}
@@ -476,6 +468,8 @@ async function createVideo(
   const images = uploadedImages(form);
   const image = images[0];
   if (!image) return jsonError("请至少上传 1 张商品图片", 400);
+  const model = selectedModel(form, videoModels, "seedance-2-mini");
+  if (!model) return jsonError("不支持所选生视频模型", 400);
   const prompt = String(form.get("prompt") ?? "");
   const skill = String(form.get("skill") ?? "video-replica");
   const referenceVideo = uploadedReferenceVideo(form);
@@ -518,7 +512,7 @@ async function createVideo(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: VIDEO_MODEL,
+      model,
       resolution: process.env.VIDEO_DEFAULT_RESOLUTION ?? "720p",
       ratio: "9:16",
       duration: Number(process.env.VIDEO_DEFAULT_DURATION_SECONDS ?? 15),

@@ -26,6 +26,9 @@ test("returns immediately, runs the image job, and exposes its result", async (c
   const upstream = createServer(async (request, response) => {
     assert.equal(request.url, "/images/edits");
     assert.equal(request.headers.authorization, "Bearer dola-test");
+    const body = [];
+    for await (const chunk of request) body.push(chunk);
+    assert.match(Buffer.concat(body).toString("utf8"), /nano-banana-2/);
     await new Promise((resolve) => setTimeout(resolve, 120));
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(JSON.stringify({ data: [{ b64_json: "generated-image" }] }));
@@ -45,6 +48,7 @@ test("returns immediately, runs the image job, and exposes its result", async (c
 
   const form = new FormData();
   form.set("prompt", "Keep the product exact");
+  form.set("model", "nano-banana-2");
   form.set("image", new File(["product"], "product.png", { type: "image/png" }));
   const startedAt = Date.now();
   const createdResponse = await fetch(`http://127.0.0.1:${backendPort}/v1/image-tasks`, {

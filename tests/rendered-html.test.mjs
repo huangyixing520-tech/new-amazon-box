@@ -8,6 +8,53 @@ import {
   singleImageTaskBoundary,
 } from "../app/image-output-spec.mjs";
 import { normalizedImageOutputDimensions } from "../app/asset-output-spec.mjs";
+import { analyzeReferenceVideoWithFallback } from "../app/lib/video-analysis.mjs";
+
+test("falls back from Yunwu Claude Opus 4.8 to DolaIO GPT-5.6 Terra", async () => {
+  const requestedModels = [];
+  const storyboard = await analyzeReferenceVideoWithFallback({
+    baseUrl: "https://api.example.test/v1",
+    apiKey: "test-key",
+    videoDataUrl: "data:video/mp4;base64,dmlkZW8=",
+    userPrompt: "Replace the product",
+    systemPrompt: "Analyze the reference video",
+    primaryModel: "yunwu/claude-opus-4-8",
+    fallbackModel: "dolaio/gpt-5.6-terra",
+    fetchImpl: async (_url, init) => {
+      const model = JSON.parse(init.body).model;
+      requestedModels.push(model);
+      return model === "yunwu/claude-opus-4-8"
+        ? Response.json({ error: { message: "model unavailable" } }, { status: 503 })
+        : Response.json({ choices: [{ message: { content: "Fallback storyboard" } }] });
+    },
+  });
+  assert.equal(storyboard, "Fallback storyboard");
+  assert.deepEqual(requestedModels, [
+    "yunwu/claude-opus-4-8",
+    "dolaio/gpt-5.6-terra",
+  ]);
+});
+
+test("does not hide an invalid API key behind the video-analysis fallback", async () => {
+  let attempts = 0;
+  await assert.rejects(
+    analyzeReferenceVideoWithFallback({
+      baseUrl: "https://api.example.test/v1",
+      apiKey: "invalid-key",
+      videoDataUrl: "data:video/mp4;base64,dmlkZW8=",
+      userPrompt: "",
+      systemPrompt: "Analyze the reference video",
+      primaryModel: "yunwu/claude-opus-4-8",
+      fallbackModel: "dolaio/gpt-5.6-terra",
+      fetchImpl: async () => {
+        attempts += 1;
+        return Response.json({ error: { message: "unauthorized" } }, { status: 401 });
+      },
+    }),
+    /参考视频分析认证失败.*yunwu\/claude-opus-4-8/,
+  );
+  assert.equal(attempts, 1);
+});
 
 test("maps every suite slot to one task and the correct final canvas", () => {
   const advanced = imageOutputSpec({
@@ -118,6 +165,7 @@ test("ships the complete generation flow and its assets", async () => {
     adminAssetRoute,
     adminPage,
     envExample,
+    generationModels,
   ] = await Promise.all([
     readFile(new URL("../app/studio/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/landing-page.tsx", import.meta.url), "utf8"),
@@ -145,6 +193,7 @@ test("ships the complete generation flow and its assets", async () => {
     readFile(new URL("../app/api/admin/assets/[id]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../.env.example", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/generation-models.ts", import.meta.url), "utf8"),
     access(new URL("../public/product-main.png", import.meta.url)),
     access(new URL("../public/product-lifestyle.png", import.meta.url)),
     access(new URL("../public/product-outdoor.png", import.meta.url)),
@@ -156,6 +205,16 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /图片生成/);
   assert.match(page, /视频生成/);
   assert.match(page, /Listing 生成/);
+  assert.match(page, /model-trigger/);
+  assert.match(page, /prefix="模型"/);
+  assert.match(page, /form\.set\("model"/);
+  assert.match(page, /model: selectedModel/);
+  assert.match(generationModels, /Image 2/);
+  assert.match(generationModels, /Nano 2 lite/);
+  assert.match(generationModels, /Nano 2/);
+  assert.match(generationModels, /Seedance 2\.0 fast/);
+  assert.match(generationModels, /Seedance 2\.0 mini/);
+  assert.match(generationModels, /Seedance 2\.0 pro/);
   assert.ok(
     page.indexOf('{ id: "listing", label: "Listing 生成"') <
       page.indexOf('{ id: "image", label: "图片生成"'),
@@ -205,8 +264,12 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /function isListingReady\(turn: Turn\)/);
   assert.match(
     page,
-    /generatedImages === expectedImages && !\(turn\.failedImageSlots\?\.length\)/,
+    /generatedImages \+ failedImages >= expectedImages/,
   );
+  assert.match(page, /function settledTurnProgress\(turn: Turn\)/);
+  assert.match(page, /生成已完成，\{\(turn\.images \?\? \[\]\)\.filter\(Boolean\)\.length\} 张成功，\{failedCount\} 张失败/);
+  assert.match(page, /failedImageErrors\?\.\[slot\]/);
+  assert.match(page, /重试本张/);
   assert.match(page, /data-testid="listing-loading-skeleton"/);
   assert.match(page, /listing-loader-nav/);
   assert.match(page, /listing-loader-gallery/);
@@ -256,8 +319,9 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /form\.append\("referenceVideo"/);
   assert.match(page, /请先上传 1 个参考视频/);
   assert.match(page, /data-testid="inspiration-grid"/);
-  assert.match(page, /case-portable-listing/);
-  assert.match(page, /case-travel-suite/);
+  assert.match(page, /const visibleCases = uploadedCases/);
+  assert.doesNotMatch(page, /case-portable-listing/);
+  assert.doesNotMatch(page, /case-travel-suite/);
   assert.match(page, /function InspirationGallery/);
   assert.match(page, /function InspirationTemplatePreview/);
   assert.match(page, /data-testid="template-preview-page"/);
@@ -278,6 +342,9 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(styles, /\.inspiration-tabs button\s*\{[^}]*border-radius:\s*12px;/);
   assert.match(styles, /\.quick-capabilities > button\s*\{[^}]*border-radius:\s*16px;/);
   assert.match(styles, /\.inspiration-card\s*\{[^}]*border-radius:\s*0;/);
+  assert.match(styles, /\.inspiration-card-media > img\s*\{[^}]*height:\s*auto;[^}]*object-fit:\s*contain;/);
+  assert.doesNotMatch(styles, /\.inspiration-card-(?:suite|portrait|landscape) \.inspiration-card-media\s*\{[^}]*aspect-ratio:/);
+  assert.match(styles, /\.partial-generation-summary\s*\{/);
   assert.match(styles, /\.template-preview-page\s*\{[^}]*grid-template-columns:/);
   assert.match(styles, /\.template-preview-use\s*\{[^}]*background:\s*var\(--accent\)/);
   assert.match(styles, /\.inspiration-scroll-top\s*\{[^}]*position:\s*fixed;/);
@@ -394,6 +461,18 @@ test("ships the complete generation flow and its assets", async () => {
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   assert.doesNotMatch(page, /SkeletonPreview|codex-preview/);
   assert.match(generateRoute, /MiniMax-M3/);
+  assert.match(generateRoute, /yunwu\/claude-opus-4-8/);
+  assert.match(generateRoute, /dolaio\/gpt-5\.6-terra/);
+  assert.match(generateRoute, /VIDEO_ANALYSIS_FALLBACK_MODEL/);
+  assert.match(generateRoute, /analyzeReferenceVideoWithFallback/);
+  assert.match(generateRoute, /IMAGE_MODEL_NANO_2_LITE/);
+  assert.match(generateRoute, /IMAGE_MODEL_NANO_2/);
+  assert.match(generateRoute, /VIDEO_MODEL_SEEDANCE_FAST/);
+  assert.match(generateRoute, /VIDEO_MODEL_SEEDANCE_MINI/);
+  assert.match(generateRoute, /VIDEO_MODEL_SEEDANCE_PRO/);
+  assert.match(generateRoute, /request\.set\("model", model\)/);
+  assert.match(generateRoute, /body: JSON\.stringify\(\{[\s\S]*?model,/);
+  assert.match(taskBackend, /task\.model \|\| config\.model/);
   assert.match(taskBackend, /process\.env\.IMAGE_MODEL \?\? "gpt-image-2"/);
   assert.match(taskBackend, /const MAX_IMAGE_RETRIES = 18/);
   assert.match(taskBackend, /const IMAGE_RETRY_INTERVAL_MS = 10_000/);
