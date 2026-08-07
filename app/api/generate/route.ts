@@ -246,13 +246,47 @@ async function analyzeReferenceVideo(
   return storyboard;
 }
 
-async function fileDataUrl(file: File) {
+const supportedImageMediaTypes = new Set([
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
+function detectedImageMediaType(bytes: Uint8Array) {
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (
+    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e &&
+    bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a &&
+    bytes[6] === 0x1a && bytes[7] === 0x0a
+  ) return "image/png";
+  const signature = String.fromCharCode(...bytes.subarray(0, 12));
+  if (signature.startsWith("GIF87a") || signature.startsWith("GIF89a")) return "image/gif";
+  if (signature.startsWith("RIFF") && signature.slice(8, 12) === "WEBP") return "image/webp";
+}
+
+async function normalizedImageFile(file: File) {
   const bytes = new Uint8Array(await file.arrayBuffer());
+  const mediaType = supportedImageMediaTypes.has(file.type)
+    ? file.type
+    : detectedImageMediaType(bytes);
+  if (!mediaType) throw new Error(`无法识别图片格式：${file.name || "未命名图片"}`);
+  return {
+    bytes,
+    file: mediaType === file.type
+      ? file
+      : new File([bytes], file.name || "product.png", { type: mediaType }),
+    mediaType,
+  };
+}
+
+async function fileDataUrl(file: File) {
+  const { bytes, mediaType } = await normalizedImageFile(file);
   let binary = "";
   for (let index = 0; index < bytes.length; index += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
   }
-  return `data:${file.type || "image/png"};base64,${btoa(binary)}`;
+  return `data:${mediaType};base64,${btoa(binary)}`;
 }
 
 function uploadedImages(form: FormData) {
@@ -269,7 +303,9 @@ async function listingMessages(form: FormData) {
   const skill = String(form.get("skill") ?? "amazon-listing");
   const context = formContext(form);
   const prompt = String(form.get("prompt") ?? "");
-  const images = uploadedImages(form);
+  const images = await Promise.all(
+    uploadedImages(form).map(async (image) => (await normalizedImageFile(image)).file),
+  );
   const imageNames = images.length
     ? images.map((image, index) => `${index + 1}. ${image.name}`).join("\n")
     : "No uploaded product image";
@@ -395,7 +431,9 @@ async function createImage(
   userId: string,
   db: D1Binding,
 ) {
-  const images = uploadedImages(form);
+  const images = await Promise.all(
+    uploadedImages(form).map(async (image) => (await normalizedImageFile(image)).file),
+  );
   if (!images.length) return jsonError("请上传商品图片", 400);
 
   const skill = String(form.get("skill") ?? "amazon-scene-image");

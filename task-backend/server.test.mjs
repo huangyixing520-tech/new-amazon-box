@@ -134,6 +134,24 @@ test("protects task endpoints while keeping health public", async (context) => {
   assert.equal((await fetch(`http://127.0.0.1:${port}/v1/image-tasks/not-found`)).status, 401);
 });
 
+test("caps image task concurrency at ten", async (context) => {
+  const dataDir = await mkdtemp(join(tmpdir(), "mercato-task-concurrency-"));
+  context.after(() => rm(dataDir, { recursive: true, force: true }));
+  const backend = createTaskServer({
+    dataDir,
+    apiKey: "dola-test",
+    token: "backend-test",
+    concurrency: 100,
+  });
+  const port = await listen(backend);
+  context.after(() => close(backend));
+
+  const health = await fetch(`http://127.0.0.1:${port}/health`).then(
+    (response) => response.json(),
+  );
+  assert.equal(health.concurrency, 10);
+});
+
 test("retries a logical 429 returned with HTTP 200", async (context) => {
   const dataDir = await mkdtemp(join(tmpdir(), "mercato-task-retry-"));
   context.after(() => rm(dataDir, { recursive: true, force: true }));

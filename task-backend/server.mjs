@@ -16,6 +16,7 @@ import { imageOutputUrl } from "./image-response.mjs";
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const MAX_UPLOAD_COUNT = 9;
+const MAX_TASK_CONCURRENCY = 10;
 const MAX_IMAGE_RETRIES = 18;
 const IMAGE_RETRY_INTERVAL_MS = 10_000;
 const TASK_TTL_MS = 24 * 60 * 60 * 1000;
@@ -164,7 +165,10 @@ export function createTaskServer(options = {}) {
       process.env.USER_KEY_ENCRYPTION_SECRET,
     token: options.token ?? process.env.TASK_BACKEND_TOKEN,
     model: options.model ?? process.env.IMAGE_MODEL ?? "gpt-image-2",
-    concurrency: Math.max(1, Number(options.concurrency ?? process.env.TASK_CONCURRENCY ?? 2)),
+    concurrency: Math.min(
+      MAX_TASK_CONCURRENCY,
+      Math.max(1, Number(options.concurrency ?? process.env.TASK_CONCURRENCY ?? 10)),
+    ),
     retryDelays: configuredRetryDelays
       .map(Number)
       .filter((delay) => Number.isFinite(delay) && delay >= 0)
@@ -316,7 +320,12 @@ export function createTaskServer(options = {}) {
       await ready;
       const url = new URL(request.url || "/", "http://localhost");
       if (request.method === "GET" && url.pathname === "/health") {
-        return json(response, 200, { ok: true, active, queued: pending.length });
+        return json(response, 200, {
+          ok: true,
+          active,
+          queued: pending.length,
+          concurrency: config.concurrency,
+        });
       }
       if (!config.token) {
         return json(response, 503, { error: "后台密钥尚未配置" });

@@ -426,6 +426,13 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /X-Mercato-Generation-Architecture/);
   assert.match(generateRoute, /direct-mode-skill/);
   assert.match(generateRoute, /singleImageTaskBoundary/);
+  assert.match(generateRoute, /detectedImageMediaType/);
+  assert.match(generateRoute, /supportedImageMediaTypes/);
+  assert.match(page, /type: blob\.type \|\| "image\/png"/);
+  assert.match(page, /MAX_IMAGE_TASK_CONCURRENCY = 10/);
+  assert.match(page, /Math\.min\(MAX_IMAGE_TASK_CONCURRENCY, firstMobileSlot\)/);
+  assert.match(taskBackend, /MAX_TASK_CONCURRENCY = 10/);
+  assert.match(taskBackend, /process\.env\.TASK_CONCURRENCY \?\? 10/);
   assert.doesNotMatch(generateRoute, /context\.brandText\} \$\{context\.generationText/);
   assert.match(generateRoute, /slotType/);
   assert.match(generateRoute, /outputWidth/);

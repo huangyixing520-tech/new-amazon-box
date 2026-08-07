@@ -118,6 +118,7 @@ type Turn = {
 
 const MAX_UPLOADS = 9;
 const MAX_REFERENCE_VIDEO_BYTES = 100 * 1024 * 1024;
+const MAX_IMAGE_TASK_CONCURRENCY = 10;
 
 type Conversation = {
   id: string;
@@ -3350,10 +3351,11 @@ function PreviewModal({
 }
 
 async function uploadAsFile(upload: Upload) {
-  const source = upload.file ?? new File(
-    [await fetch(upload.url).then((response) => response.blob())],
-    upload.name || "product.png",
-  );
+  const source = upload.file ?? await fetch(upload.url)
+    .then((response) => response.blob())
+    .then((blob) => new File([blob], upload.name || "product.png", {
+      type: blob.type || "image/png",
+    }));
   if (source.size <= 700_000) return source;
 
   const bitmap = await createImageBitmap(source);
@@ -4117,7 +4119,7 @@ export default function Home() {
     };
 
     await Promise.all(
-      Array.from({ length: Math.min(2, firstMobileSlot) }, worker),
+      Array.from({ length: Math.min(MAX_IMAGE_TASK_CONCURRENCY, firstMobileSlot) }, worker),
     );
     await Promise.all(
       Array.from(
@@ -4224,7 +4226,9 @@ export default function Home() {
       }
     };
 
-    await Promise.all(Array.from({ length: Math.min(2, firstMobileSlot) }, worker));
+    await Promise.all(
+      Array.from({ length: Math.min(MAX_IMAGE_TASK_CONCURRENCY, firstMobileSlot) }, worker),
+    );
     await Promise.all(
       Array.from(
         { length: count - firstMobileSlot },
