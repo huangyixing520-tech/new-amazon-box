@@ -20,29 +20,42 @@ test("maps every suite slot to one task and the correct final canvas", () => {
     slotIndex: 2,
     aPlusType: "standard",
   });
+  const mobile = imageOutputSpec({
+    slotType: "a-plus-mobile",
+    slotIndex: 2,
+    aPlusType: "advanced-mobile",
+  });
   assert.deepEqual(
     [advanced.outputWidth, advanced.outputHeight],
-    [1464, 600],
+    [1460, 600],
   );
   assert.deepEqual(
     [standard.outputWidth, standard.outputHeight],
-    [960, 600],
+    [970, 600],
   );
-  assert.match(advanced.formatInstruction, /61:25/);
-  assert.match(advanced.formatInstruction, /1464 x 600/);
-  assert.match(standard.formatInstruction, /960 x 600/);
+  assert.deepEqual(
+    [mobile.outputWidth, mobile.outputHeight],
+    [600, 450],
+  );
+  assert.match(advanced.formatInstruction, /1460 x 600/);
+  assert.match(standard.formatInstruction, /970 x 600/);
+  assert.match(mobile.formatInstruction, /completed Premium A\+ image/);
   assert.match(singleImageTaskBoundary, /one independent image task/i);
   assert.match(singleImageTaskBoundary, /Never create a collage/);
 });
 
 test("asset output dimensions accept only supported exact canvases", () => {
-  assert.deepEqual(normalizedImageOutputDimensions(1464, 600), {
-    width: 1464,
+  assert.deepEqual(normalizedImageOutputDimensions(1460, 600), {
+    width: 1460,
     height: 600,
   });
-  assert.deepEqual(normalizedImageOutputDimensions(960, 600), {
-    width: 960,
+  assert.deepEqual(normalizedImageOutputDimensions(970, 600), {
+    width: 970,
     height: 600,
+  });
+  assert.deepEqual(normalizedImageOutputDimensions(600, 450), {
+    width: 600,
+    height: 450,
   });
   assert.equal(normalizedImageOutputDimensions(1536, 1024), null);
 });
@@ -186,7 +199,7 @@ test("ships the complete generation flow and its assets", async () => {
   );
   assert.match(page, /suite\.aPlusCount === 0[\s\S]*suite\.mainImageCount === 0/);
   assert.match(page, /main-image-ratio-trigger/);
-  assert.match(page, /主副图比例/);
+  assert.match(page, /卖点图比例/);
   assert.match(page, /"1:1"/);
   assert.match(page, /"3:4"/);
   assert.match(page, /brand-gene-panel/);
@@ -217,8 +230,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /single-image-result/);
   assert.match(page, /video-result/);
   assert.match(styles, /\.listing-a-plus-gallery\s*\{[^}]*flex-direction:\s*column;/);
-  assert.match(styles, /\.listing-a-plus-gallery\.is-advanced\s*\{[^}]*max-width:\s*1464px;/);
-  assert.match(styles, /\.listing-a-plus-gallery\.is-standard\s*\{[^}]*max-width:\s*960px;/);
+  assert.match(styles, /\.listing-a-plus-gallery\.is-advanced\s*\{[^}]*max-width:\s*1460px;/);
+  assert.match(styles, /\.listing-a-plus-gallery\.is-standard\s*\{[^}]*max-width:\s*970px;/);
   assert.match(
     styles,
     /\.listing-a-plus-gallery img\s*\{[^}]*height:\s*auto;[^}]*object-fit:\s*contain;/,
@@ -418,7 +431,7 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /outputWidth/);
   assert.match(generateRoute, /outputHeight/);
   assert.match(generateRoute, /a-plus-mobile/);
-  assert.match(generateRoute, /Main and secondary image ratio/);
+  assert.match(generateRoute, /Selling-point image ratio/);
   assert.match(generateRoute, /\[BRAND GENE\]/);
   assert.match(generateRoute, /brandColor === "auto"/);
   assert.match(generateRoute, /Auto-detect a coherent primary color/);

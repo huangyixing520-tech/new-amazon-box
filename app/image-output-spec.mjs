@@ -6,7 +6,7 @@ export function imageOutputSpec({
 } = {}) {
   if (slotType === "a-plus") {
     const standard = aPlusType === "standard";
-    const outputWidth = standard ? 960 : 1464;
+    const outputWidth = standard ? 970 : 1460;
     const outputHeight = 600;
     return {
       // GPT Image only accepts a constrained set of working canvases. The
@@ -16,18 +16,18 @@ export function imageOutputSpec({
       outputHeight,
       label: `${standard ? "Standard" : "Advanced"} Amazon A+ desktop image ${slotIndex + 1}`,
       formatInstruction: standard
-        ? "Create an 8:5 Amazon A+ composition. The final delivered canvas is exactly 960 x 600 px; keep every essential product detail and all copy inside that 8:5 safe area."
-        : "Create an ultra-wide 61:25 Amazon Advanced A+ composition. The final delivered canvas is exactly 1464 x 600 px; keep every essential product detail and all copy inside the centered 61:25 safe area, with no critical content above or below it.",
+        ? "Create a landscape Amazon Standard A+ composition. The final delivered canvas is exactly 970 x 600 px; keep every essential product detail and all copy inside that safe area."
+        : "Create an ultra-wide Amazon Premium A+ composition. The final delivered canvas is exactly 1460 x 600 px; keep every essential product detail and all copy inside that safe area, with no critical content above or below it.",
     };
   }
 
   if (slotType === "a-plus-mobile") {
     return {
-      providerSize: "1024x1536",
-      outputWidth: 1024,
-      outputHeight: 1536,
+      providerSize: "1536x1024",
+      outputWidth: 600,
+      outputHeight: 450,
       label: `Mobile Amazon A+ image ${slotIndex + 1}`,
-      formatInstruction: "Compose as one vertical, phone-first Amazon A+ image.",
+      formatInstruction: "Adapt the supplied completed Premium A+ image to one exact 600 x 450 px landscape canvas. Keep its product, theme, scene, copy, and brand system unchanged.",
     };
   }
 

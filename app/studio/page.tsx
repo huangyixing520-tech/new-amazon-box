@@ -194,7 +194,7 @@ const skills: SkillOption[] = [
     mode: "image",
     kind: "images",
     label: "商品套图",
-    description: "生成主副图、A+ 图与可选手机 A+ 图",
+    description: "生成卖点图、A+ 图与可选手机 A+ 图",
     starter: "生成完整 Amazon 商品套图",
   },
   {
@@ -258,7 +258,7 @@ const skills: SkillOption[] = [
     mode: "listing",
     kind: "listing",
     label: "亚马逊 Listing",
-    description: "生成标题、卖点、描述、主副图与 A+ 内容",
+    description: "生成标题、卖点、描述、卖点图与 A+ 内容",
     starter: "生成完整亚马逊商品 Listing",
   },
   {
@@ -311,7 +311,7 @@ const quickCapabilities: Array<{
     mode: "image",
     skill: "amazon-image-set",
     title: "套图生成",
-    body: "主副图与 A+ 图一次生成",
+    body: "卖点图与 A+ 图一次生成",
     image: "/product-main.png",
   },
   {
@@ -337,7 +337,7 @@ const inspirationCases: InspirationCase[] = [
     mode: "listing",
     skill: "amazon-listing",
     title: "便携咖啡机完整 Listing",
-    description: "主副图、A+ 内容与 Listing 文案",
+    description: "卖点图、A+ 内容与 Listing 文案",
     prompt: "为这款便携咖啡机生成完整亚马逊 Listing，突出便携、自加热与户外使用场景",
     images: ["/product-main.png", "/product-lifestyle.png", "/product-outdoor.png"],
     layout: "suite",
@@ -634,21 +634,19 @@ function suiteItems(
       const slot = suiteSlot(suite, index);
       const isAPlus = slot.type === "a-plus";
       const isMobile = slot.type === "a-plus-mobile";
-      const aPlusRatio = suite.aPlusType === "standard" ? "8:5" : "61:25";
+      const aPlusSize = suite.aPlusType === "standard" ? "970×600" : "1460×600";
       return {
         id: `${skillId}-${slot.type}-${slot.index}`,
         group: isMobile
-          ? `手机 A+ ${slot.index + 1} · 2:3`
+          ? `手机 A+ ${slot.index + 1} · 600×450`
           : isAPlus
-            ? `A+ 图 ${slot.index + 1} · ${aPlusRatio}`
-            : `主副图 ${slot.index + 1} · ${suite.mainImageRatio}`,
+            ? `A+ 图 ${slot.index + 1} · ${aPlusSize}`
+            : `卖点图 ${slot.index + 1} · ${suite.mainImageRatio}`,
         title: isMobile
           ? `手机 A+ 图 ${slot.index + 1}`
           : isAPlus
             ? `A+ 图 ${slot.index + 1}`
-            : slot.index === 0
-              ? "商品主图"
-              : `商品副图 ${slot.index}`,
+            : `商品卖点图 ${slot.index + 1}`,
         image: index < gallery.length ? gallery[index].image : "/product-main.png",
         wide: isAPlus,
         portrait: slot.type === "main" && suite.mainImageRatio === "3:4",
@@ -1660,7 +1658,7 @@ function Composer({
             disabled={sendDisabled}
             title={
               suiteSelectionEmpty
-                ? "请至少选择 1 张主副图或 A+ 图"
+                ? "请至少选择 1 张卖点图或 A+ 图"
                 : isLinkReplica && !isHttpUrl(prompt)
                   ? "请先输入有效的商品链接"
                   : undefined
@@ -1838,7 +1836,7 @@ function Composer({
                 testId="a-plus-count-trigger"
               />
               <OptionMenu
-                label="主副图比例"
+                label="卖点图比例"
                 options={mainImageRatios}
                 value={suite.mainImageRatio}
                 open={openMenu === "main-image-ratio"}
@@ -1850,11 +1848,11 @@ function Composer({
                   onSuite({ ...suite, mainImageRatio: value as "1:1" | "3:4" });
                   setOpenMenu(null);
                 }}
-                prefix="主副图比例"
+                prefix="卖点图比例"
                 testId="main-image-ratio-trigger"
               />
               <OptionMenu
-                label="主副图数量"
+                label="卖点图数量"
                 options={mainImageCounts}
                 value={String(suite.mainImageCount)}
                 open={openMenu === "main-image-count"}
@@ -1864,7 +1862,7 @@ function Composer({
                   onSuite({ ...suite, mainImageCount: Number(value) });
                   setOpenMenu(null);
                 }}
-                prefix="主副图"
+                prefix="卖点图"
                 testId="main-image-count-trigger"
               />
             </>
@@ -1880,7 +1878,7 @@ function Composer({
             disabled={sendDisabled}
             title={
               suiteSelectionEmpty
-                ? "请至少选择 1 张主副图或 A+ 图"
+                ? "请至少选择 1 张卖点图或 A+ 图"
                 : isLinkReplica && !isHttpUrl(prompt)
                   ? "请先输入有效的商品链接"
                   : undefined
@@ -3250,7 +3248,7 @@ function InspirationTemplatePreview({
           {item.suite ? (
             <>
               <div><dt>A+ 图</dt><dd>{item.suite.aPlusCount ?? 0} 张</dd></div>
-              <div><dt>主副图</dt><dd>{item.suite.mainImageCount ?? 0} 张</dd></div>
+              <div><dt>卖点图</dt><dd>{item.suite.mainImageCount ?? 0} 张</dd></div>
               <div><dt>图片比例</dt><dd>{item.suite.mainImageRatio ?? "1:1"}</dd></div>
             </>
           ) : null}
@@ -4058,46 +4056,74 @@ export default function Home() {
     const failedSlots: number[] = [];
     let nextSlot = 0;
     let firstError = "";
+    const firstMobileSlot = turn.suite.aPlusType === "advanced-mobile"
+      ? Math.min(
+          suiteImageCount,
+          turn.suite.mainImageCount + turn.suite.aPlusCount,
+        )
+      : suiteImageCount;
+
+    const generateSlot = async (slot: number) => {
+      try {
+        const slotConfig = suiteSlot(turn.suite, slot);
+        const sourceUploads = slotConfig.type === "a-plus-mobile"
+          ? (() => {
+              const sourceSlot = turn.suite.mainImageCount + slotConfig.index;
+              const sourceUrl = results[sourceSlot];
+              if (!sourceUrl) throw new Error("对应的高级 A+ 图生成失败，无法继续生成手机 A+");
+              return [{
+                id: `${turn.id}-premium-a-plus-${slotConfig.index}`,
+                name: `premium-a-plus-${slotConfig.index + 1}.png`,
+                url: sourceUrl,
+              }];
+            })()
+          : uploadsForTurn;
+        const generatedUrl = await runImageTask(
+          await generationForm(turn, sourceUploads, "image", slot),
+          signal,
+        );
+        const stored = await storeAsset(
+          turn,
+          generatedUrl,
+          "image",
+          suiteItems(turn.skill, suiteImageCount, turn.suite)[slot]?.title ??
+            `Listing 图片 ${slot + 1}`,
+          slot,
+          "output",
+          suiteOutputDimensions(turn.suite, slot),
+        );
+        if (!stored) throw new Error("图片已生成，但没有保存到资产库");
+        results[slot] = stored.url;
+      } catch (error) {
+        if ((error as Error).name === "AbortError") throw error;
+        failedSlots.push(slot);
+        firstError ||= error instanceof Error ? error.message : "图片生成失败";
+      }
+      const done = results.filter(Boolean).length;
+      patchTurn(turn.id, {
+        images: [...results],
+        failedImageSlots: [...failedSlots],
+        completed: 1 + done,
+        phase: failedSlots.length
+          ? `Listing 已完成 · 套图 ${done} / ${suiteImageCount} 张 · ${failedSlots.length} 张失败`
+          : `Listing 已完成 · 套图 ${done} / ${suiteImageCount} 张`,
+      });
+    };
 
     const worker = async () => {
-      while (nextSlot < suiteImageCount) {
-        const slot = nextSlot++;
-        try {
-          const generatedUrl = await runImageTask(
-            await generationForm(turn, uploadsForTurn, "image", slot),
-            signal,
-          );
-          const stored = await storeAsset(
-            turn,
-            generatedUrl,
-            "image",
-            suiteItems(turn.skill, suiteImageCount, turn.suite)[slot]?.title ??
-              `Listing 图片 ${slot + 1}`,
-            slot,
-            "output",
-            suiteOutputDimensions(turn.suite, slot),
-          );
-          if (!stored) throw new Error("图片已生成，但没有保存到资产库");
-          results[slot] = stored.url;
-        } catch (error) {
-          if ((error as Error).name === "AbortError") throw error;
-          failedSlots.push(slot);
-          firstError ||= error instanceof Error ? error.message : "图片生成失败";
-        }
-        const done = results.filter(Boolean).length;
-        patchTurn(turn.id, {
-          images: [...results],
-          failedImageSlots: [...failedSlots],
-          completed: 1 + done,
-          phase: failedSlots.length
-            ? `Listing 已完成 · 套图 ${done} / ${suiteImageCount} 张 · ${failedSlots.length} 张失败`
-            : `Listing 已完成 · 套图 ${done} / ${suiteImageCount} 张`,
-        });
+      while (nextSlot < firstMobileSlot) {
+        await generateSlot(nextSlot++);
       }
     };
 
     await Promise.all(
-      Array.from({ length: Math.min(2, suiteImageCount) }, worker),
+      Array.from({ length: Math.min(2, firstMobileSlot) }, worker),
+    );
+    await Promise.all(
+      Array.from(
+        { length: suiteImageCount - firstMobileSlot },
+        (_, index) => generateSlot(firstMobileSlot + index),
+      ),
     );
     const done = results.filter(Boolean).length;
     if (!done) throw new Error(firstError || "Listing 文案已完成，但套图生成失败");
@@ -4134,49 +4160,77 @@ export default function Home() {
     const failedSlots: number[] = [];
     let nextSlot = 0;
     let firstError = "";
+    const firstMobileSlot = hasSuiteSettings(turn.skill) &&
+        turn.suite.aPlusType === "advanced-mobile"
+      ? Math.min(count, turn.suite.mainImageCount + turn.suite.aPlusCount)
+      : count;
+
+    const generateSlot = async (slot: number) => {
+      try {
+        const slotConfig = hasSuiteSettings(turn.skill)
+          ? suiteSlot(turn.suite, slot)
+          : undefined;
+        const sourceUploads = slotConfig?.type === "a-plus-mobile"
+          ? (() => {
+              const sourceSlot = turn.suite.mainImageCount + slotConfig.index;
+              const sourceUrl = results[sourceSlot];
+              if (!sourceUrl) throw new Error("对应的高级 A+ 图生成失败，无法继续生成手机 A+");
+              return [{
+                id: `${turn.id}-premium-a-plus-${slotConfig.index}`,
+                name: `premium-a-plus-${slotConfig.index + 1}.png`,
+                url: sourceUrl,
+              }];
+            })()
+          : uploadsForTurn;
+        const generatedUrl = await runImageTask(
+          await generationForm(turn, sourceUploads, "image", slot),
+          signal,
+        );
+        const stored = await storeAsset(
+          turn,
+          generatedUrl,
+          "image",
+          (turn.kind === "single"
+            ? singleImageOutputs[turn.skill]?.title
+            : suiteItems(turn.skill, count, turn.suite)[slot]?.title) ??
+            `生成图片 ${slot + 1}`,
+          slot,
+          "output",
+          hasSuiteSettings(turn.skill)
+            ? suiteOutputDimensions(turn.suite, slot)
+            : undefined,
+        );
+        if (!stored) throw new Error("图片已生成，但没有保存到资产库");
+        results[slot] = stored.url;
+      } catch (error) {
+        if ((error as Error).name === "AbortError") throw error;
+        failedSlots.push(slot);
+        firstError ||= error instanceof Error ? error.message : "图片生成失败";
+      }
+      const done = results.filter(Boolean).length;
+      patchTurn(turn.id, {
+        images: [...results],
+        failedImageSlots: [...failedSlots],
+        completed: done,
+        phase: failedSlots.length
+          ? `已完成 ${done} / ${count} 张 · ${failedSlots.length} 张失败`
+          : `已完成 ${done} / ${count} 张`,
+      });
+    };
 
     const worker = async () => {
-      while (nextSlot < count) {
-        const slot = nextSlot++;
-        try {
-          const generatedUrl = await runImageTask(
-            await generationForm(turn, uploadsForTurn, "image", slot),
-            signal,
-          );
-          const stored = await storeAsset(
-            turn,
-            generatedUrl,
-            "image",
-            (turn.kind === "single"
-              ? singleImageOutputs[turn.skill]?.title
-              : suiteItems(turn.skill, count, turn.suite)[slot]?.title) ??
-              `生成图片 ${slot + 1}`,
-            slot,
-            "output",
-            hasSuiteSettings(turn.skill)
-              ? suiteOutputDimensions(turn.suite, slot)
-              : undefined,
-          );
-          if (!stored) throw new Error("图片已生成，但没有保存到资产库");
-          results[slot] = stored.url;
-        } catch (error) {
-          if ((error as Error).name === "AbortError") throw error;
-          failedSlots.push(slot);
-          firstError ||= error instanceof Error ? error.message : "图片生成失败";
-        }
-        const done = results.filter(Boolean).length;
-        patchTurn(turn.id, {
-          images: [...results],
-          failedImageSlots: [...failedSlots],
-          completed: done,
-          phase: failedSlots.length
-            ? `已完成 ${done} / ${count} 张 · ${failedSlots.length} 张失败`
-            : `已完成 ${done} / ${count} 张`,
-        });
+      while (nextSlot < firstMobileSlot) {
+        await generateSlot(nextSlot++);
       }
     };
 
-    await Promise.all(Array.from({ length: Math.min(2, count) }, worker));
+    await Promise.all(Array.from({ length: Math.min(2, firstMobileSlot) }, worker));
+    await Promise.all(
+      Array.from(
+        { length: count - firstMobileSlot },
+        (_, index) => generateSlot(firstMobileSlot + index),
+      ),
+    );
     const done = results.filter(Boolean).length;
     if (!done) throw new Error(firstError || "图片生成失败");
     patchTurn(turn.id, {
@@ -4310,7 +4364,7 @@ export default function Home() {
       suite.aPlusCount === 0 &&
       suite.mainImageCount === 0
     ) {
-      showNotice("请至少选择 1 张主副图或 A+ 图");
+      showNotice("请至少选择 1 张卖点图或 A+ 图");
       return;
     }
     if (!sessionReady || !session) {
@@ -4785,7 +4839,7 @@ export default function Home() {
                           <span>{languages.find((item) => item.id === turn.language)?.label}</span>
                           {hasSuiteSettings(turn.skill) ? (
                             <span>
-                              主副图 {turn.suite.mainImageCount} · A+ {turn.suite.aPlusCount}
+                              卖点图 {turn.suite.mainImageCount} · A+ {turn.suite.aPlusCount}
                               {" · "}{turn.suite.mainImageRatio}
                               {turn.suite.aPlusType === "advanced-mobile" ? " · 含手机 A+" : ""}
                             </span>

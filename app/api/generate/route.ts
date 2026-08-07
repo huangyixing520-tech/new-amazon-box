@@ -8,6 +8,7 @@ import {
   imageOutputSpec,
   singleImageTaskBoundary,
 } from "../../image-output-spec.mjs";
+import amazonImageSkillPrompt from "../../../skills/amazon-image-set/references/amazon-image-skill.md?raw";
 import videoReplicaAnalysisPrompt from "../../../skills/video-replica/references/video-analysis-prompt.md?raw";
 
 const BASE_URL =
@@ -94,31 +95,33 @@ const imagePrompts: Record<string, string[]> = {
 };
 
 const mainImagePrompts = [
-  "Amazon-compliant ecommerce hero image, pure white background, centered product, accurate shape and color, realistic soft shadow, no text",
-  "Ecommerce feature image showing the product's clearest visible benefit with a focused commercial composition",
-  "Lifestyle image showing the product in believable everyday use",
-  "Detail image emphasizing visible materials, construction and craftsmanship",
-  "Scale and portability image with a clean marketplace composition",
-  "Accessory or usage-step image using only details supported by the reference product",
-  "Alternative lifestyle image for a second realistic use case",
-  "Premium closing image with the product as the clear focal point",
+  "Selling Point layout L1: one-theme product hero with one concise benefit and unobstructed product identity. For wearable or carry products use W1 instead, with a real person and no added visible text or graphics",
+  "Selling Point layout L2: two to four concise benefit areas arranged around an unobstructed product. For wearable or carry products use W2 instead, with a real person and no added visible text or graphics",
+  "Selling Point layout L3: centered product information composition with two to four supported details. For wearable or carry products use W3 instead, with a real person and no added visible text or graphics",
+  "Selling Point layout L4: product naturally integrated into a complete, believable lifestyle scene with clean negative space. For wearable or carry products use W4 instead, with a real person and no added visible text or graphics",
+  "Selling Point layout L5: product plus one to three verifiable material, craft, or construction detail views. For wearable or carry products use W5 instead, with a real person and no added visible text or graphics",
+  "Selling Point layout L6: real use, handling, operation, wearing, sitting, or lying scene supported by the product references",
+  "Selling Point layout L7 only if the references prove real colors, sizes, accessories, or bundle contents; otherwise create a distinct eligible layout without inventing variants",
+  "Selling Point layout L8 only if a truthful before-and-after change can be shown without exaggeration; otherwise create a distinct eligible layout without unsupported claims",
 ];
 
 const aPlusPrompts = [
-  "Wide Amazon A+ brand banner with a premium product story composition and clean negative space",
-  "Wide Amazon A+ benefit banner focused on the strongest visible product advantage",
-  "Wide Amazon A+ lifestyle banner showing a believable use environment",
-  "Wide Amazon A+ craftsmanship banner with refined macro product details",
-  "Wide Amazon A+ closing banner with cohesive brand atmosphere and a clear product focal point",
+  "A+ layout L1: one-theme premium product story with an unobstructed hero product and concise copy",
+  "A+ layout L2: two to four structured brand or benefit areas with consistent hierarchy and spacing",
+  "A+ layout L4: premium product story in a complete, believable lifestyle environment with natural negative space",
+  "A+ layout L5: product plus one to three verifiable material, craft, or construction detail views",
+  "A+ layout L6: truthful real-use, wearing, handling, or operation evidence with the product as the focal point",
 ];
 
 const mobileAPlusPrompts = [
-  "Vertical mobile Amazon A+ brand banner derived from the desktop brand story with a phone-first composition",
-  "Vertical mobile Amazon A+ benefit banner with one clear product advantage and generous safe margins",
-  "Vertical mobile Amazon A+ lifestyle banner with a believable use environment",
-  "Vertical mobile Amazon A+ craftsmanship banner with refined macro product details",
-  "Vertical mobile Amazon A+ closing banner with cohesive brand atmosphere and a clear product focal point",
+  "Mobile A+ layout L10: adapt only the supplied corresponding completed Premium A+ image to the 600 by 450 landscape canvas. Preserve its theme, scene, selling point, copy, product, and brand style; only crop, scale, and rearrange as needed",
 ];
+
+const amazonImageSkillHostRules = `
+The product UI has already confirmed output type, quantity, sales region, image language, A+ type, and ratio. Do not ask questions or output JSON; generate this one assigned image now.
+Treat slot type "main" as image_type="selling_point" and module_type="Selling Point". Treat "a-plus" as image_type="aplus" and use Standard A+ only when A+ type is standard, otherwise Premium A+. Treat "a-plus-mobile" as image_type="aplus" and module_type="Mobile A+".
+The host sends one independent request per output. Follow the assigned slot direction, keep its layout distinct from the other numbered slots, and reuse the exact batch settings below. Explicit user instructions still override UI settings and defaults.
+`;
 
 function formContext(form: FormData) {
   const region = String(form.get("region") ?? "us");
@@ -146,7 +149,7 @@ function formContext(form: FormData) {
     brandText: `Sales market: ${regionNames[region] ?? region}. Output language: ${
       languageNames[language] ?? language
     }. Publishing platform: ${platform}. Brand primary color: ${brandColorDescription}. Typography direction: ${fontStyle}.`,
-    generationText: `Main and secondary images: ${mainImageCount}. Main and secondary image ratio: ${mainImageRatio}. A+ type: ${aPlusType}. A+ images: ${aPlusCount}.`,
+    generationText: `Selling-point images: ${mainImageCount}. Selling-point image ratio: ${mainImageRatio}. A+ type: ${aPlusType}. A+ images: ${aPlusCount}.`,
   };
 }
 
@@ -417,6 +420,8 @@ async function createImage(
       : slotType === "a-plus-mobile"
         ? mobileAPlusPrompts[slotIndex % mobileAPlusPrompts.length]
         : imagePrompts[skill]?.[slot] ?? imagePrompts["amazon-scene-image"][0];
+  const useAmazonImageSkill = Boolean(slotType) &&
+    ["amazon-image-set", "amazon-listing"].includes(skill);
   const request = new FormData();
   request.set(
     "prompt",
@@ -425,6 +430,8 @@ Deliverable: ${outputSpec.label}.
 Format: ${outputSpec.formatInstruction}
 Creative direction for this slot only: ${preset}.
 ${context.brandText}
+${context.generationText}
+${useAmazonImageSkill ? `${amazonImageSkillHostRules}\nAuthoritative Amazon image Skill:\n${amazonImageSkillPrompt}` : ""}
 The first uploaded image is the primary product identity. Remaining images are supplementary references for angles, details, packaging and usage context. Preserve the product's identity, silhouette, proportions, colors, logo and visible functional details.
 The user's overall request is background context only and must not change this single-image task boundary: ${prompt}`.trim(),
   );
