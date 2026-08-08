@@ -21,7 +21,28 @@ type AssetRow = {
   created_at: string;
 };
 
-async function sourceBytes(sourceUrl: string) {
+type AssetBody = {
+  sourceUrl?: string;
+  type?: "image" | "video";
+  title?: string;
+  prompt?: string;
+  conversationId?: string;
+  turnId?: string;
+  createdAt?: string;
+  role?: "input" | "output";
+  slot?: number;
+  outputWidth?: number;
+  outputHeight?: number;
+};
+
+async function sourceBytes(source: string | File) {
+  if (source instanceof File) {
+    return {
+      buffer: await source.arrayBuffer(),
+      mimeType: source.type || "application/octet-stream",
+    };
+  }
+  const sourceUrl = source;
   if (sourceUrl.startsWith("data:")) {
     const match = sourceUrl.match(/^data:([^;,]+)?(;base64)?,(.*)$/s);
     if (!match) throw new Error("无法读取生成结果");
@@ -84,21 +105,38 @@ export async function POST(request: Request) {
         { status: 503 },
       );
     }
-    const body = await request.json() as {
-      sourceUrl?: string;
-      type?: "image" | "video";
-      title?: string;
-      prompt?: string;
-      conversationId?: string;
-      turnId?: string;
-      createdAt?: string;
-      role?: "input" | "output";
-      slot?: number;
-      outputWidth?: number;
-      outputHeight?: number;
+    const isMultipart = request.headers.get("content-type")
+      ?.toLowerCase()
+      .startsWith("multipart/form-data");
+    const form = isMultipart ? await request.formData() : null;
+    const formText = (key: string) => {
+      const value = form?.get(key);
+      return typeof value === "string" ? value : undefined;
     };
+    const formNumber = (key: string) => {
+      const value = formText(key);
+      if (!value) return undefined;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    };
+    const fileValue = form?.get("file");
+    const file = fileValue instanceof File ? fileValue : null;
+    const body: AssetBody = form
+      ? {
+          type: formText("type") as AssetBody["type"],
+          title: formText("title"),
+          prompt: formText("prompt"),
+          conversationId: formText("conversationId"),
+          turnId: formText("turnId"),
+          createdAt: formText("createdAt"),
+          role: formText("role") as AssetBody["role"],
+          slot: formNumber("slot"),
+          outputWidth: formNumber("outputWidth"),
+          outputHeight: formNumber("outputHeight"),
+        }
+      : await request.json() as AssetBody;
     if (
-      !body.sourceUrl ||
+      (!body.sourceUrl && !file) ||
       !body.type ||
       !body.title ||
       !body.conversationId ||
@@ -126,7 +164,7 @@ export async function POST(request: Request) {
     const id = crypto.randomUUID();
     const objectKey = `generated/${user.id}/${body.conversationId}/${id}`;
     const createdAt = body.createdAt || new Date().toISOString();
-    const source = await sourceBytes(body.sourceUrl);
+    const source = await sourceBytes(file ?? body.sourceUrl!);
     const requestedDimensions = body.type === "image" && role === "output"
       ? normalizedImageOutputDimensions(body.outputWidth, body.outputHeight)
       : null;
@@ -162,7 +200,7 @@ export async function POST(request: Request) {
       `).bind(
         id,
         objectKey,
-        body.sourceUrl,
+        body.sourceUrl || "",
         body.type,
         body.title,
         body.prompt || "",

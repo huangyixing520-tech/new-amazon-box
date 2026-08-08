@@ -592,3 +592,15 @@ test("uses the requested image count for real tasks and placeholders", () => {
   assert.equal(imageTaskCount("seeding", "生成一组种草图"), 4);
   assert.equal(imageTaskCount("single", "生成八张图片"), 1);
 });
+
+test("uploads input assets as multipart files without losing their slots", async () => {
+  const [page, assetRoute] = await Promise.all([
+    readFile(new URL("../app/studio/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/assets/route.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /form\.set\("file", sourceFile\)/);
+  assert.match(page, /slot: String\(slot\)/);
+  assert.match(assetRoute, /source instanceof File/);
+  assert.match(assetRoute, /slot: formNumber\("slot"\)/);
+});

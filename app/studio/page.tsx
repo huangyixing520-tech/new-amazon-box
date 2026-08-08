@@ -3493,10 +3493,6 @@ async function fileDataUrl(file: File) {
   });
 }
 
-async function uploadSource(upload: Upload) {
-  return fileDataUrl(await uploadAsFile(upload));
-}
-
 async function uploadOriginalFile(upload: Upload) {
   if (upload.file) return upload.file;
   const response = await fetch(upload.url);
@@ -3781,6 +3777,7 @@ export default function Home() {
     slot = 0,
     role: "input" | "output" = "output",
     dimensions?: { width: number; height: number },
+    sourceFile?: File,
   ) => {
     const temporaryId = `local-${crypto.randomUUID()}`;
     const createdAt = new Date().toISOString();
@@ -3800,22 +3797,30 @@ export default function Home() {
       setAssets((current) => [optimistic, ...current]);
     }
     try {
+      const metadata = {
+        type,
+        title,
+        prompt: turn.prompt,
+        conversationId: turn.conversationId,
+        turnId: turn.id,
+        role,
+        slot: String(slot),
+        createdAt,
+        outputWidth: dimensions?.width ? String(dimensions.width) : "",
+        outputHeight: dimensions?.height ? String(dimensions.height) : "",
+      };
+      const body = sourceFile
+        ? (() => {
+            const form = new FormData();
+            form.set("file", sourceFile);
+            Object.entries(metadata).forEach(([key, value]) => form.set(key, value));
+            return form;
+          })()
+        : JSON.stringify({ sourceUrl, ...metadata });
       const response = await fetch("/api/assets", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          sourceUrl,
-          type,
-          title,
-          prompt: turn.prompt,
-          conversationId: turn.conversationId,
-          turnId: turn.id,
-          role,
-          slot,
-          createdAt,
-          outputWidth: dimensions?.width,
-          outputHeight: dimensions?.height,
-        }),
+        headers: sourceFile ? undefined : { "content-type": "application/json" },
+        body,
       });
       if (!response.ok) throw new Error(await responseError(response));
       const payload = await response.json();
@@ -4592,14 +4597,16 @@ export default function Home() {
       });
       const storedInputs = await Promise.all(
         turnUploads.map(async (upload, slot) => {
-          const sourceUrl = await uploadSource(upload);
+          const sourceFile = await uploadAsFile(upload);
           return storeAsset(
             turn,
-            sourceUrl,
+            upload.url,
             "image",
             upload.name || `输入图片 ${slot + 1}`,
             slot,
             "input",
+            undefined,
+            sourceFile,
           );
         }),
       );
