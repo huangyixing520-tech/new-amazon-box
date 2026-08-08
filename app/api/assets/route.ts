@@ -35,8 +35,13 @@ type AssetBody = {
   outputHeight?: number;
 };
 
-async function sourceBytes(source: string | File) {
-  if (source instanceof File) {
+type BinarySource = {
+  arrayBuffer(): Promise<ArrayBuffer>;
+  type?: string;
+};
+
+async function sourceBytes(source: string | BinarySource) {
+  if (typeof source !== "string") {
     return {
       buffer: await source.arrayBuffer(),
       mimeType: source.type || "application/octet-stream",
@@ -120,7 +125,9 @@ export async function POST(request: Request) {
       return Number.isFinite(parsed) ? parsed : undefined;
     };
     const fileValue = form?.get("file");
-    const file = fileValue instanceof File ? fileValue : null;
+    const file = fileValue && typeof fileValue !== "string"
+      ? fileValue
+      : null;
     const body: AssetBody = form
       ? {
           type: formText("type") as AssetBody["type"],

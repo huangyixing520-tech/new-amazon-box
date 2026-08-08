@@ -601,6 +601,8 @@ test("uploads input assets as multipart files without losing their slots", async
 
   assert.match(page, /form\.set\("file", sourceFile\)/);
   assert.match(page, /slot: String\(slot\)/);
-  assert.match(assetRoute, /source instanceof File/);
+  assert.match(assetRoute, /typeof source !== "string"/);
+  assert.doesNotMatch(assetRoute, /instanceof File/);
   assert.match(assetRoute, /slot: formNumber\("slot"\)/);
+  assert.match(page, /if \(role === "input"\) throw error/);
 });

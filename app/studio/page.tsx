@@ -3836,11 +3836,15 @@ export default function Home() {
           current.filter((asset) => asset.id !== temporaryId),
         );
       }
+      const message = error instanceof Error
+        ? error.message
+        : "未知错误";
       showNotice(
-        error instanceof Error
-          ? `生成成功，但资产保存失败：${error.message}`
-          : "生成成功，但资产保存失败",
+        role === "input"
+          ? `输入图片保存失败：${message}`
+          : `生成成功，但资产保存失败：${message}`,
       );
+      if (role === "input") throw error;
       return null;
     }
   };
