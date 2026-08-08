@@ -26,6 +26,7 @@ import {
 } from "@phosphor-icons/react";
 import AccountPanel, { type ClientSession } from "../account-panel";
 import { floatingPopoverLayout } from "../floating-popover.mjs";
+import { parseFirstJsonObject } from "../first-json-object.mjs";
 import { imageOutputSpec } from "../image-output-spec.mjs";
 import { imageTaskCount } from "../image-task-count.mjs";
 
@@ -3520,10 +3521,7 @@ function parseListingJson(text: string): ListingData {
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/, "");
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error("Agent 没有返回有效的 Listing JSON");
-  const value = JSON.parse(cleaned.slice(start, end + 1)) as ListingData;
+  const value = parseFirstJsonObject(cleaned) as ListingData;
   if (!value.title || !Array.isArray(value.bullets) || !value.description) {
     throw new Error("Agent 返回的 Listing 字段不完整");
   }
