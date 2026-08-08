@@ -485,6 +485,9 @@ test("ships the complete generation flow and its assets", async () => {
   assert.doesNotMatch(generateRoute, /DOLA_API_KEY\s*=\s*["'][^"']+["']/);
   assert.match(generateRoute, /process\.env\.TASK_BACKEND_URL/);
   assert.match(generateRoute, /process\.env\.TASK_BACKEND_TOKEN/);
+  assert.match(generateRoute, /process\.env\.TASK_BACKEND_REQUEST_TIMEOUT_MS/);
+  assert.match(generateRoute, /AbortSignal\.timeout\(timeout\)/);
+  assert.match(generateRoute, /图片任务服务连接失败，请稍后重试/);
   assert.match(generateRoute, /imageTaskId/);
   assert.match(assetRoute, /GENERATED_ASSETS/);
   assert.match(assetRoute, /asset_owners/);

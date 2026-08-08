@@ -160,6 +160,22 @@ function taskBackend() {
   return { url, token };
 }
 
+async function taskBackendFetch(url: string, init?: RequestInit) {
+  const timeout = Math.max(
+    1_000,
+    Number(process.env.TASK_BACKEND_REQUEST_TIMEOUT_MS ?? 15_000),
+  );
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(timeout),
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`图片任务服务连接失败，请稍后重试 (${detail})`);
+  }
+}
+
 function jsonError(message: string, status = 500) {
   return Response.json({ error: message }, { status });
 }
@@ -492,7 +508,7 @@ Final output contract: ${singleImageTaskBoundary} Render one continuous edge-to-
   images.forEach((image) => request.append("image", image, image.name || "product.png"));
 
   const backend = taskBackend();
-  const response = await fetch(`${backend.url}/v1/image-tasks`, {
+  const response = await taskBackendFetch(`${backend.url}/v1/image-tasks`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${backend.token}`,
@@ -636,7 +652,7 @@ export async function GET(request: Request) {
         return jsonError("任务不存在", 404);
       }
       const backend = taskBackend();
-      const response = await fetch(
+      const response = await taskBackendFetch(
         `${backend.url}/v1/image-tasks/${encodeURIComponent(imageTaskId)}`,
         {
           headers: { Authorization: `Bearer ${backend.token}` },
