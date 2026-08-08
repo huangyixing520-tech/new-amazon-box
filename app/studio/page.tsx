@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -24,6 +25,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import AccountPanel, { type ClientSession } from "../account-panel";
+import { floatingPopoverLayout } from "../floating-popover.mjs";
 import { imageOutputSpec } from "../image-output-spec.mjs";
 import { imageTaskCount } from "../image-task-count.mjs";
 
@@ -112,8 +114,10 @@ type Turn = {
   listing?: ListingData;
   images?: string[];
   imageTaskCount?: number;
+  imageGenerationIds?: string[];
   failedImageSlots?: number[];
   videoUrl?: string;
+  videoGenerationId?: string;
 };
 
 const MAX_UPLOADS = 9;
@@ -161,6 +165,38 @@ type InspirationCase = {
   createdAt?: string;
   suite?: Partial<SuiteSettings>;
 };
+
+function ProductionId({
+  id,
+  compact = false,
+  onNotice,
+}: {
+  id?: string;
+  compact?: boolean;
+  onNotice?: (text: string) => void;
+}) {
+  if (!id) return null;
+  const visibleId = compact && id.length > 18
+    ? `${id.slice(0, 8)}…${id.slice(-6)}`
+    : id;
+
+  return (
+    <button
+      type="button"
+      className={`production-id ${compact ? "is-compact" : ""}`}
+      title={`生产 ID：${id}（点击复制）`}
+      onClick={() => {
+        void navigator.clipboard.writeText(id)
+          .then(() => onNotice?.("生产 ID 已复制"))
+          .catch(() => onNotice?.("复制失败，请手动复制生产 ID"));
+      }}
+    >
+      <span>生产 ID</span>
+      <code>{visibleId}</code>
+      <i>复制</i>
+    </button>
+  );
+}
 
 function assetDownloadUrl(url: string, format: "png" | "jpg" = "png") {
   if (!url.startsWith("/api/assets/")) return url;
@@ -785,6 +821,48 @@ const promptIdeasByMode: Record<GenerationMode, string[]> = {
   listing: ["亚马逊商品链接", "同类商品链接结构"],
 };
 
+function useFloatingPopover(open: boolean, minWidth: number) {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
+
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    const update = () => {
+      const anchor = anchorRef.current?.getBoundingClientRect();
+      const popover = popoverRef.current;
+      if (!anchor || !popover) return;
+
+      const layout = floatingPopoverLayout({
+        anchor,
+        popoverWidth: Math.max(minWidth, anchor.width),
+        popoverHeight: popover.scrollHeight,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      });
+      setStyle({
+        position: "fixed",
+        top: layout.top,
+        left: layout.left,
+        width: layout.width,
+        maxHeight: layout.maxHeight,
+        visibility: "visible",
+      });
+    };
+
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [minWidth, open]);
+
+  return { anchorRef, popoverRef, style };
+}
+
 function OptionMenu({
   label,
   options,
@@ -811,13 +889,14 @@ function OptionMenu({
   testId: string;
 }) {
   const selected = options.find((option) => option.id === value) ?? options[0];
-  const menuRef = useRef<HTMLDivElement>(null);
+  const { anchorRef: menuRef, popoverRef, style } = useFloatingPopover(open, rich ? 340 : 210);
 
   useEffect(() => {
     if (!open || !onDismiss) return;
 
     const dismissOnOutsidePress = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) onDismiss();
+      const target = event.target as Node;
+      if (!menuRef.current?.contains(target) && !popoverRef.current?.contains(target)) onDismiss();
     };
     const dismissOnEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") onDismiss();
@@ -829,7 +908,7 @@ function OptionMenu({
       document.removeEventListener("pointerdown", dismissOnOutsidePress);
       document.removeEventListener("keydown", dismissOnEscape);
     };
-  }, [onDismiss, open]);
+  }, [menuRef, onDismiss, open, popoverRef]);
 
   return (
     <div
@@ -849,8 +928,15 @@ function OptionMenu({
           {open ? <CaretUp weight="bold" /> : <CaretDown weight="bold" />}
         </span>
       </button>
-      {open ? (
-        <div className="option-popover" role="listbox" aria-label={label}>
+      {open && typeof document !== "undefined" ? createPortal(
+        <div
+          className={`option-popover ${rich ? "option-popover-rich" : ""}`}
+          ref={popoverRef}
+          style={style}
+          data-floating-popover
+          role="listbox"
+          aria-label={label}
+        >
           <div className="popover-label">{label}</div>
           {options.map((option) => (
             <button
@@ -869,7 +955,8 @@ function OptionMenu({
               {option.id === value ? <span className="selected-mark">✓</span> : null}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );
@@ -947,6 +1034,7 @@ function BrandColorPicker({
 }) {
   const [color, setColor] = useState<HsvColor>(() => hexToHsv(value));
   const [hexDraft, setHexDraft] = useState(() => (value || "#111111").toUpperCase());
+  const { anchorRef, popoverRef, style } = useFloatingPopover(open, 330);
 
   const commitColor = (next: HsvColor) => {
     const hex = hsvToHex(next);
@@ -968,7 +1056,7 @@ function BrandColorPicker({
   };
 
   return (
-    <div className="brand-color-control">
+    <div className="brand-color-control" ref={anchorRef}>
       <div className={`brand-color-trigger ${value ? "has-color" : "is-auto"}`}>
         <button
           type="button"
@@ -1012,9 +1100,12 @@ function BrandColorPicker({
         )}
       </div>
 
-      {open ? (
+      {open && typeof document !== "undefined" ? createPortal(
         <div
           className="brand-color-popover"
+          ref={popoverRef}
+          style={style}
+          data-floating-popover
           role="dialog"
           aria-label="选择品牌主色"
           data-testid="brand-color-popover"
@@ -1074,7 +1165,8 @@ function BrandColorPicker({
               <small>清除固定颜色后，将根据商品与品牌素材自动提取。</small>
             </p>
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );
@@ -1478,7 +1570,8 @@ function Composer({
       const target = event.target as Node;
       if (
         brandGeneTriggerRef.current?.contains(target) ||
-        brandGenePanelRef.current?.contains(target)
+        brandGenePanelRef.current?.contains(target) ||
+        (target instanceof Element && target.closest("[data-floating-popover]"))
       ) return;
       setOpenMenu(null);
       setOpenBrandMenu(null);
@@ -2505,6 +2598,7 @@ function ImageSuite({
   taskCount,
   suite,
   generatedImages = [],
+  generationIds = [],
   failedSlots = [],
   onPreview,
   onRegenerate,
@@ -2515,6 +2609,7 @@ function ImageSuite({
   taskCount: number;
   suite?: SuiteSettings;
   generatedImages?: string[];
+  generationIds?: string[];
   failedSlots?: number[];
   onPreview: (item: GalleryItem, slot: number) => void;
   onRegenerate: (item: GalleryItem) => void;
@@ -2560,7 +2655,11 @@ function ImageSuite({
                     <img src={item.image} alt={item.title} className={item.crop ?? ""} />
                   </button>
                   <footer>
-                    <div><span>{item.group}</span><strong>{item.title}</strong></div>
+                    <div>
+                      <span>{item.group}</span>
+                      <strong>{item.title}</strong>
+                      <ProductionId id={generationIds[index]} compact />
+                    </div>
                     <div>
                       <a
                         href={assetDownloadUrl(item.image)}
@@ -2583,6 +2682,7 @@ function ImageSuite({
                         ? "本张生成失败"
                         : `第 ${index + 1} 张 · 正在生成`}
                   </span>
+                  <ProductionId id={generationIds[index]} compact />
                   {failedSlots.includes(index) ? (
                     <button type="button" onClick={() => onRegenerate(item)}>重试本张</button>
                   ) : null}
@@ -2621,6 +2721,7 @@ function SingleImageResult({
   turnId,
   skillId,
   generatedImage,
+  generationId,
   ready,
   onPreview,
   onRegenerate,
@@ -2629,6 +2730,7 @@ function SingleImageResult({
   turnId: string;
   skillId: string;
   generatedImage?: string;
+  generationId?: string;
   ready: boolean;
   onPreview: (item: GalleryItem, slot: number) => void;
   onRegenerate: (item: GalleryItem) => void;
@@ -2661,7 +2763,11 @@ function SingleImageResult({
               <img src={item.image} alt={item.title} />
             </button>
             <footer>
-              <div><span>{item.group}</span><strong>{item.title}</strong></div>
+              <div>
+                <span>{item.group}</span>
+                <strong>{item.title}</strong>
+                <ProductionId id={generationId} compact />
+              </div>
               <div>
                 <a
                   href={assetDownloadUrl(item.image)}
@@ -3958,7 +4064,11 @@ export default function Home() {
     return form;
   };
 
-  const runImageTask = async (form: FormData, signal?: AbortSignal) => {
+  const runImageTask = async (
+    form: FormData,
+    signal?: AbortSignal,
+    onTaskCreated?: (taskId: string) => void,
+  ) => {
     const response = await fetch("/api/generate", {
       method: "POST",
       body: form,
@@ -3968,6 +4078,7 @@ export default function Home() {
     const created = await response.json();
     const taskId = deepFind(created, ["id", "task_id"]);
     if (!taskId) throw new Error("图片任务后台没有返回任务 ID");
+    onTaskCreated?.(taskId);
 
     for (let attempt = 0; attempt < 240; attempt += 1) {
       if (attempt) await new Promise((resolve) => window.setTimeout(resolve, 3000));
@@ -4002,6 +4113,7 @@ export default function Home() {
       phase: "正在理解商品图片",
       completed: suiteImageCount ? 0 : 1,
       images: suiteImageCount ? [] : turn.images,
+      imageGenerationIds: suiteImageCount ? [] : turn.imageGenerationIds,
       failedImageSlots: suiteImageCount ? [] : turn.failedImageSlots,
     });
     const response = await fetch("/api/generate", {
@@ -4055,6 +4167,7 @@ export default function Home() {
     });
 
     const results = new Array<string>(suiteImageCount);
+    const generationIds = new Array<string>(suiteImageCount);
     const failedSlots: number[] = [];
     let nextSlot = 0;
     let firstError = "";
@@ -4083,6 +4196,10 @@ export default function Home() {
         const generatedUrl = await runImageTask(
           await generationForm(turn, sourceUploads, "image", slot),
           signal,
+          (taskId) => {
+            generationIds[slot] = taskId;
+            patchTurn(turn.id, { imageGenerationIds: [...generationIds] });
+          },
         );
         const stored = await storeAsset(
           turn,
@@ -4104,6 +4221,7 @@ export default function Home() {
       const done = results.filter(Boolean).length;
       patchTurn(turn.id, {
         images: [...results],
+        imageGenerationIds: [...generationIds],
         failedImageSlots: [...failedSlots],
         completed: 1 + done,
         phase: failedSlots.length
@@ -4131,6 +4249,7 @@ export default function Home() {
     if (!done) throw new Error(firstError || "Listing 文案已完成，但套图生成失败");
     patchTurn(turn.id, {
       images: results,
+      imageGenerationIds: generationIds,
       failedImageSlots: failedSlots,
       phase: failedSlots.length
         ? `Listing 与 ${done} / ${suiteImageCount} 张套图已完成`
@@ -4156,9 +4275,11 @@ export default function Home() {
       phase: "正在生成商品图片",
       completed: 0,
       images: [],
+      imageGenerationIds: [],
       failedImageSlots: [],
     });
     const results = new Array<string>(count);
+    const generationIds = new Array<string>(count);
     const failedSlots: number[] = [];
     let nextSlot = 0;
     let firstError = "";
@@ -4187,6 +4308,10 @@ export default function Home() {
         const generatedUrl = await runImageTask(
           await generationForm(turn, sourceUploads, "image", slot),
           signal,
+          (taskId) => {
+            generationIds[slot] = taskId;
+            patchTurn(turn.id, { imageGenerationIds: [...generationIds] });
+          },
         );
         const stored = await storeAsset(
           turn,
@@ -4212,6 +4337,7 @@ export default function Home() {
       const done = results.filter(Boolean).length;
       patchTurn(turn.id, {
         images: [...results],
+        imageGenerationIds: [...generationIds],
         failedImageSlots: [...failedSlots],
         completed: done,
         phase: failedSlots.length
@@ -4239,6 +4365,7 @@ export default function Home() {
     if (!done) throw new Error(firstError || "图片生成失败");
     patchTurn(turn.id, {
       images: results,
+      imageGenerationIds: generationIds,
       failedImageSlots: failedSlots,
       phase: failedSlots.length
         ? `已生成 ${done} / ${count} 张，可单独重试失败图片`
@@ -4276,7 +4403,11 @@ export default function Home() {
     const created = await response.json();
     const taskId = deepFind(created, ["id", "task_id"]);
     if (!taskId) throw new Error("视频接口没有返回任务 ID");
-    patchTurn(turn.id, { phase: "视频正在生成，预计需要几分钟", completed: 2 });
+    patchTurn(turn.id, {
+      videoGenerationId: taskId,
+      phase: "视频正在生成，预计需要几分钟",
+      completed: 2,
+    });
 
     for (let attempt = 0; attempt < 150; attempt += 1) {
       await new Promise((resolve) => window.setTimeout(resolve, 4000));
@@ -4524,6 +4655,7 @@ export default function Home() {
         : suiteItems(turn.skill, turn.imageTaskCount ?? 6, turn.suite);
     const slot = Math.max(0, presets.findIndex((preset) => preset.id === item.id));
     try {
+      let replacementGenerationId = "";
       const url = await runImageTask(
         await generationForm(
           turn,
@@ -4536,6 +4668,10 @@ export default function Home() {
           "image",
           slot,
         ),
+        undefined,
+        (taskId) => {
+          replacementGenerationId = taskId;
+        },
       );
       const stored = await storeAsset(
         turn,
@@ -4553,6 +4689,8 @@ export default function Home() {
         if (currentTurn.id !== turn.id) return currentTurn;
         const images = [...(currentTurn.images ?? [])];
         images[slot] = stored.url;
+        const imageGenerationIds = [...(currentTurn.imageGenerationIds ?? [])];
+        if (replacementGenerationId) imageGenerationIds[slot] = replacementGenerationId;
         const failedImageSlots = (currentTurn.failedImageSlots ?? [])
           .filter((failedSlot) => failedSlot !== slot);
         const done = images.filter(Boolean).length;
@@ -4560,6 +4698,7 @@ export default function Home() {
         return {
           ...currentTurn,
           images,
+          imageGenerationIds,
           failedImageSlots,
           completed: done,
           phase: done === total ? "生成完成" : `已生成 ${done} / ${total} 张`,
@@ -4907,6 +5046,8 @@ export default function Home() {
                         <span style={{ transform: `scaleX(${turn.completed / total})` }} />
                       </div>
 
+                      <ProductionId id={turn.id} onNotice={showNotice} />
+
                       <div className={`dynamic-result dynamic-${turn.kind}`}>
                         {turn.error ? (
                           <div className="generation-error" role="alert">
@@ -4938,6 +5079,7 @@ export default function Home() {
                             taskCount={turn.imageTaskCount ?? 6}
                             suite={turn.suite}
                             generatedImages={turn.images}
+                            generationIds={turn.imageGenerationIds}
                             failedSlots={turn.failedImageSlots}
                             onPreview={(item, slot) => openPreview(turn, item, slot)}
                             onRegenerate={(item) => void regenerate(turn, item)}
@@ -4951,6 +5093,7 @@ export default function Home() {
                             taskCount={turn.imageTaskCount ?? 4}
                             suite={turn.suite}
                             generatedImages={turn.images}
+                            generationIds={turn.imageGenerationIds}
                             failedSlots={turn.failedImageSlots}
                             onPreview={(item, slot) => openPreview(turn, item, slot)}
                             onRegenerate={(item) => void regenerate(turn, item)}
@@ -4962,6 +5105,7 @@ export default function Home() {
                             turnId={turn.id}
                             skillId={turn.skill}
                             generatedImage={turn.images?.[0]}
+                            generationId={turn.imageGenerationIds?.[0]}
                             ready={ready}
                             onPreview={(item, slot) => openPreview(turn, item, slot)}
                             onRegenerate={(item) => void regenerate(turn, item)}

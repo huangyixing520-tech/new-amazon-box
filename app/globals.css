@@ -525,8 +525,7 @@ button:active, a:active { transform: translateY(1px); }
 .option-prefix { color: var(--muted); font-weight: 620; }
 .chevron { width: 14px; height: 14px; display: inline-grid; place-items: center; color: var(--muted); }
 .chevron svg { width: 13px; height: 13px; display: block; }
-.option-popover { position: absolute; min-width: 210px; max-height: min(520px, 68vh); left: 0; bottom: calc(100% + 10px); z-index: 30; padding: 7px; overflow-y: auto; border: 1px solid var(--line); border-radius: 24px; background: rgb(255 255 255 / .98); box-shadow: 0 20px 60px rgb(20 25 18 / .18); }
-.option-menu-rich .option-popover { min-width: 340px; }
+.option-popover { z-index: 100; padding: 7px; overflow-y: auto; border: 1px solid var(--line); border-radius: 24px; background: rgb(255 255 255 / .98); box-shadow: 0 20px 60px rgb(20 25 18 / .18); }
 .popover-label { padding: 9px 10px 7px; color: var(--muted); font-size: 11px; font-weight: 690; }
 .option-row { width: 100%; min-height: 48px; padding: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 0; border-radius: 16px; background: transparent; cursor: pointer; text-align: left; }
 .option-row:hover { background: var(--surface-soft); }
@@ -570,7 +569,6 @@ button:active, a:active { transform: translateY(1px); }
 .brand-gene-summary { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 10px; }
 .brand-field .option-menu { width: 100%; }
 .brand-field .option-trigger { width: 100%; min-height: 44px; justify-content: space-between; border-radius: 14px; }
-.brand-field .option-popover { width: max-content; min-width: max(210px, 100%); }
 .brand-color-control { position: relative; min-width: 0; color: var(--text); font-weight: 650; }
 .brand-color-trigger { min-height: 44px; display: flex; align-items: center; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); transition: border-color 160ms ease, box-shadow 160ms ease; }
 .brand-color-trigger:focus-within { border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus), transparent 80%); }
@@ -581,7 +579,7 @@ button:active, a:active { transform: translateY(1px); }
 .brand-color-clear, .brand-color-caret { width: 34px; height: 34px; margin-right: 4px; padding: 0; display: grid; flex: 0 0 34px; place-items: center; border: 0; border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; }
 .brand-color-clear:hover, .brand-color-caret:hover { background: var(--surface-soft); color: var(--text); }
 .brand-color-clear svg, .brand-color-caret svg { width: 15px; height: 15px; }
-.brand-color-popover { position: absolute; width: min(330px, calc(100vw - 52px)); left: 0; bottom: calc(100% + 10px); z-index: 70; padding: 12px; border: 1px solid var(--line); border-radius: 22px; background: rgb(255 255 255 / .98); box-shadow: 0 24px 68px rgb(32 39 29 / .2); backdrop-filter: blur(18px); animation: brand-color-in 160ms ease-out; }
+.brand-color-popover { z-index: 100; padding: 12px; overflow-y: auto; border: 1px solid var(--line); border-radius: 22px; background: rgb(255 255 255 / .98); box-shadow: 0 24px 68px rgb(32 39 29 / .2); backdrop-filter: blur(18px); animation: brand-color-in 160ms ease-out; }
 .brand-color-canvas { position: relative; height: 184px; overflow: hidden; border-radius: 15px; cursor: crosshair; touch-action: none; }
 .brand-color-canvas::before, .brand-color-canvas::after { position: absolute; inset: 0; content: ""; pointer-events: none; }
 .brand-color-canvas::before { background: linear-gradient(90deg, #fff, transparent); }
@@ -944,6 +942,12 @@ button:active, a:active { transform: translateY(1px); }
 .generation-status > div { display: flex; align-items: center; gap: 9px; font-size: 12px; }
 .generation-status > div > span:last-child { color: var(--muted); }
 .generation-status button { padding: 6px 0; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; }
+.production-id { width: fit-content; max-width: 100%; margin: 10px 0 0; padding: 6px 9px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--surface); color: var(--muted); cursor: pointer; font-size: 9px; }
+.production-id code { overflow: hidden; color: var(--text); font: inherit; text-overflow: ellipsis; white-space: nowrap; }
+.production-id i { color: var(--muted); font-style: normal; }
+.production-id:hover { border-color: var(--text); }
+.production-id.is-compact { margin-top: 2px; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.production-id.is-compact i { display: none; }
 .pulse-dot, .done-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .pulse-dot { animation: pulse 1s ease-in-out infinite; }
 .done-dot { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent), transparent 72%); }
@@ -1202,6 +1206,7 @@ button:active, a:active { transform: translateY(1px); }
 .asset-card footer > div:last-child { display: flex; gap: 3px; }
 .asset-card footer a, .asset-card footer button { padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; text-decoration: none; font-size: 9px; }
 .asset-card footer a:hover, .asset-card footer button:hover { background: var(--surface-soft); color: var(--text); }
+.asset-card footer .production-id, .asset-skeleton .production-id, .single-asset-card footer .production-id { padding: 0; background: transparent; color: var(--muted); }
 .asset-skeleton { min-height: 240px; padding: 18px; display: flex; align-items: end; background: linear-gradient(110deg,#edf1e7 8%,#e2ebd3 20%,#eff2ea 34%); background-size: 260% 100%; animation: shimmer 3.8s cubic-bezier(.45,0,.55,1) infinite; }
 .asset-skeleton span { padding: 6px 8px; border: 1px solid rgb(173 190 145 / .24); border-radius: 7px; background: rgb(248 251 242 / .88); color: #68715f; font-size: 9px; }
 .asset-skeleton.asset-failed { justify-content: space-between; background: #fff8f6; animation: none; }
@@ -2437,7 +2442,6 @@ button:active, a:active { transform: translateY(1px); }
   .composer-actions { width: 100%; justify-content: flex-end; }
   .option-popover { max-width: calc(100vw - 44px); }
   .brand-gene-panel { position: fixed; width: auto; max-height: calc(100dvh - 120px); left: 14px; right: 14px; bottom: 86px; grid-template-columns: 1fr; padding: 14px; overflow-y: auto; }
-  .brand-color-popover { position: fixed; width: calc(100vw - 28px); max-width: 360px; left: 50%; bottom: 18px; transform: translateX(-50%); }
   .brand-gene-summary { display: none; }
   .skill-hint { grid-template-columns: 1fr; gap: 5px; }
   .request-summary { grid-template-columns: 44px 1fr; }

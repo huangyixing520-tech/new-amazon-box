@@ -471,7 +471,8 @@ ${context.brandText}
 ${context.generationText}
 ${useAmazonImageSkill ? `${amazonImageSkillHostRules}\nAuthoritative Amazon image Skill:\n${amazonImageSkillPrompt}` : ""}
 The first uploaded image is the primary product identity. Remaining images are supplementary references for angles, details, packaging and usage context. Preserve the product's identity, silhouette, proportions, colors, logo and visible functional details.
-The user's overall request is background context only and must not change this single-image task boundary: ${prompt}`.trim(),
+The user's overall request is background context only and must not change this single-image task boundary: ${prompt}
+Final output contract: ${singleImageTaskBoundary} Render one continuous edge-to-edge canvas. Integrate any benefits or details into that single composition; do not place separate sub-images, inset frames, alternate views, or mini-scenes inside it.`.trim(),
   );
   request.set(
     "size",

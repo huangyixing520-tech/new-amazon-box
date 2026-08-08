@@ -211,6 +211,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /font-style-select/);
   assert.match(page, /platform-select/);
   assert.match(page, /dismissOnOutsidePress/);
+  assert.match(page, /floatingPopoverLayout/);
+  assert.match(page, /data-floating-popover/);
   assert.match(page, /dismissBrandGene/);
   assert.match(page, /openBrandMenu === "font-style"/);
   assert.doesNotMatch(page, /<select[\s\S]*?data-testid="font-style-select"/);
@@ -399,7 +401,7 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(layout, /summary_large_image/);
   assert.match(styles, /--accent: #c9f33e/);
   assert.match(styles, /\.send-button \{[^}]*display: grid;[^}]*place-items: center;/);
-  assert.match(styles, /\.brand-field \.option-popover/);
+  assert.match(styles, /\.option-popover \{ z-index: 100;/);
   assert.match(styles, /\.composer-dragging/);
   assert.match(styles, /\.composer-drop-hint/);
   assert.match(styles, /\.home-workspace::after/);
@@ -426,6 +428,12 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /X-Mercato-Generation-Architecture/);
   assert.match(generateRoute, /direct-mode-skill/);
   assert.match(generateRoute, /singleImageTaskBoundary/);
+  assert.match(generateRoute, /Final output contract:/);
+  assert.match(generateRoute, /one continuous edge-to-edge canvas/);
+  assert.match(generateRoute, /do not place separate sub-images/);
+  assert.match(page, /imageGenerationIds/);
+  assert.match(page, /生产 ID/);
+  assert.match(page, /onTaskCreated\?\.\(taskId\)/);
   assert.match(generateRoute, /detectedImageMediaType/);
   assert.match(generateRoute, /supportedImageMediaTypes/);
   assert.match(page, /type: blob\.type \|\| "image\/png"/);
