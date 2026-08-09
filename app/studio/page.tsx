@@ -27,6 +27,7 @@ import {
 import AccountPanel, { type ClientSession } from "../account-panel";
 import { floatingPopoverLayout } from "../floating-popover.mjs";
 import { parseFirstJsonObject } from "../first-json-object.mjs";
+import { openAiContent } from "../openai-content.mjs";
 import { imageOutputSpec } from "../image-output-spec.mjs";
 import { imageTaskCount } from "../image-task-count.mjs";
 
@@ -4165,38 +4166,52 @@ export default function Home() {
       imageGenerationIds: suiteImageCount ? [] : turn.imageGenerationIds,
       failedImageSlots: suiteImageCount ? [] : turn.failedImageSlots,
     });
-    const response = await fetch("/api/generate", {
-      method: "POST",
-      body: await generationForm(turn, uploadsForTurn, "listing"),
-      signal,
-    });
-    if (!response.ok || !response.body) throw new Error(await responseError(response));
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let pending = "";
-    let generated = "";
     patchTurn(turn.id, {
       phase: "正在流式生成 Listing",
       completed: suiteImageCount ? 0 : 2,
     });
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      pending += decoder.decode(value, { stream: true });
-      const lines = pending.split("\n");
-      pending = lines.pop() ?? "";
-      for (const line of lines) {
-        if (!line.startsWith("data:")) continue;
-        const data = line.slice(5).trim();
-        if (!data || data === "[DONE]") continue;
-        const event = JSON.parse(data);
-        generated += event.choices?.[0]?.delta?.content ?? "";
-      }
-    }
+    const generateListingText = async (retry = false) => {
+      const form = await generationForm(turn, uploadsForTurn, "listing");
+      form.set("productionId", turn.id);
+      if (retry) form.set("listingRetry", "1");
+      const response = await fetch("/api/generate", { method: "POST", body: form, signal });
+      if (!response.ok || !response.body) throw new Error(await responseError(response));
 
-    const listing = parseListingJson(generated);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let pending = "";
+      let generated = "";
+      const consume = (line: string) => {
+        if (!line.startsWith("data:")) return;
+        const data = line.slice(5).trim();
+        if (!data || data === "[DONE]") return;
+        try { generated += openAiContent(JSON.parse(data)); } catch { /* ignore non-JSON SSE metadata */ }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        pending += decoder.decode(value, { stream: true });
+        const lines = pending.split("\n");
+        pending = lines.pop() ?? "";
+        lines.forEach(consume);
+      }
+      pending += decoder.decode();
+      pending.split("\n").forEach(consume);
+      return generated;
+    };
+
+    let generated = await generateListingText();
+    let listing: ListingData;
+    try {
+      listing = parseListingJson(generated);
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes("Listing JSON")) throw error;
+      patchTurn(turn.id, { phase: "正在纠正 Listing 返回格式" });
+      generated = await generateListingText(true);
+      listing = parseListingJson(generated);
+    }
     if (!suiteImageCount) {
       patchTurn(turn.id, {
         listing,

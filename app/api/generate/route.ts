@@ -389,6 +389,12 @@ Use this schema:
 }
 
 async function createListing(form: FormData, apiKey: string) {
+  const retry = form.get("listingRetry") === "1";
+  const messages = await listingMessages(form);
+  if (retry) messages.push({
+    role: "user",
+    content: "Your previous response was invalid. Return the requested JSON object only. The first character must be { and the last character must be }.",
+  });
   const response = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
@@ -397,8 +403,8 @@ async function createListing(form: FormData, apiKey: string) {
     },
     body: JSON.stringify({
       model: AGENT_MODEL,
-      messages: await listingMessages(form),
-      temperature: 0.4,
+      messages,
+      temperature: retry ? 0 : 0.4,
       stream: true,
     }),
   });

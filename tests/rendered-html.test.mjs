@@ -167,6 +167,10 @@ test("ships the complete generation flow and its assets", async () => {
   ]);
 
   assert.match(page, /图片生成/);
+  assert.match(authLibrary, /envValue\("LOCAL_AUTH_BYPASS"\) === "1"/);
+  assert.match(authLibrary, /\["localhost", "127\.0\.0\.1", "::1"\]\.includes\(hostname\)/);
+  assert.match(authLibrary, /if \(usesLocalAuthBypass\(request\)\) return localBypassUser\(\)/);
+  assert.match(envExample, /LOCAL_AUTH_BYPASS=0/);
   assert.match(page, /视频生成/);
   assert.match(page, /Listing 生成/);
   assert.ok(
@@ -290,6 +294,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(styles, /\.inspiration-tabs button\s*\{[^}]*border-radius:\s*12px;/);
   assert.match(styles, /\.quick-capabilities > button\s*\{[^}]*border-radius:\s*16px;/);
   assert.match(styles, /\.inspiration-card\s*\{[^}]*border-radius:\s*0;/);
+  assert.match(styles, /\.inspiration-card-media > img\s*\{[^}]*height:\s*auto;[^}]*object-fit:\s*contain;/);
+  assert.doesNotMatch(styles, /\.inspiration-card-(?:suite|portrait|landscape) \.inspiration-card-media\s*\{[^}]*aspect-ratio:/);
   assert.match(styles, /\.template-preview-page\s*\{[^}]*grid-template-columns:/);
   assert.match(styles, /\.template-preview-use\s*\{[^}]*background:\s*var\(--accent\)/);
   assert.match(styles, /\.inspiration-scroll-top\s*\{[^}]*position:\s*fixed;/);

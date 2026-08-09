@@ -54,6 +54,31 @@ function envValue(name: string) {
   return process.env[name]?.trim() ?? "";
 }
 
+function usesLocalAuthBypass(request: Request) {
+  const hostname = new URL(request.url).hostname;
+  return envValue("LOCAL_AUTH_BYPASS") === "1" &&
+    ["localhost", "127.0.0.1", "::1"].includes(hostname);
+}
+
+async function localBypassUser() {
+  const { DB } = await runtimeBindings();
+  if (!DB) throw new AuthError("本地测试数据库尚未配置", 503);
+  await ensureIdentitySchema(DB);
+  const now = new Date().toISOString();
+  await DB.prepare(`
+    INSERT INTO users (id, email, name, picture_url, created_at, updated_at)
+    VALUES (?, ?, ?, NULL, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at
+  `).bind(
+    "local-dev-user",
+    "local-tester@mercato.invalid",
+    "本地测试用户",
+    now,
+    now,
+  ).run();
+  return sessionUserById("local-dev-user");
+}
+
 export function isAdminEmail(email: string) {
   const allowed = envValue("ADMIN_EMAILS")
     .split(",")
@@ -426,6 +451,7 @@ export async function sessionUserById(userId: string): Promise<SessionUser | nul
 }
 
 export async function currentUser(request: Request): Promise<SessionUser | null> {
+  if (usesLocalAuthBypass(request)) return localBypassUser();
   const token = cookieMap(request).get(SESSION_COOKIE);
   if (!token) return null;
   let userId: string | undefined;
