@@ -5074,6 +5074,13 @@ export default function Home() {
                         <div className="request-tags">
                           <span>{modes.find((item) => item.id === turn.mode)?.label}</span>
                           <span>{skills.find((item) => item.id === turn.skill)?.label}</span>
+                          {turn.generationModel ? (
+                            <span>
+                              模型：{VIDEO_MODEL_OPTIONS.find(
+                                (item) => item.id === turn.generationModel,
+                              )?.label ?? turn.generationModel}
+                            </span>
+                          ) : null}
                           <span>{regions.find((item) => item.id === turn.region)?.label}</span>
                           <span>{languages.find((item) => item.id === turn.language)?.label}</span>
                           {hasSuiteSettings(turn.skill) ? (
