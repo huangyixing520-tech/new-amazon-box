@@ -16,6 +16,7 @@ import {
 import amazonImageSkillPrompt from "../../../skills/amazon-image-set/references/amazon-image-skill.md?raw";
 import videoReplicaAnalysisPrompt from "../../../skills/video-replica/references/video-analysis-prompt.md?raw";
 import { selectedVideoModel } from "../../video-models.mjs";
+import { friendlyUpstreamError } from "../../upstream-error.mjs";
 
 const BASE_URL =
   process.env.DOLA_BASE_URL?.replace(/\/$/, "") ??
@@ -201,8 +202,10 @@ function upstreamError(payload: unknown, fallback: string) {
     error?: { message?: string } | string;
     message?: string;
   };
-  if (typeof value.error === "string") return value.error;
-  return value.error?.message ?? value.message ?? fallback;
+  const detail = typeof value.error === "string"
+    ? value.error
+    : value.error?.message ?? value.message;
+  return friendlyUpstreamError(detail, fallback);
 }
 
 function taskField(payload: unknown, keys: string[]) {
