@@ -15,6 +15,8 @@ const BASE_URL =
   process.env.DOLA_BASE_URL?.replace(/\/$/, "") ??
   "https://api.dolaio.cn/aigateway/cisco/v1";
 const AGENT_MODEL = process.env.AGENT_MODEL ?? "MiniMax-M3";
+const AGENT_FALLBACK_MODEL =
+  process.env.AGENT_FALLBACK_MODEL ?? "dolaio/gpt-5.6-terra";
 const VIDEO_MODEL = process.env.VIDEO_MODEL ?? "novai/seedance-2.0-mini";
 const VIDEO_ANALYSIS_MODEL = process.env.VIDEO_ANALYSIS_MODEL ?? "gemini-2.5-pro";
 const MAX_UPLOADS = 9;
@@ -402,7 +404,7 @@ async function createListing(form: FormData, apiKey: string) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: AGENT_MODEL,
+      model: retry ? AGENT_FALLBACK_MODEL : AGENT_MODEL,
       messages,
       temperature: retry ? 0 : 0.4,
       stream: true,

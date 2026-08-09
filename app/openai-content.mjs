@@ -15,7 +15,17 @@ function contentText(value) {
 
 export function openAiContent(event) {
   const choice = event?.choices?.[0];
-  return contentText(choice?.delta?.content) || contentText(choice?.message?.content);
+  return contentText(choice?.delta?.content)
+    || contentText(choice?.message?.content)
+    || contentText(choice?.text)
+    || contentText(event?.delta?.text)
+    || contentText(event?.delta)
+    || contentText(event?.content_block?.text)
+    || contentText(event?.content)
+    || contentText(event?.output_text)
+    || contentText(event?.output)
+    || contentText(choice?.delta?.reasoning_content)
+    || contentText(choice?.message?.reasoning_content);
 }
 
 export function openAiResponseLine(line) {
