@@ -325,6 +325,15 @@ async function normalizedImageFile(file: File) {
 
 async function fileDataUrl(file: File) {
   const { bytes, mediaType } = await normalizedImageFile(file);
+  return bytesDataUrl(bytes, mediaType);
+}
+
+async function rawFileDataUrl(file: File) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  return bytesDataUrl(bytes, file.type || "application/octet-stream");
+}
+
+function bytesDataUrl(bytes: Uint8Array, mediaType: string) {
   let binary = "";
   for (let index = 0; index < bytes.length; index += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
@@ -589,11 +598,11 @@ async function createVideo(
   }
   const imageDataUrls = await Promise.all(images.map(fileDataUrl));
   const referenceVideoDataUrl = referenceVideo
-    ? await fileDataUrl(referenceVideo)
+    ? await rawFileDataUrl(referenceVideo)
     : undefined;
   const context = formContext(form);
   const replicaStoryboard = skill === "video-replica" && referenceVideoDataUrl
-    ? await analyzeReferenceVideo(referenceVideoDataUrl, prompt, apiKey)
+    ? await analyzeReferenceVideo(referenceVideoDataUrl, prompt, apiKey).catch(() => "")
     : "";
   const skillDirection = skill === "talking-product-video"
     ? "Create a direct-response product demonstration with a natural presenter-led sales rhythm, clear product handling and believable spoken-delivery pacing."

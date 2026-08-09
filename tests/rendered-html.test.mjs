@@ -421,6 +421,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(taskBackend, /\/images\/edits/);
   assert.match(generateRoute, /\/contents\/generations\/tasks/);
   assert.match(generateRoute, /uploadedReferenceVideo/);
+  assert.match(generateRoute, /rawFileDataUrl\(referenceVideo\)/);
+  assert.match(generateRoute, /analyzeReferenceVideo\([^)]*\)[\s\S]*?\.catch\(\(\) => ""\)/);
   assert.match(generateRoute, /type: "video_url"/);
   assert.match(generateRoute, /role: "reference_video"/);
   assert.match(generateRoute, /role: index === 0 \? "first_frame" : "reference_image"/);
