@@ -218,10 +218,7 @@ test("ships the complete generation flow and its assets", async () => {
   assert.doesNotMatch(page, /<select[\s\S]*?data-testid="font-style-select"/);
   assert.match(page, /listing-result/);
   assert.match(page, /function isListingReady\(turn: Turn\)/);
-  assert.match(
-    page,
-    /generatedImages === expectedImages && !\(turn\.failedImageSlots\?\.length\)/,
-  );
+  assert.match(page, /generatedImages \+ failedImages >= expectedImages/);
   assert.match(page, /data-testid="listing-loading-skeleton"/);
   assert.match(page, /listing-loader-nav/);
   assert.match(page, /listing-loader-gallery/);
@@ -605,4 +602,26 @@ test("uploads input assets as multipart files without losing their slots", async
   assert.doesNotMatch(assetRoute, /instanceof File/);
   assert.match(assetRoute, /slot: formNumber\("slot"\)/);
   assert.match(page, /if \(role === "input"\) throw error/);
+});
+
+test("protects concurrent asset writes from ENOSPC orphan cleanup", async () => {
+  const assetRoute = await readFile(
+    new URL("../app/api/assets/route.ts", import.meta.url),
+    "utf8",
+  );
+  const registerIndex = assetRoute.indexOf("INSERT INTO assets");
+  const storeIndex = assetRoute.indexOf("await storeAsset()");
+  assert.ok(registerIndex >= 0 && storeIndex >= 0 && registerIndex < storeIndex);
+  assert.match(assetRoute, /DELETE FROM asset_owners WHERE asset_id = \? AND user_id = \?/);
+});
+
+test("shows Listing and image progress as separate user-facing counts", async () => {
+  const page = await readFile(
+    new URL("../app/studio/page.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(page, /`图片 \$\{\(turn\.images \?\? \[\]\)\.filter\(Boolean\)\.length\} \/ \$\{turn\.imageTaskCount\}`/);
+  assert.match(page, /generatedImages \+ failedImages >= expectedImages/);
+  assert.match(page, /markGeneratedImageUnavailable/);
+  assert.match(page, /张资源加载失败/);
 });

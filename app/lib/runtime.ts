@@ -22,6 +22,10 @@ export type R2Binding = {
     options?: { httpMetadata?: { contentType?: string } },
   ) => Promise<unknown>;
   get: (key: string) => Promise<R2Object | null>;
+  delete?: (key: string) => Promise<unknown>;
+  cleanupUnreferencedGenerated?: (
+    referencedKeys: ReadonlySet<string>,
+  ) => Promise<{ deletedObjects: number; freedBytes: number }>;
 };
 
 export type RuntimeBindings = {
@@ -47,11 +51,19 @@ type NodeFs = {
     path: string,
     value: ArrayBuffer | ArrayBufferView | string,
   ) => Promise<unknown>;
+  readdir: (
+    path: string,
+    options: { withFileTypes: true },
+  ) => Promise<Array<{ name: string; isDirectory: () => boolean }>>;
+  rm: (path: string, options?: { force?: boolean }) => Promise<void>;
+  stat: (path: string) => Promise<{ size: number }>;
 };
 
 type NodePath = {
   dirname: (path: string) => string;
   join: (...parts: string[]) => string;
+  relative: (from: string, to: string) => string;
+  sep: string;
 };
 
 let nodeBindingsPromise: Promise<RuntimeBindings> | undefined;
@@ -88,6 +100,13 @@ function safeObjectPath(path: NodePath, root: string, key: string) {
     .filter(Boolean)
     .map((segment) => encodeURIComponent(segment).replaceAll(".", "%2E"));
   return path.join(root, ...segments);
+}
+
+function objectKeyFromPath(path: NodePath, root: string, objectPath: string) {
+  return path.relative(root, objectPath)
+    .split(path.sep)
+    .map((segment) => decodeURIComponent(segment))
+    .join("/");
 }
 
 async function createNodeBindings(): Promise<RuntimeBindings> {
@@ -157,6 +176,51 @@ async function createNodeBindings(): Promise<RuntimeBindings> {
       } catch {
         return null;
       }
+    },
+    delete: async (key) => {
+      const objectPath = safeObjectPath(path, assetDirectory, key);
+      await Promise.all([
+        fs.rm(objectPath, { force: true }),
+        fs.rm(`${objectPath}.meta.json`, { force: true }),
+      ]);
+    },
+    cleanupUnreferencedGenerated: async (referencedKeys) => {
+      const generatedDirectory = path.join(assetDirectory, "generated");
+      let deletedObjects = 0;
+      let freedBytes = 0;
+
+      async function visit(directory: string) {
+        let entries: Awaited<ReturnType<NodeFs["readdir"]>>;
+        try {
+          entries = await fs.readdir(directory, { withFileTypes: true });
+        } catch {
+          return;
+        }
+        for (const entry of entries) {
+          const entryPath = path.join(directory, entry.name);
+          if (entry.isDirectory()) {
+            await visit(entryPath);
+            continue;
+          }
+          if (entry.name.endsWith(".meta.json")) continue;
+          const key = objectKeyFromPath(path, assetDirectory, entryPath);
+          if (referencedKeys.has(key)) continue;
+          const metadataPath = `${entryPath}.meta.json`;
+          const [objectSize, metadataSize] = await Promise.all([
+            fs.stat(entryPath).then((value) => value.size).catch(() => 0),
+            fs.stat(metadataPath).then((value) => value.size).catch(() => 0),
+          ]);
+          await Promise.all([
+            fs.rm(entryPath, { force: true }),
+            fs.rm(metadataPath, { force: true }),
+          ]);
+          deletedObjects += 1;
+          freedBytes += objectSize + metadataSize;
+        }
+      }
+
+      await visit(generatedDirectory);
+      return { deletedObjects, freedBytes };
     },
   };
 

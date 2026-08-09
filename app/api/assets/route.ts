@@ -156,17 +156,23 @@ export async function POST(request: Request) {
     const role = body.role === "input" ? "input" : "output";
     const slot = Number.isFinite(body.slot) ? Math.max(0, Number(body.slot)) : 0;
     const existing = await DB.prepare(`
-      SELECT a.id
+      SELECT a.id, a.object_key
       FROM assets a
       INNER JOIN asset_owners o ON o.asset_id = a.id
       WHERE o.user_id = ? AND a.turn_id = ? AND a.role = ? AND a.slot_index = ?
-    `).bind(user.id, body.turnId, role, slot).all<{ id: string }>();
+    `).bind(user.id, body.turnId, role, slot).all<{
+      id: string;
+      object_key: string | null;
+    }>();
     for (const asset of existing.results ?? []) {
       await DB.batch([
         DB.prepare("DELETE FROM asset_owners WHERE asset_id = ? AND user_id = ?")
           .bind(asset.id, user.id),
         DB.prepare("DELETE FROM assets WHERE id = ?").bind(asset.id),
       ]);
+      if (asset.object_key) {
+        await GENERATED_ASSETS.delete?.(asset.object_key);
+      }
     }
     const id = crypto.randomUUID();
     const objectKey = `generated/${user.id}/${body.conversationId}/${id}`;
@@ -195,9 +201,9 @@ export async function POST(request: Request) {
       );
       storedMimeType = "image/png";
     }
-    await GENERATED_ASSETS.put(objectKey, storedBuffer, {
-      httpMetadata: { contentType: storedMimeType },
-    });
+    // Register the object key before writing the file. ENOSPC recovery scans the
+    // database for live keys, so concurrent uploads must already be visible or
+    // another request can mistake an in-flight file for an orphan and delete it.
     await DB.batch([
       DB.prepare(`
         INSERT INTO assets (
@@ -223,6 +229,44 @@ export async function POST(request: Request) {
         VALUES (?, ?, ?)
       `).bind(id, user.id, createdAt),
     ]);
+
+    const storeAsset = () => GENERATED_ASSETS.put(objectKey, storedBuffer, {
+      httpMetadata: { contentType: storedMimeType },
+    });
+    try {
+      try {
+        await storeAsset();
+      } catch (error) {
+        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        if (
+          !GENERATED_ASSETS.cleanupUnreferencedGenerated ||
+          (!message.includes("enospc") && !message.includes("no space left"))
+        ) {
+          throw error;
+        }
+        const referenced = await DB.prepare(`
+          SELECT a.object_key
+          FROM assets a
+          INNER JOIN asset_owners o ON o.asset_id = a.id
+          WHERE a.object_key LIKE 'generated/%'
+        `).all<{ object_key: string | null }>();
+        const referencedKeys = new Set(
+          (referenced.results ?? [])
+            .map((asset) => asset.object_key)
+            .filter((key): key is string => Boolean(key)),
+        );
+        await GENERATED_ASSETS.cleanupUnreferencedGenerated(referencedKeys);
+        await storeAsset();
+      }
+    } catch (error) {
+      await DB.batch([
+        DB.prepare("DELETE FROM asset_owners WHERE asset_id = ? AND user_id = ?")
+          .bind(id, user.id),
+        DB.prepare("DELETE FROM assets WHERE id = ?").bind(id),
+      ]);
+      await GENERATED_ASSETS.delete?.(objectKey);
+      throw error;
+    }
 
     return NextResponse.json({
       asset: {

@@ -709,12 +709,18 @@ function progressTotal(turn: Turn) {
 }
 
 function isListingReady(turn: Turn) {
-  if (turn.kind !== "listing" || turn.running || !turn.listing || turn.error) {
+  if (turn.kind !== "listing" || turn.running || !turn.listing) {
     return false;
   }
   const expectedImages = turn.imageTaskCount ?? 0;
   const generatedImages = (turn.images ?? []).filter(Boolean).length;
-  return generatedImages === expectedImages && !(turn.failedImageSlots?.length);
+  const failedImages = turn.failedImageSlots?.length ?? 0;
+  return generatedImages + failedImages >= expectedImages;
+}
+
+function settledProgress(turn: Turn) {
+  const failed = turn.failedImageSlots?.length ?? 0;
+  return Math.min(progressTotal(turn), turn.completed + failed);
 }
 
 const generationCopy: Record<
@@ -2104,6 +2110,7 @@ function ListingResult({
   ready,
   onNotice,
   onListingChange,
+  onGeneratedImageError,
 }: {
   turnId: string;
   productImage: string;
@@ -2115,6 +2122,7 @@ function ListingResult({
   ready: boolean;
   onNotice: (text: string) => void;
   onListingChange: (listing: ListingData) => void;
+  onGeneratedImageError: (url: string) => void;
 }) {
   const copy = listingCopy[language as keyof typeof listingCopy] ?? listingCopy.en;
   const keywordGroups = data?.keywords
@@ -2361,14 +2369,18 @@ function ListingResult({
                   data-testid={`listing-thumb-${index}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={image} alt="" />
+                  <img src={image} alt="" onError={() => onGeneratedImageError(image)} />
                 </button>
               ),
             )}
           </div>
           <div className="market-main-image">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={shownGalleryImage} alt={title} />
+            <img
+              src={shownGalleryImage}
+              alt={title}
+              onError={() => onGeneratedImageError(shownGalleryImage)}
+            />
             <span>移动鼠标放大图片</span>
           </div>
         </div>
@@ -2576,7 +2588,12 @@ function ListingResult({
           >
             {generatedAPlusImages.map((image, index) => (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={image} alt={`A+ 图片 ${index + 1}`} key={`${image}-${index}`} />
+              <img
+                src={image}
+                alt={`A+ 图片 ${index + 1}`}
+                key={`${image}-${index}`}
+                onError={() => onGeneratedImageError(image)}
+              />
             ))}
           </div>
         ) : null}
@@ -2584,7 +2601,12 @@ function ListingResult({
           <div className="listing-mobile-a-plus" aria-label="生成的手机 A+ 图片">
             {generatedMobileAPlusImages.map((image, index) => (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={image} alt={`手机 A+ 图片 ${index + 1}`} key={`${image}-${index}`} />
+              <img
+                src={image}
+                alt={`手机 A+ 图片 ${index + 1}`}
+                key={`${image}-${index}`}
+                onError={() => onGeneratedImageError(image)}
+              />
             ))}
           </div>
         ) : null}
@@ -4022,6 +4044,26 @@ export default function Home() {
     }
   };
 
+  const markGeneratedImageUnavailable = (turnId: string, url: string) => {
+    const turn = turnsRef.current.find((item) => item.id === turnId);
+    const slot = turn?.images?.findIndex((image) => image === url) ?? -1;
+    if (!turn || slot < 0 || turn.failedImageSlots?.includes(slot)) return;
+    const images = [...(turn.images ?? [])];
+    images[slot] = "";
+    const failedImageSlots = [...(turn.failedImageSlots ?? []), slot]
+      .sort((left, right) => left - right);
+    const done = images.filter(Boolean).length;
+    const expected = turn.imageTaskCount ?? images.length;
+    patchTurn(turnId, {
+      images,
+      failedImageSlots,
+      completed: turn.kind === "listing" ? 1 + done : done,
+      phase: turn.kind === "listing"
+        ? `Listing 已完成 · 图片 ${done} / ${expected} 张 · ${failedImageSlots.length} 张资源加载失败`
+        : `已完成 ${done} / ${expected} 张 · ${failedImageSlots.length} 张资源加载失败`,
+    });
+  };
+
   const generationForm = async (
     turn: Turn,
     uploadsForTurn: Upload[],
@@ -4940,6 +4982,7 @@ export default function Home() {
             {activeTurns.map((turn, index) => {
               const generation = generationCopy[turn.kind];
               const total = progressTotal(turn);
+              const settled = settledProgress(turn);
               const ready = turn.kind === "listing"
                 ? isListingReady(turn)
                 : turn.completed === total && !turn.running;
@@ -5023,11 +5066,15 @@ export default function Home() {
                           <strong data-testid={`progress-${index}`}>
                             {turn.phase}
                           </strong>
-                          <span>{turn.completed} / {total}</span>
+                          <span>
+                            {turn.kind === "listing" && turn.imageTaskCount
+                              ? `图片 ${(turn.images ?? []).filter(Boolean).length} / ${turn.imageTaskCount}`
+                              : `${turn.completed} / ${total}`}
+                          </span>
                         </div>
                         {turn.running ? (
                           <button type="button" onClick={() => stopGeneration(turn.id)}>停止生成</button>
-                        ) : turn.completed < total ? (
+                        ) : settled < total || Boolean(turn.failedImageSlots?.length) ? (
                           <button
                             type="button"
                             onClick={() => void runGeneration(
@@ -5052,7 +5099,7 @@ export default function Home() {
                         ) : null}
                       </div>
                       <div className="progress-meter" aria-hidden="true">
-                        <span style={{ transform: `scaleX(${turn.completed / total})` }} />
+                        <span style={{ transform: `scaleX(${settled / total})` }} />
                       </div>
 
                       <ProductionId id={turn.id} onNotice={showNotice} />
@@ -5078,6 +5125,9 @@ export default function Home() {
                             onNotice={showNotice}
                             onListingChange={(listing) =>
                               patchTurn(turn.id, { listing })
+                            }
+                            onGeneratedImageError={(url) =>
+                              markGeneratedImageUnavailable(turn.id, url)
                             }
                           />
                         ) : null}
