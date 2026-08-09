@@ -634,4 +634,6 @@ test("shows Listing and image progress as separate user-facing counts", async ()
   assert.match(page, /generatedImages \+ failedImages >= expectedImages/);
   assert.match(page, /markGeneratedImageUnavailable/);
   assert.match(page, /张资源加载失败/);
+  assert.match(page, /Listing 已完成 · \$\{suiteImageCount\} 张套图生成失败，可单独重试/);
+  assert.doesNotMatch(page, /if \(!done\) throw new Error\(firstError \|\| "Listing 文案已完成，但套图生成失败"\)/);
 });

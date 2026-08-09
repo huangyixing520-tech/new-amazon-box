@@ -215,6 +215,7 @@ type GenerationSummary = {
   completed: number;
   expected: number;
   failed: number;
+  reason?: string;
 };
 
 function isHttpUrl(value: string) {
@@ -4337,22 +4338,25 @@ export default function Home() {
       ),
     );
     const done = results.filter(Boolean).length;
-    if (!done) throw new Error(firstError || "Listing 文案已完成，但套图生成失败");
     patchTurn(turn.id, {
       images: results,
       imageGenerationIds: generationIds,
       failedImageSlots: failedSlots,
       phase: failedSlots.length
-        ? `Listing 与 ${done} / ${suiteImageCount} 张套图已完成`
+        ? done
+          ? `Listing 与 ${done} / ${suiteImageCount} 张套图已完成 · ${failedSlots.length} 张失败`
+          : `Listing 已完成 · ${suiteImageCount} 张套图生成失败，可单独重试`
         : "生成完成",
       completed: 1 + done,
       running: false,
+      error: undefined,
     });
     return {
       status: failedSlots.length ? "partial" : "complete",
       completed: done,
       expected: suiteImageCount,
       failed: failedSlots.length,
+      reason: failedSlots.length ? firstError || "部分套图生成失败" : undefined,
     };
   };
 
