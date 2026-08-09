@@ -8,17 +8,28 @@ import {
   imageOutputSpec,
   singleImageTaskBoundary,
 } from "../../image-output-spec.mjs";
+import {
+  listingSse,
+  listingTextFromPayload,
+  validatedListingFromPayload,
+} from "../../listing-response.mjs";
 import amazonImageSkillPrompt from "../../../skills/amazon-image-set/references/amazon-image-skill.md?raw";
 import videoReplicaAnalysisPrompt from "../../../skills/video-replica/references/video-analysis-prompt.md?raw";
 
 const BASE_URL =
   process.env.DOLA_BASE_URL?.replace(/\/$/, "") ??
   "https://api.dolaio.cn/aigateway/cisco/v1";
-const AGENT_MODEL = process.env.AGENT_MODEL ?? "MiniMax-M3";
-const AGENT_FALLBACK_MODEL =
-  process.env.AGENT_FALLBACK_MODEL ?? "dolaio/gpt-5.6-terra";
+const LISTING_MODELS = Array.from(new Set([
+  process.env.LISTING_MODEL ?? "glm-4.5v",
+  process.env.LISTING_FALLBACK_MODEL ?? "glm-4.6v",
+  process.env.AGENT_FALLBACK_MODEL ?? "dolaio/gpt-5.6-terra",
+]));
 const VIDEO_MODEL = process.env.VIDEO_MODEL ?? "novai/seedance-2.0-mini";
-const VIDEO_ANALYSIS_MODEL = process.env.VIDEO_ANALYSIS_MODEL ?? "gemini-2.5-pro";
+const VIDEO_ANALYSIS_MODELS = Array.from(new Set([
+  process.env.VIDEO_ANALYSIS_MODEL ?? LISTING_MODELS[0],
+  process.env.VIDEO_ANALYSIS_FALLBACK_MODEL ?? LISTING_MODELS[1],
+  process.env.AGENT_FALLBACK_MODEL ?? LISTING_MODELS[2],
+]));
 const MAX_UPLOADS = 9;
 
 const languageNames: Record<string, string> = {
@@ -230,38 +241,50 @@ async function analyzeReferenceVideo(
   userPrompt: string,
   apiKey: string,
 ) {
-  const response = await fetch(`${BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: VIDEO_ANALYSIS_MODEL,
-      temperature: 0.1,
-      stream: false,
-      messages: [
-        { role: "system", content: videoReplicaAnalysisPrompt },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `Analyze this reference video. User replacement request: ${userPrompt || "Replace the source product with the uploaded product while preserving the reference structure."}`,
-            },
-            { type: "video_url", video_url: { url: videoDataUrl } },
-          ],
+  const failures: string[] = [];
+  for (const model of VIDEO_ANALYSIS_MODELS) {
+    try {
+      const response = await fetch(`${BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
         },
-      ],
-    }),
-  });
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(upstreamError(payload, `参考视频分析失败 (${response.status})`));
+        body: JSON.stringify({
+          model,
+          temperature: 0.1,
+          stream: false,
+          messages: [
+            { role: "system", content: videoReplicaAnalysisPrompt },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `Analyze this reference video. User replacement request: ${userPrompt || "Replace the source product with the uploaded product while preserving the reference structure."}`,
+                },
+                { type: "video_url", video_url: { url: videoDataUrl } },
+              ],
+            },
+          ],
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        failures.push(`${model}: ${upstreamError(payload, `HTTP ${response.status}`)}`);
+        continue;
+      }
+      const storyboard = (completionText(payload) || listingTextFromPayload(payload)).trim();
+      if (!storyboard) {
+        failures.push(`${model}: 没有返回分镜脚本`);
+        continue;
+      }
+      return storyboard;
+    } catch (error) {
+      failures.push(`${model}: ${error instanceof Error ? error.message : "未知错误"}`);
+    }
   }
-  const storyboard = completionText(payload);
-  if (!storyboard) throw new Error("参考视频分析没有返回分镜脚本");
-  return storyboard;
+  throw new Error(`参考视频分析失败。${failures.join("；")}`);
 }
 
 const supportedImageMediaTypes = new Set([
@@ -391,42 +414,46 @@ Use this schema:
 }
 
 async function createListing(form: FormData, apiKey: string) {
-  const retry = form.get("listingRetry") === "1";
   const messages = await listingMessages(form);
-  if (retry) messages.push({
-    role: "user",
-    content: "Your previous response was invalid. Return the requested JSON object only. The first character must be { and the last character must be }.",
-  });
-  const response = await fetch(`${BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: retry ? AGENT_FALLBACK_MODEL : AGENT_MODEL,
-      messages,
-      temperature: retry ? 0 : 0.4,
-      stream: true,
-    }),
-  });
+  const failures: string[] = [];
 
-  if (!response.ok || !response.body) {
-    const payload = await response.json().catch(() => null);
-    return jsonError(
-      upstreamError(payload, `Listing 请求失败 (${response.status})`),
-      response.status,
-    );
+  for (const model of LISTING_MODELS) {
+    try {
+      const response = await fetch(`${BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0,
+          max_tokens: 5000,
+          stream: false,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        failures.push(`${model}: ${upstreamError(payload, `HTTP ${response.status}`)}`);
+        continue;
+      }
+      const listing = validatedListingFromPayload(payload);
+      return new Response(listingSse(listing), {
+        status: 200,
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache",
+          "X-Mercato-Generation-Architecture": "validated-listing-json",
+          "X-Mercato-Listing-Model": model,
+        },
+      });
+    } catch (error) {
+      failures.push(`${model}: ${error instanceof Error ? error.message : "未知错误"}`);
+    }
   }
 
-  return new Response(response.body, {
-    status: 200,
-    headers: {
-      "Content-Type": response.headers.get("content-type") ?? "text/event-stream",
-      "Cache-Control": "no-cache",
-      "X-Mercato-Generation-Architecture": "direct-mode-skill",
-    },
-  });
+  return jsonError(`Listing 生成失败。${failures.join("；")}`, 502);
 }
 
 async function recordTask(

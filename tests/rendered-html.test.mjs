@@ -411,7 +411,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(styles, /background-size: 5px 5px, 7px 7px/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   assert.doesNotMatch(page, /SkeletonPreview|codex-preview/);
-  assert.match(generateRoute, /MiniMax-M3/);
+  assert.match(generateRoute, /glm-4\.5v/);
+  assert.match(generateRoute, /glm-4\.6v/);
   assert.match(taskBackend, /process\.env\.IMAGE_MODEL \?\? "gpt-image-2"/);
   assert.match(taskBackend, /const MAX_IMAGE_RETRIES = 18/);
   assert.match(taskBackend, /const IMAGE_RETRY_INTERVAL_MS = 10_000/);
@@ -429,7 +430,7 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /Do not create a plan/);
   assert.match(generateRoute, /Generate the final listing directly/);
   assert.match(generateRoute, /X-Mercato-Generation-Architecture/);
-  assert.match(generateRoute, /direct-mode-skill/);
+  assert.match(generateRoute, /validated-listing-json/);
   assert.match(generateRoute, /singleImageTaskBoundary/);
   assert.match(generateRoute, /Final output contract:/);
   assert.match(generateRoute, /one continuous edge-to-edge canvas/);
