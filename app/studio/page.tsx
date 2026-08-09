@@ -30,6 +30,10 @@ import { parseFirstJsonObject } from "../first-json-object.mjs";
 import { openAiResponseLine } from "../openai-content.mjs";
 import { imageOutputSpec } from "../image-output-spec.mjs";
 import { imageTaskCount } from "../image-task-count.mjs";
+import {
+  DEFAULT_VIDEO_MODEL,
+  VIDEO_MODEL_OPTIONS,
+} from "../video-models.mjs";
 
 type Option = {
   id: string;
@@ -98,6 +102,7 @@ type Turn = {
   title: string;
   prompt: string;
   mode: GenerationMode;
+  generationModel?: string;
   skill: string;
   kind: SkillKind;
   region: string;
@@ -226,6 +231,8 @@ const modes: Option[] = [
   { id: "image", label: "图片生成", description: "生成商品图、场景图与电商套图" },
   { id: "video", label: "视频生成", description: "生成商品视频与带货口播" },
 ];
+
+const videoModels: Option[] = VIDEO_MODEL_OPTIONS;
 
 const skills: SkillOption[] = [
   {
@@ -1506,6 +1513,7 @@ function Composer({
   uploads,
   referenceVideo,
   mode,
+  generationModel,
   skill,
   region,
   language,
@@ -1519,6 +1527,7 @@ function Composer({
   onRemove,
   onSend,
   onMode,
+  onGenerationModel,
   onSkill,
   onRegion,
   onLanguage,
@@ -1532,6 +1541,7 @@ function Composer({
   uploads: Upload[];
   referenceVideo: Upload | null;
   mode: GenerationMode;
+  generationModel: string;
   skill: string;
   region: string;
   language: string;
@@ -1545,6 +1555,7 @@ function Composer({
   onRemove: (id: string) => void;
   onSend: () => void;
   onMode: (value: GenerationMode) => void;
+  onGenerationModel: (value: string) => void;
   onSkill: (value: string) => void;
   onRegion: (value: string) => void;
   onLanguage: (value: string) => void;
@@ -1872,6 +1883,22 @@ function Composer({
             accent
             testId="mode-trigger"
           />
+          {mode === "video" ? (
+            <OptionMenu
+              label="选择视频模型"
+              options={videoModels}
+              value={generationModel}
+              open={openMenu === "model"}
+              onOpen={() => setOpenMenu(openMenu === "model" ? null : "model")}
+              onDismiss={() => setOpenMenu(null)}
+              onChange={(value) => {
+                onGenerationModel(value);
+                setOpenMenu(null);
+              }}
+              prefix="模型"
+              testId="model-trigger"
+            />
+          ) : null}
           <div className="brand-gene-control" ref={brandGeneTriggerRef}>
             <button
               type="button"
@@ -3575,6 +3602,7 @@ export default function Home() {
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [referenceVideo, setReferenceVideo] = useState<Upload | null>(null);
   const [mode, setMode] = useState<GenerationMode>("listing");
+  const [generationModel, setGenerationModel] = useState(DEFAULT_VIDEO_MODEL);
   const [skill, setSkill] = useState("amazon-listing");
   const [region, setRegion] = useState("us");
   const [language, setLanguage] = useState("en");
@@ -4075,6 +4103,9 @@ export default function Home() {
     const form = new FormData();
     form.set("action", action);
     form.set("mode", turn.mode);
+    if (action === "video") {
+      form.set("model", turn.generationModel ?? DEFAULT_VIDEO_MODEL);
+    }
     form.set("skill", turn.skill);
     form.set("region", turn.region);
     form.set("language", turn.language);
@@ -4620,6 +4651,7 @@ export default function Home() {
       title: taskPrompt.slice(0, 22),
       prompt: taskPrompt,
       mode,
+      generationModel: mode === "video" ? generationModel : undefined,
       skill: selectedSkill.id,
       kind: selectedKind,
       region,
@@ -4793,6 +4825,7 @@ export default function Home() {
       title: preview.title,
       prompt: previewPrompt.trim(),
       mode: "image",
+      generationModel: undefined,
       skill: selectedSkill.mode === "image" ? selectedSkill.id : "amazon-image-set",
       kind: selectedSkill.mode === "image" ? selectedSkill.kind : "images",
       region,
@@ -5208,6 +5241,7 @@ export default function Home() {
               uploads={uploads}
               referenceVideo={referenceVideo}
               mode={mode}
+              generationModel={generationModel}
               skill={skill}
               region={region}
               language={language}
@@ -5224,6 +5258,7 @@ export default function Home() {
               onRemove={removeUpload}
               onSend={() => startGeneration("conversation")}
               onMode={changeMode}
+              onGenerationModel={setGenerationModel}
               onSkill={changeSkill}
               onRegion={setRegion}
               onLanguage={setLanguage}
@@ -5369,6 +5404,7 @@ export default function Home() {
                 uploads={uploads}
                 referenceVideo={referenceVideo}
                 mode={mode}
+                generationModel={generationModel}
                 skill={skill}
                 region={region}
                 language={language}
@@ -5385,6 +5421,7 @@ export default function Home() {
                 onRemove={removeUpload}
                 onSend={() => startGeneration("home")}
                 onMode={changeMode}
+                onGenerationModel={setGenerationModel}
                 onSkill={changeSkill}
                 onRegion={setRegion}
                 onLanguage={setLanguage}
@@ -5404,6 +5441,7 @@ export default function Home() {
             uploads={uploads}
             referenceVideo={referenceVideo}
             mode={mode}
+            generationModel={generationModel}
             skill={skill}
             region={region}
             language={language}
@@ -5420,6 +5458,7 @@ export default function Home() {
             onRemove={removeUpload}
             onSend={() => startGeneration("home")}
             onMode={changeMode}
+            onGenerationModel={setGenerationModel}
             onSkill={changeSkill}
             onRegion={setRegion}
             onLanguage={setLanguage}

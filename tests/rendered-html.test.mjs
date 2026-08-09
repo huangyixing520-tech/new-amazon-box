@@ -416,12 +416,13 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(taskBackend, /process\.env\.IMAGE_MODEL \?\? "gpt-image-2"/);
   assert.match(taskBackend, /const MAX_IMAGE_RETRIES = 18/);
   assert.match(taskBackend, /const IMAGE_RETRY_INTERVAL_MS = 10_000/);
-  assert.match(generateRoute, /novai\/seedance-2\.0-mini/);
+  assert.match(generateRoute, /selectedVideoModel/);
+  assert.match(generateRoute, /model: videoModel/);
   assert.match(generateRoute, /\/chat\/completions/);
   assert.match(taskBackend, /\/images\/edits/);
   assert.match(generateRoute, /\/contents\/generations\/tasks/);
   assert.match(generateRoute, /uploadedReferenceVideo/);
-  assert.match(generateRoute, /rawFileDataUrl\(referenceVideo\)/);
+  assert.match(generateRoute, /normalizedVideoDataUrl\(referenceVideo\)/);
   assert.match(generateRoute, /analyzeReferenceVideo\([^)]*\)[\s\S]*?\.catch\(\(\) => ""\)/);
   assert.match(generateRoute, /type: "video_url"/);
   assert.match(generateRoute, /role: "reference_video"/);

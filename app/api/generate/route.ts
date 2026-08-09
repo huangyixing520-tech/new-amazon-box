@@ -15,6 +15,7 @@ import {
 } from "../../listing-response.mjs";
 import amazonImageSkillPrompt from "../../../skills/amazon-image-set/references/amazon-image-skill.md?raw";
 import videoReplicaAnalysisPrompt from "../../../skills/video-replica/references/video-analysis-prompt.md?raw";
+import { selectedVideoModel } from "../../video-models.mjs";
 
 const BASE_URL =
   process.env.DOLA_BASE_URL?.replace(/\/$/, "") ??
@@ -25,7 +26,6 @@ const LISTING_MODELS = Array.from(new Set([
   process.env.LISTING_FALLBACK_MODEL ?? "dolaio/gpt-5.6-terra",
   process.env.AGENT_FALLBACK_MODEL ?? "dolaio/gpt-5.6-terra",
 ].filter((model): model is string => Boolean(model))));
-const VIDEO_MODEL = process.env.VIDEO_MODEL ?? "novai/seedance-2.0-mini";
 const VIDEO_ANALYSIS_MODELS = Array.from(new Set([
   "MiniMax-M3",
   process.env.VIDEO_ANALYSIS_MODEL,
@@ -216,7 +216,7 @@ function taskField(payload: unknown, keys: string[]) {
 
 function videoTask(payload: unknown) {
   return {
-    id: taskField(payload, ["id", "task_id"]),
+    id: taskField(payload, ["id", "task_id", "taskId"]),
     status: taskField(payload, ["status", "state"]),
     videoUrl: taskField(payload, ["video_url", "videoUrl"]),
     posterUrl: taskField(payload, ["poster_url", "posterUrl", "thumbnail_url"]),
@@ -328,9 +328,28 @@ async function fileDataUrl(file: File) {
   return bytesDataUrl(bytes, mediaType);
 }
 
-async function rawFileDataUrl(file: File) {
+const supportedVideoMediaTypes = new Set([
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+]);
+
+function detectedVideoMediaType(bytes: Uint8Array) {
+  const header = String.fromCharCode(...bytes.subarray(0, 16));
+  if (header.slice(4, 8) === "ftyp") return "video/mp4";
+  if (
+    bytes[0] === 0x1a && bytes[1] === 0x45 &&
+    bytes[2] === 0xdf && bytes[3] === 0xa3
+  ) return "video/webm";
+}
+
+async function normalizedVideoDataUrl(file: File) {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  return bytesDataUrl(bytes, file.type || "application/octet-stream");
+  const mediaType = supportedVideoMediaTypes.has(file.type)
+    ? file.type
+    : detectedVideoMediaType(bytes);
+  if (!mediaType) throw new Error(`无法识别视频格式：${file.name || "未命名视频"}`);
+  return bytesDataUrl(bytes, mediaType);
 }
 
 function bytesDataUrl(bytes: Uint8Array, mediaType: string) {
@@ -447,6 +466,10 @@ async function createListing(form: FormData, apiKey: string) {
       const payload = await response.json().catch(() => null);
       if (!response.ok) {
         failures.push(`${model}: ${upstreamError(payload, `HTTP ${response.status}`)}`);
+        continue;
+      }
+      if (!listingTextFromPayload(payload).trim()) {
+        failures.push(`${model}: ${upstreamError(payload, "没有返回 Listing 内容")}`);
         continue;
       }
       const listing = validatedListingFromPayload(payload);
@@ -586,19 +609,20 @@ async function createVideo(
   if (!image) return jsonError("请至少上传 1 张商品图片", 400);
   const prompt = String(form.get("prompt") ?? "");
   const skill = String(form.get("skill") ?? "video-replica");
+  const videoModel = selectedVideoModel(
+    String(form.get("model") ?? ""),
+    process.env.VIDEO_MODEL,
+  );
   const referenceVideo = uploadedReferenceVideo(form);
   if (skill === "video-replica" && !referenceVideo) {
     return jsonError("视频复刻需要上传 1 个参考视频", 400);
-  }
-  if (referenceVideo && !referenceVideo.type.startsWith("video/")) {
-    return jsonError("参考视频文件格式不正确", 400);
   }
   if (referenceVideo && referenceVideo.size > 100 * 1024 * 1024) {
     return jsonError("参考视频不能超过 100 MB", 400);
   }
   const imageDataUrls = await Promise.all(images.map(fileDataUrl));
   const referenceVideoDataUrl = referenceVideo
-    ? await rawFileDataUrl(referenceVideo)
+    ? await normalizedVideoDataUrl(referenceVideo)
     : undefined;
   const context = formContext(form);
   const replicaStoryboard = skill === "video-replica" && referenceVideoDataUrl
@@ -626,7 +650,7 @@ async function createVideo(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: VIDEO_MODEL,
+      model: videoModel,
       resolution: process.env.VIDEO_DEFAULT_RESOLUTION ?? "720p",
       ratio: "9:16",
       duration: Number(process.env.VIDEO_DEFAULT_DURATION_SECONDS ?? 15),
@@ -651,7 +675,12 @@ async function createVideo(
     );
   }
   const task = videoTask(payload);
-  if (!task.id) return jsonError("视频服务没有返回任务 ID", 502);
+  if (!task.id) {
+    return jsonError(
+      upstreamError(payload, "视频服务没有返回任务 ID"),
+      502,
+    );
+  }
   await recordTask(db, task.id, userId, "video");
   return Response.json(task);
 }

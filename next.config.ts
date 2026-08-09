@@ -32,6 +32,14 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // vinext classifies multipart POST requests as progressive server actions
+    // before handing them to route handlers. Product/video references can be
+    // several megabytes, so the framework default (1 MB) rejects valid uploads.
+    serverActions: {
+      bodySizeLimit: "50mb",
+    },
+  },
   async headers() {
     return [
       {
