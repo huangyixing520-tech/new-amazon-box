@@ -20,8 +20,8 @@ const BASE_URL =
   process.env.DOLA_BASE_URL?.replace(/\/$/, "") ??
   "https://api.dolaio.cn/aigateway/cisco/v1";
 const LISTING_MODELS = Array.from(new Set([
-  process.env.LISTING_MODEL ?? "glm-4.5v",
-  process.env.LISTING_FALLBACK_MODEL ?? "glm-4.6v",
+  process.env.LISTING_MODEL ?? "MiniMax-M3",
+  process.env.LISTING_FALLBACK_MODEL ?? "dolaio/gpt-5.6-terra",
   process.env.AGENT_FALLBACK_MODEL ?? "dolaio/gpt-5.6-terra",
 ]));
 const VIDEO_MODEL = process.env.VIDEO_MODEL ?? "novai/seedance-2.0-mini";

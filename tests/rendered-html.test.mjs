@@ -411,8 +411,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(styles, /background-size: 5px 5px, 7px 7px/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   assert.doesNotMatch(page, /SkeletonPreview|codex-preview/);
-  assert.match(generateRoute, /glm-4\.5v/);
-  assert.match(generateRoute, /glm-4\.6v/);
+  assert.match(generateRoute, /MiniMax-M3/);
+  assert.doesNotMatch(generateRoute, /glm-4\.5v|glm-4\.6v/);
   assert.match(taskBackend, /process\.env\.IMAGE_MODEL \?\? "gpt-image-2"/);
   assert.match(taskBackend, /const MAX_IMAGE_RETRIES = 18/);
   assert.match(taskBackend, /const IMAGE_RETRY_INTERVAL_MS = 10_000/);
