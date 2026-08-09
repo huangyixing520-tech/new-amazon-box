@@ -20,16 +20,18 @@ const BASE_URL =
   process.env.DOLA_BASE_URL?.replace(/\/$/, "") ??
   "https://api.dolaio.cn/aigateway/cisco/v1";
 const LISTING_MODELS = Array.from(new Set([
-  process.env.LISTING_MODEL ?? "MiniMax-M3",
+  "MiniMax-M3",
+  process.env.LISTING_MODEL,
   process.env.LISTING_FALLBACK_MODEL ?? "dolaio/gpt-5.6-terra",
   process.env.AGENT_FALLBACK_MODEL ?? "dolaio/gpt-5.6-terra",
-]));
+].filter((model): model is string => Boolean(model))));
 const VIDEO_MODEL = process.env.VIDEO_MODEL ?? "novai/seedance-2.0-mini";
 const VIDEO_ANALYSIS_MODELS = Array.from(new Set([
-  process.env.VIDEO_ANALYSIS_MODEL ?? LISTING_MODELS[0],
+  "MiniMax-M3",
+  process.env.VIDEO_ANALYSIS_MODEL,
   process.env.VIDEO_ANALYSIS_FALLBACK_MODEL ?? LISTING_MODELS[1],
   process.env.AGENT_FALLBACK_MODEL ?? LISTING_MODELS[2],
-]));
+].filter((model): model is string => Boolean(model))));
 const MAX_UPLOADS = 9;
 
 const languageNames: Record<string, string> = {
