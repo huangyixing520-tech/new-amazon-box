@@ -27,7 +27,7 @@ import {
 import AccountPanel, { type ClientSession } from "../account-panel";
 import { floatingPopoverLayout } from "../floating-popover.mjs";
 import { parseFirstJsonObject } from "../first-json-object.mjs";
-import { openAiContent } from "../openai-content.mjs";
+import { openAiResponseLine } from "../openai-content.mjs";
 import { imageOutputSpec } from "../image-output-spec.mjs";
 import { imageTaskCount } from "../image-task-count.mjs";
 
@@ -4183,10 +4183,7 @@ export default function Home() {
       let pending = "";
       let generated = "";
       const consume = (line: string) => {
-        if (!line.startsWith("data:")) return;
-        const data = line.slice(5).trim();
-        if (!data || data === "[DONE]") return;
-        try { generated += openAiContent(JSON.parse(data)); } catch { /* ignore non-JSON SSE metadata */ }
+        generated += openAiResponseLine(line);
       };
 
       while (true) {
@@ -4206,8 +4203,7 @@ export default function Home() {
     let listing: ListingData;
     try {
       listing = parseListingJson(generated);
-    } catch (error) {
-      if (!(error instanceof Error) || !error.message.includes("Listing JSON")) throw error;
+    } catch {
       patchTurn(turn.id, { phase: "正在纠正 Listing 返回格式" });
       generated = await generateListingText(true);
       listing = parseListingJson(generated);
