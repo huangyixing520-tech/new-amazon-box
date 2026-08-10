@@ -499,6 +499,10 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /imageTaskId/);
   assert.match(assetRoute, /GENERATED_ASSETS/);
   assert.match(assetRoute, /asset_owners/);
+  assert.match(
+    assetRoute,
+    /a\.role = \?[\s\S]*a\.type = \?[\s\S]*a\.slot_index = \?/,
+  );
   assert.match(assetRoute, /ORDER BY a\.created_at DESC/);
   assert.match(page, /\/api\/history/);
   assert.match(page, /generation_requested/);

@@ -159,8 +159,12 @@ export async function POST(request: Request) {
       SELECT a.id, a.object_key
       FROM assets a
       INNER JOIN asset_owners o ON o.asset_id = a.id
-      WHERE o.user_id = ? AND a.turn_id = ? AND a.role = ? AND a.slot_index = ?
-    `).bind(user.id, body.turnId, role, slot).all<{
+      WHERE o.user_id = ?
+        AND a.turn_id = ?
+        AND a.role = ?
+        AND a.type = ?
+        AND a.slot_index = ?
+    `).bind(user.id, body.turnId, role, body.type, slot).all<{
       id: string;
       object_key: string | null;
     }>();
