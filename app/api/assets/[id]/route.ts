@@ -4,6 +4,7 @@ import {
   authErrorResponse,
   ensureIdentitySchema,
   requireUser,
+  verifyAssetAccessToken,
 } from "../../../lib/auth";
 import { runtimeBindings } from "../../../lib/runtime";
 
@@ -12,20 +13,36 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requireUser(request);
+    const { id } = await context.params;
+    const requestUrl = new URL(request.url);
+    const accessToken = requestUrl.searchParams.get("accessToken") ?? "";
+    const hasUpstreamAccess = accessToken
+      ? await verifyAssetAccessToken(accessToken, id)
+      : false;
+    const user = hasUpstreamAccess ? null : await requireUser(request);
     const runtime = await runtimeBindings();
     if (!runtime.DB || !runtime.GENERATED_ASSETS) {
       return NextResponse.json({ error: "资产存储尚未配置" }, { status: 503 });
     }
     await runtime.DB.prepare(createAssetsTableSql).run();
     await ensureIdentitySchema(runtime.DB);
-    const { id } = await context.params;
-    const asset = await runtime.DB.prepare(`
+    const asset = hasUpstreamAccess
+      ? await runtime.DB.prepare(`
+      SELECT a.object_key, a.mime_type, a.type, a.title
+      FROM assets a
+      WHERE a.id = ?
+    `).bind(id).first<{
+      object_key: string;
+      mime_type: string | null;
+      type: "image" | "video";
+      title: string;
+    }>()
+      : await runtime.DB.prepare(`
       SELECT a.object_key, a.mime_type, a.type, a.title
       FROM assets a
       INNER JOIN asset_owners o ON o.asset_id = a.id
       WHERE a.id = ? AND o.user_id = ?
-    `).bind(id, user.id).first<{
+    `).bind(id, user!.id).first<{
       object_key: string;
       mime_type: string | null;
       type: "image" | "video";
@@ -34,10 +51,9 @@ export async function GET(
     if (!asset) return NextResponse.json({ error: "资产不存在" }, { status: 404 });
     const object = await runtime.GENERATED_ASSETS.get(asset.object_key);
     if (!object) return NextResponse.json({ error: "资产文件不存在" }, { status: 404 });
-    const url = new URL(request.url);
-    const wantsPreview = url.searchParams.get("preview") === "1";
-    const wantsDownload = url.searchParams.get("download") === "1";
-    const downloadFormat = url.searchParams.get("format") === "jpg" ? "jpg" : "png";
+    const wantsPreview = !hasUpstreamAccess && requestUrl.searchParams.get("preview") === "1";
+    const wantsDownload = !hasUpstreamAccess && requestUrl.searchParams.get("download") === "1";
+    const downloadFormat = requestUrl.searchParams.get("format") === "jpg" ? "jpg" : "png";
     if (asset.type === "image" && (wantsPreview || wantsDownload)) {
       const { default: sharp } = await import("sharp");
       const source = await new Response(object.body).arrayBuffer();
@@ -77,7 +93,7 @@ export async function GET(
           object.httpMetadata?.contentType ||
           asset.mime_type ||
           "application/octet-stream",
-        "cache-control": "private, max-age=3600",
+        "cache-control": hasUpstreamAccess ? "private, no-store" : "private, max-age=3600",
         ...(wantsDownload ? {
           "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(asset.title)}`,
         } : {}),

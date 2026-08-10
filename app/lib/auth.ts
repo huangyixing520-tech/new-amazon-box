@@ -354,6 +354,33 @@ export async function createSessionToken(userId: string) {
     .sign(await sessionSecret());
 }
 
+export async function createAssetAccessToken(assetId: string, userId: string) {
+  return new SignJWT({
+    scope: "mercato:asset",
+    assetId,
+    userId,
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuer("mercato")
+    .setAudience("mercato-asset-upstream")
+    .setIssuedAt()
+    .setExpirationTime("1h")
+    .sign(await sessionSecret());
+}
+
+export async function verifyAssetAccessToken(token: string, assetId: string) {
+  try {
+    const verified = await jwtVerify(token, await sessionSecret(), {
+      issuer: "mercato",
+      audience: "mercato-asset-upstream",
+    });
+    return verified.payload.scope === "mercato:asset" &&
+      verified.payload.assetId === assetId;
+  } catch {
+    return false;
+  }
+}
+
 export function setSessionCookie(
   response: Response,
   request: Request,

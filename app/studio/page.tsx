@@ -45,6 +45,7 @@ type Upload = {
   id: string;
   name: string;
   url: string;
+  assetId?: string;
   owned?: boolean;
   file?: File;
 };
@@ -4135,11 +4136,18 @@ export default function Home() {
         form.set("slotIndex", String(slotConfig.index));
       }
     }
-    const files = await Promise.all(
-      uploadsForTurn.slice(0, MAX_UPLOADS).map(uploadAsFile),
-    );
-    files.forEach((file) => form.append("image", file, file.name));
-    if (action === "video" && referenceVideoForTurn) {
+    uploadsForTurn.slice(0, MAX_UPLOADS).forEach((upload) => {
+      if (upload.assetId) form.append("inputAssetId", upload.assetId);
+    });
+    if (action !== "video") {
+      const files = await Promise.all(
+        uploadsForTurn.slice(0, MAX_UPLOADS).map(uploadAsFile),
+      );
+      files.forEach((file) => form.append("image", file, file.name));
+    }
+    if (action === "video" && referenceVideoForTurn?.assetId) {
+      form.set("referenceVideoAssetId", referenceVideoForTurn.assetId);
+    } else if (action === "video" && referenceVideoForTurn) {
       const file = await uploadOriginalFile(referenceVideoForTurn);
       form.append("referenceVideo", file, file.name);
     }
@@ -4648,6 +4656,8 @@ export default function Home() {
       : imageTaskCount(selectedKind, taskPrompt);
     const turnUploads = uploads.slice(0, MAX_UPLOADS);
     const turnReferenceVideo = referenceVideo ?? undefined;
+    let generationUploads = turnUploads;
+    let generationReferenceVideo = turnReferenceVideo;
     const turn: Turn = {
       id,
       conversationId,
@@ -4706,6 +4716,10 @@ export default function Home() {
       if (storedInputs.some((asset) => !asset)) {
         throw new Error("输入图片没有完整保存，请检查网络后重试");
       }
+      generationUploads = turnUploads.map((upload, slot) => ({
+        ...upload,
+        assetId: storedInputs[slot]!.id,
+      }));
       if (turnReferenceVideo) {
         const storedReference = await storeAsset(
           turn,
@@ -4720,6 +4734,11 @@ export default function Home() {
         }
         turn.referenceVideo = storedReference.url;
         turn.referenceVideoName = turnReferenceVideo.name;
+        generationReferenceVideo = {
+          ...turnReferenceVideo,
+          assetId: storedReference.id,
+          url: storedReference.url,
+        };
         await persistTurn(turn);
       }
     } catch (error) {
@@ -4731,7 +4750,7 @@ export default function Home() {
       return;
     }
     window.setTimeout(() => {
-      void runGeneration(turn, turnUploads, turnReferenceVideo);
+      void runGeneration(turn, generationUploads, generationReferenceVideo);
       document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 0);
   };

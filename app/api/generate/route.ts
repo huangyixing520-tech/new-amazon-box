@@ -1,5 +1,6 @@
 import {
   authErrorResponse,
+  createAssetAccessToken,
   ensureIdentitySchema,
   userApiKey,
 } from "../../lib/auth";
@@ -331,30 +332,6 @@ async function fileDataUrl(file: File) {
   return bytesDataUrl(bytes, mediaType);
 }
 
-const supportedVideoMediaTypes = new Set([
-  "video/mp4",
-  "video/quicktime",
-  "video/webm",
-]);
-
-function detectedVideoMediaType(bytes: Uint8Array) {
-  const header = String.fromCharCode(...bytes.subarray(0, 16));
-  if (header.slice(4, 8) === "ftyp") return "video/mp4";
-  if (
-    bytes[0] === 0x1a && bytes[1] === 0x45 &&
-    bytes[2] === 0xdf && bytes[3] === 0xa3
-  ) return "video/webm";
-}
-
-async function normalizedVideoDataUrl(file: File) {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const mediaType = supportedVideoMediaTypes.has(file.type)
-    ? file.type
-    : detectedVideoMediaType(bytes);
-  if (!mediaType) throw new Error(`无法识别视频格式：${file.name || "未命名视频"}`);
-  return bytesDataUrl(bytes, mediaType);
-}
-
 function bytesDataUrl(bytes: Uint8Array, mediaType: string) {
   let binary = "";
   for (let index = 0; index < bytes.length; index += 0x8000) {
@@ -366,11 +343,6 @@ function bytesDataUrl(bytes: Uint8Array, mediaType: string) {
 function uploadedImages(form: FormData) {
   return form.getAll("image")
     .filter((value): value is File => value instanceof File);
-}
-
-function uploadedReferenceVideo(form: FormData) {
-  const value = form.get("referenceVideo");
-  return value instanceof File && value.size ? value : undefined;
 }
 
 async function listingMessages(form: FormData) {
@@ -602,50 +574,51 @@ Final output contract: ${singleImageTaskBoundary} Render one continuous edge-to-
 }
 
 async function createVideo(
+  request: Request,
   form: FormData,
   apiKey: string,
   userId: string,
   db: D1Binding,
 ) {
-  const images = uploadedImages(form);
-  const image = images[0];
-  if (!image) return jsonError("请至少上传 1 张商品图片", 400);
+  const inputAssetIds = form.getAll("inputAssetId")
+    .filter((value): value is string => typeof value === "string" && Boolean(value));
+  const primaryAssetId = inputAssetIds[0];
+  if (!primaryAssetId) return jsonError("商品图片尚未保存，请重新上传", 400);
   const prompt = String(form.get("prompt") ?? "");
   const skill = String(form.get("skill") ?? "video-replica");
   const videoModel = selectedVideoModel(
     String(form.get("model") ?? ""),
     process.env.VIDEO_MODEL,
   );
-  const referenceVideo = uploadedReferenceVideo(form);
-  if (skill === "video-replica" && !referenceVideo) {
+  const referenceVideoAssetId = String(form.get("referenceVideoAssetId") ?? "");
+  if (skill === "video-replica" && !referenceVideoAssetId) {
     return jsonError("视频复刻需要上传 1 个参考视频", 400);
   }
-  if (referenceVideo && referenceVideo.size > 100 * 1024 * 1024) {
-    return jsonError("参考视频不能超过 100 MB", 400);
-  }
-  const imageDataUrls = await Promise.all(images.map(fileDataUrl));
-  const referenceVideoDataUrl = referenceVideo
-    ? await normalizedVideoDataUrl(referenceVideo)
+  const upstreamAssetUrl = async (assetId: string, expectedType: "image" | "video") => {
+    const asset = await db.prepare(`
+      SELECT a.id, a.type
+      FROM assets a
+      INNER JOIN asset_owners o ON o.asset_id = a.id
+      WHERE a.id = ? AND o.user_id = ?
+    `).bind(assetId, userId).first<{ id: string; type: "image" | "video" }>();
+    if (!asset || asset.type !== expectedType) {
+      throw new Error(expectedType === "image" ? "商品图片不存在" : "参考视频不存在");
+    }
+    const url = new URL(`/api/assets/${encodeURIComponent(assetId)}`, request.url);
+    url.searchParams.set("accessToken", await createAssetAccessToken(assetId, userId));
+    return url.toString();
+  };
+  const primaryImageUrl = await upstreamAssetUrl(primaryAssetId, "image");
+  const referenceVideoUrl = referenceVideoAssetId
+    ? await upstreamAssetUrl(referenceVideoAssetId, "video")
     : undefined;
   const context = formContext(form);
-  const replicaStoryboard = skill === "video-replica" && referenceVideoDataUrl
-    ? await analyzeReferenceVideo(referenceVideoDataUrl, prompt, apiKey).catch(() => "")
+  const replicaStoryboard = skill === "video-replica" && referenceVideoUrl
+    ? await analyzeReferenceVideo(referenceVideoUrl, prompt, apiKey).catch(() => "")
     : "";
   const skillDirection = skill === "talking-product-video"
     ? "Create a direct-response product demonstration with a natural presenter-led sales rhythm, clear product handling and believable spoken-delivery pacing."
     : "Recreate the reference video's shot order, camera movement, pacing, transitions and product demonstration rhythm. Treat the reference video only as motion and composition guidance. Replace its subject with the supplied product and preserve the supplied product identity exactly.";
-  const referenceContent = referenceVideoDataUrl
-    ? [{
-        type: "video_url",
-        video_url: { url: referenceVideoDataUrl },
-        role: "reference_video",
-      }]
-    : [];
-  const productContent = imageDataUrls.map((url, index) => ({
-    type: "image_url",
-    image_url: { url },
-    role: index === 0 ? "first_frame" : "reference_image",
-  }));
   const response = await fetch(`${BASE_URL}/contents/generations/tasks`, {
     method: "POST",
     headers: {
@@ -665,8 +638,11 @@ async function createVideo(
             prompt || "Create a polished 15-second ecommerce product video."
           } ${replicaStoryboard ? `Reference-video storyboard:\n${replicaStoryboard}\nUse this storyboard as the shot-by-shot generation structure.` : ""} The first product image is the primary identity reference; the remaining product images provide supplementary views and details. Replace the source product with the supplied product. Do not copy visible brands, platform UI, usernames, watermarks or unsupported claims from the reference video. Only reproduce on-screen captions identified by the storyboard. Keep the exact supplied product identity.`,
         },
-        ...referenceContent,
-        ...productContent,
+        {
+          type: "image_url",
+          image_url: { url: primaryImageUrl },
+          role: "first_frame",
+        },
       ],
     }),
   });
@@ -705,7 +681,7 @@ export async function POST(request: Request) {
       return await createImage(form, apiKey, user.id, DB);
     }
     if (action === "video") {
-      return await createVideo(form, apiKey, user.id, DB);
+      return await createVideo(request, form, apiKey, user.id, DB);
     }
     return jsonError("未知生成类型", 400);
   } catch (error) {
