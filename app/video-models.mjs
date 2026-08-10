@@ -16,7 +16,7 @@ export const VIDEO_MODEL_OPTIONS = [
   },
 ];
 
-export const DEFAULT_VIDEO_MODEL = "seedance-2.0-mini";
+export const DEFAULT_VIDEO_MODEL = "seedance-2.0-fast";
 
 const VIDEO_MODEL_IDS = new Set(VIDEO_MODEL_OPTIONS.map((option) => option.id));
 

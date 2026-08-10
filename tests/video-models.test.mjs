@@ -14,6 +14,10 @@ test("video model list exposes the three ByteDance Seedance choices", () => {
   );
 });
 
+test("defaults video generation to Seedance 2.0 Fast", () => {
+  assert.equal(DEFAULT_VIDEO_MODEL, "seedance-2.0-fast");
+});
+
 test("requested video model wins when it is allowed", () => {
   assert.equal(
     selectedVideoModel("seedance-2.0-fast", "seedance-2.0-mini"),
