@@ -17,6 +17,7 @@ import {
   CaretDown,
   CaretUp,
   ChatCircle,
+  DownloadSimple,
   House,
   Images,
   LinkSimple,
@@ -48,6 +49,7 @@ type Upload = {
   assetId?: string;
   owned?: boolean;
   file?: File;
+  mediaType?: "image" | "video";
 };
 
 type GenerationMode = "image" | "video" | "listing";
@@ -1196,6 +1198,7 @@ function UploadPreviewModal({
   upload: Upload;
   onClose: () => void;
 }) {
+  const isVideo = upload.mediaType === "video";
   useEffect(() => {
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -1211,14 +1214,14 @@ function UploadPreviewModal({
       className="upload-preview-backdrop"
       role="dialog"
       aria-modal="true"
-      aria-label={`预览 ${upload.name}`}
+      aria-label={`预览${isVideo ? "视频" : "图片"} ${upload.name}`}
       data-testid="upload-preview-modal"
       onClick={onClose}
     >
       <button
         type="button"
         className="upload-preview-close"
-        aria-label="关闭图片预览"
+        aria-label={`关闭${isVideo ? "视频" : "图片"}预览`}
         onClick={onClose}
       >
         <X aria-hidden="true" weight="bold" />
@@ -1227,10 +1230,14 @@ function UploadPreviewModal({
         className="upload-preview-content"
         onClick={(event) => event.stopPropagation()}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={upload.url} alt={upload.name} />
+        {isVideo ? (
+          <video src={upload.url} controls autoPlay playsInline preload="metadata" />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={upload.url} alt={upload.name} />
+        )}
         <figcaption>
-          <span>参考图片</span>
+          <span>{isVideo ? "参考视频" : "参考图片"}</span>
           <strong>{upload.name}</strong>
         </figcaption>
       </figure>
@@ -2719,8 +2726,11 @@ function ImageSuite({
                         download
                         data-analytics-event="asset_downloaded"
                         data-turn-id={turnId}
+                        aria-label={`下载 ${item.title}`}
+                        title={`下载 ${item.title}`}
+                        className="artifact-download"
                       >
-                        下载
+                        <DownloadSimple aria-hidden="true" weight="bold" />
                       </a>
                       <button type="button" onClick={() => onRegenerate(item)}>重做</button>
                     </div>
@@ -2827,8 +2837,11 @@ function SingleImageResult({
                   download
                   data-analytics-event="asset_downloaded"
                   data-turn-id={turnId}
+                  aria-label={`下载 ${item.title}`}
+                  title={`下载 ${item.title}`}
+                  className="artifact-download"
                 >
-                  下载原图
+                  <DownloadSimple aria-hidden="true" weight="bold" />
                 </a>
                 <button type="button" onClick={() => onRegenerate(item)}>重新生成</button>
               </div>
@@ -2847,15 +2860,11 @@ function SingleImageResult({
 function VideoResult({
   turnId,
   ready,
-  productImage,
   videoUrl,
-  onNotice,
 }: {
   turnId: string;
   ready: boolean;
-  productImage: string;
   videoUrl?: string;
-  onNotice: (text: string) => void;
 }) {
   if (!ready) {
     return (
@@ -2866,54 +2875,30 @@ function VideoResult({
   }
 
   return (
-    <section className="video-result" data-testid="video-result">
-      <header className="result-section-head">
-        <div>
-          <span>PRODUCT VIDEO · 9:16</span>
-          <h2>一杯咖啡，去任何地方</h2>
-        </div>
+    <section className="video-result video-result-simple" data-testid="video-result">
+      <div className="video-artifact">
+        <video
+          controls
+          playsInline
+          preload="metadata"
+          aria-label="生成的视频"
+          data-testid="generated-video"
+        >
+          <source src={videoUrl ?? "/api/demo-video"} type="video/mp4" />
+        </video>
+        <footer>
         <a
           href={videoUrl ?? "/product-demo.mp4"}
           download
-          onClick={() => onNotice("视频文件已准备下载")}
           data-analytics-event="asset_downloaded"
           data-turn-id={turnId}
+          aria-label="下载视频"
+          title="下载视频"
+          className="artifact-download"
         >
-          下载视频
+          <DownloadSimple aria-hidden="true" weight="bold" />
         </a>
-      </header>
-      <div className="video-layout">
-        <div className="video-stage">
-          <video
-            controls
-            playsInline
-            poster={productImage}
-            aria-label="BrewGo 商品视频"
-            data-testid="generated-video"
-          >
-            <source src={videoUrl ?? "/api/demo-video"} type="video/mp4" />
-          </video>
-        </div>
-        <aside className="storyboard">
-          <span className="storyboard-label">镜头脚本</span>
-          {[
-            ["00:00", "旅途清晨", "露营桌上出现便携咖啡机"],
-            ["00:03", "一键加热", "特写展示注水与启动"],
-            ["00:07", "20 Bar 萃取", "浓缩咖啡缓慢流入杯中"],
-            ["00:11", "即刻享用", "人物在山景前端起咖啡"],
-          ].map(([time, title, detail], index) => (
-            <div className="shot" key={time}>
-              <span>{time}</span>
-              <i style={{ backgroundImage: `url(${index % 2 ? "/product-main.png" : "/product-outdoor.png"})` }} />
-              <div><b>{title}</b><p>{detail}</p></div>
-            </div>
-          ))}
-          <div className="video-meta">
-            <div><span>时长</span><b>15 秒</b></div>
-            <div><span>比例</span><b>9:16</b></div>
-            <div><span>语言</span><b>无字幕</b></div>
-          </div>
-        </aside>
+        </footer>
       </div>
     </section>
   );
@@ -3614,6 +3599,7 @@ export default function Home() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [inputPreview, setInputPreview] = useState<Upload | null>(null);
   const [previewPrompt, setPreviewPrompt] = useState("");
   const [previewGenerating, setPreviewGenerating] = useState(false);
   const [assets, setAssets] = useState<AssetRecord[]>([]);
@@ -5060,7 +5046,17 @@ export default function Home() {
                     <div className="message-bubble">
                       <div className="message-materials">
                         {turn.referenceVideo ? (
-                          <div className="message-reference-video">
+                          <button
+                            type="button"
+                            className="message-reference-video"
+                            aria-label="查看参考视频大图"
+                            onClick={() => setInputPreview({
+                              id: `${turn.id}-reference-video`,
+                              name: turn.referenceVideoName || "参考视频",
+                              url: turn.referenceVideo!,
+                              mediaType: "video",
+                            })}
+                          >
                             <video
                               src={turn.referenceVideo}
                               muted
@@ -5072,7 +5068,7 @@ export default function Home() {
                               <Play weight="fill" />
                             </span>
                             <small>参考视频</small>
-                          </div>
+                          </button>
                         ) : null}
                         {turn.referenceVideo ? (
                           <span className="message-material-plus" aria-hidden="true">
@@ -5082,13 +5078,24 @@ export default function Home() {
                         <div className="message-products" aria-label="本次任务的商品图片">
                           {(turn.productImages?.length ? turn.productImages : [turn.productImage])
                             .map((image, imageIndex) => (
-                              <div className="message-product" key={`${turn.id}-input-${imageIndex}`}>
+                              <button
+                                type="button"
+                                className="message-product"
+                                key={`${turn.id}-input-${imageIndex}`}
+                                aria-label={`查看${imageIndex === 0 ? "商品主体" : `商品参考图 ${imageIndex + 1}`}大图`}
+                                onClick={() => setInputPreview({
+                                  id: `${turn.id}-input-${imageIndex}`,
+                                  name: imageIndex === 0 ? "商品主体" : `商品参考图 ${imageIndex + 1}`,
+                                  url: image,
+                                  mediaType: "image",
+                                })}
+                              >
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={image}
                                   alt={imageIndex === 0 ? "用户上传的商品主体" : `用户上传的商品参考图 ${imageIndex + 1}`}
                                 />
-                              </div>
+                              </button>
                             ))}
                         </div>
                       </div>
@@ -5249,9 +5256,7 @@ export default function Home() {
                           <VideoResult
                             turnId={turn.id}
                             ready={ready}
-                            productImage={turn.productImage}
                             videoUrl={turn.videoUrl}
-                            onNotice={showNotice}
                           />
                         ) : null}
                       </div>
@@ -5312,6 +5317,12 @@ export default function Home() {
             onPrompt={setPreviewPrompt}
             onSubmit={() => void editPreviewImage()}
             onClose={() => setPreview(null)}
+          />
+        ) : null}
+        {inputPreview ? (
+          <UploadPreviewModal
+            upload={inputPreview}
+            onClose={() => setInputPreview(null)}
           />
         ) : null}
 
