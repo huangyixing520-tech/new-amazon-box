@@ -35,6 +35,12 @@ import {
   DEFAULT_VIDEO_MODEL,
   VIDEO_MODEL_OPTIONS,
 } from "../video-models.mjs";
+import {
+  DEFAULT_VIDEO_DURATION_SECONDS,
+  DEFAULT_VIDEO_RATIO,
+  VIDEO_DURATION_OPTIONS,
+  VIDEO_RATIO_OPTIONS,
+} from "../video-settings.mjs";
 
 type Option = {
   id: string;
@@ -106,6 +112,8 @@ type Turn = {
   prompt: string;
   mode: GenerationMode;
   generationModel?: string;
+  videoRatio?: string;
+  videoDuration?: number;
   skill: string;
   kind: SkillKind;
   region: string;
@@ -1523,6 +1531,8 @@ function Composer({
   referenceVideo,
   mode,
   generationModel,
+  videoRatio,
+  videoDuration,
   skill,
   region,
   language,
@@ -1537,6 +1547,8 @@ function Composer({
   onSend,
   onMode,
   onGenerationModel,
+  onVideoRatio,
+  onVideoDuration,
   onSkill,
   onRegion,
   onLanguage,
@@ -1551,6 +1563,8 @@ function Composer({
   referenceVideo: Upload | null;
   mode: GenerationMode;
   generationModel: string;
+  videoRatio: string;
+  videoDuration: number;
   skill: string;
   region: string;
   language: string;
@@ -1565,6 +1579,8 @@ function Composer({
   onSend: () => void;
   onMode: (value: GenerationMode) => void;
   onGenerationModel: (value: string) => void;
+  onVideoRatio: (value: string) => void;
+  onVideoDuration: (value: number) => void;
   onSkill: (value: string) => void;
   onRegion: (value: string) => void;
   onLanguage: (value: string) => void;
@@ -1893,20 +1909,50 @@ function Composer({
             testId="mode-trigger"
           />
           {mode === "video" ? (
-            <OptionMenu
-              label="选择视频模型"
-              options={videoModels}
-              value={generationModel}
-              open={openMenu === "model"}
-              onOpen={() => setOpenMenu(openMenu === "model" ? null : "model")}
-              onDismiss={() => setOpenMenu(null)}
-              onChange={(value) => {
-                onGenerationModel(value);
-                setOpenMenu(null);
-              }}
-              prefix="模型"
-              testId="model-trigger"
-            />
+            <>
+              <OptionMenu
+                label="选择视频模型"
+                options={videoModels}
+                value={generationModel}
+                open={openMenu === "model"}
+                onOpen={() => setOpenMenu(openMenu === "model" ? null : "model")}
+                onDismiss={() => setOpenMenu(null)}
+                onChange={(value) => {
+                  onGenerationModel(value);
+                  setOpenMenu(null);
+                }}
+                prefix="模型"
+                testId="model-trigger"
+              />
+              <OptionMenu
+                label="选择视频尺寸"
+                options={VIDEO_RATIO_OPTIONS}
+                value={videoRatio}
+                open={openMenu === "video-ratio"}
+                onOpen={() => setOpenMenu(openMenu === "video-ratio" ? null : "video-ratio")}
+                onDismiss={() => setOpenMenu(null)}
+                onChange={(value) => {
+                  onVideoRatio(value);
+                  setOpenMenu(null);
+                }}
+                prefix="尺寸"
+                testId="video-ratio-trigger"
+              />
+              <OptionMenu
+                label="选择视频时长"
+                options={VIDEO_DURATION_OPTIONS}
+                value={String(videoDuration)}
+                open={openMenu === "video-duration"}
+                onOpen={() => setOpenMenu(openMenu === "video-duration" ? null : "video-duration")}
+                onDismiss={() => setOpenMenu(null)}
+                onChange={(value) => {
+                  onVideoDuration(Number(value));
+                  setOpenMenu(null);
+                }}
+                prefix="时长"
+                testId="video-duration-trigger"
+              />
+            </>
           ) : null}
           <div className="brand-gene-control" ref={brandGeneTriggerRef}>
             <button
@@ -3590,6 +3636,8 @@ export default function Home() {
   const [referenceVideo, setReferenceVideo] = useState<Upload | null>(null);
   const [mode, setMode] = useState<GenerationMode>("listing");
   const [generationModel, setGenerationModel] = useState(DEFAULT_VIDEO_MODEL);
+  const [videoRatio, setVideoRatio] = useState(DEFAULT_VIDEO_RATIO);
+  const [videoDuration, setVideoDuration] = useState(DEFAULT_VIDEO_DURATION_SECONDS);
   const [skill, setSkill] = useState("amazon-listing");
   const [region, setRegion] = useState("us");
   const [language, setLanguage] = useState("en");
@@ -4093,6 +4141,8 @@ export default function Home() {
     form.set("mode", turn.mode);
     if (action === "video") {
       form.set("model", turn.generationModel ?? DEFAULT_VIDEO_MODEL);
+      form.set("ratio", turn.videoRatio ?? DEFAULT_VIDEO_RATIO);
+      form.set("duration", String(turn.videoDuration ?? DEFAULT_VIDEO_DURATION_SECONDS));
     }
     form.set("skill", turn.skill);
     form.set("region", turn.region);
@@ -4652,6 +4702,8 @@ export default function Home() {
       prompt: taskPrompt,
       mode,
       generationModel: mode === "video" ? generationModel : undefined,
+      videoRatio: mode === "video" ? videoRatio : undefined,
+      videoDuration: mode === "video" ? videoDuration : undefined,
       skill: selectedSkill.id,
       kind: selectedKind,
       region,
@@ -5111,6 +5163,12 @@ export default function Home() {
                               )?.label ?? turn.generationModel}
                             </span>
                           ) : null}
+                          {turn.mode === "video" && turn.videoRatio ? (
+                            <span>尺寸：{turn.videoRatio}</span>
+                          ) : null}
+                          {turn.mode === "video" && turn.videoDuration ? (
+                            <span>时长：{turn.videoDuration} 秒</span>
+                          ) : null}
                           <span>{regions.find((item) => item.id === turn.region)?.label}</span>
                           <span>{languages.find((item) => item.id === turn.language)?.label}</span>
                           {hasSuiteSettings(turn.skill) ? (
@@ -5277,6 +5335,8 @@ export default function Home() {
               referenceVideo={referenceVideo}
               mode={mode}
               generationModel={generationModel}
+              videoRatio={videoRatio}
+              videoDuration={videoDuration}
               skill={skill}
               region={region}
               language={language}
@@ -5294,6 +5354,8 @@ export default function Home() {
               onSend={() => startGeneration("conversation")}
               onMode={changeMode}
               onGenerationModel={setGenerationModel}
+              onVideoRatio={setVideoRatio}
+              onVideoDuration={setVideoDuration}
               onSkill={changeSkill}
               onRegion={setRegion}
               onLanguage={setLanguage}
@@ -5446,6 +5508,8 @@ export default function Home() {
                 referenceVideo={referenceVideo}
                 mode={mode}
                 generationModel={generationModel}
+                videoRatio={videoRatio}
+                videoDuration={videoDuration}
                 skill={skill}
                 region={region}
                 language={language}
@@ -5463,6 +5527,8 @@ export default function Home() {
                 onSend={() => startGeneration("home")}
                 onMode={changeMode}
                 onGenerationModel={setGenerationModel}
+                onVideoRatio={setVideoRatio}
+                onVideoDuration={setVideoDuration}
                 onSkill={changeSkill}
                 onRegion={setRegion}
                 onLanguage={setLanguage}
@@ -5483,6 +5549,8 @@ export default function Home() {
             referenceVideo={referenceVideo}
             mode={mode}
             generationModel={generationModel}
+            videoRatio={videoRatio}
+            videoDuration={videoDuration}
             skill={skill}
             region={region}
             language={language}
@@ -5500,6 +5568,8 @@ export default function Home() {
             onSend={() => startGeneration("home")}
             onMode={changeMode}
             onGenerationModel={setGenerationModel}
+            onVideoRatio={setVideoRatio}
+            onVideoDuration={setVideoDuration}
             onSkill={changeSkill}
             onRegion={setRegion}
             onLanguage={setLanguage}

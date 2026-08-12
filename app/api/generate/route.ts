@@ -17,6 +17,12 @@ import {
 import amazonImageSkillPrompt from "../../../skills/amazon-image-set/references/amazon-image-skill.md?raw";
 import videoReplicaAnalysisPrompt from "../../../skills/video-replica/references/video-analysis-prompt.md?raw";
 import { selectedVideoModel } from "../../video-models.mjs";
+import {
+  DEFAULT_VIDEO_DURATION_SECONDS,
+  DEFAULT_VIDEO_RATIO,
+  selectedVideoDuration,
+  selectedVideoRatio,
+} from "../../video-settings.mjs";
 import { friendlyUpstreamError } from "../../upstream-error.mjs";
 
 const BASE_URL =
@@ -590,6 +596,14 @@ async function createVideo(
     String(form.get("model") ?? ""),
     process.env.VIDEO_MODEL,
   );
+  const videoRatio = selectedVideoRatio(
+    String(form.get("ratio") ?? ""),
+    process.env.VIDEO_DEFAULT_RATIO ?? DEFAULT_VIDEO_RATIO,
+  );
+  const videoDuration = selectedVideoDuration(
+    String(form.get("duration") ?? ""),
+    Number(process.env.VIDEO_DEFAULT_DURATION_SECONDS ?? DEFAULT_VIDEO_DURATION_SECONDS),
+  );
   const referenceVideoAssetId = String(form.get("referenceVideoAssetId") ?? "");
   if (skill === "video-replica" && !referenceVideoAssetId) {
     return jsonError("视频复刻需要上传 1 个参考视频", 400);
@@ -628,14 +642,14 @@ async function createVideo(
     body: JSON.stringify({
       model: videoModel,
       resolution: process.env.VIDEO_DEFAULT_RESOLUTION ?? "720p",
-      ratio: "9:16",
-      duration: Number(process.env.VIDEO_DEFAULT_DURATION_SECONDS ?? 15),
+      ratio: videoRatio,
+      duration: videoDuration,
       watermark: false,
       content: [
         {
           type: "text",
           text: `${skillDirection} ${context.brandText} ${
-            prompt || "Create a polished 15-second ecommerce product video."
+            prompt || `Create a polished ${videoDuration}-second ecommerce product video.`
           } ${replicaStoryboard ? `Reference-video storyboard:\n${replicaStoryboard}\nUse this storyboard as the shot-by-shot generation structure.` : ""} The first product image is the primary identity reference; the remaining product images provide supplementary views and details. Replace the source product with the supplied product. Do not copy visible brands, platform UI, usernames, watermarks or unsupported claims from the reference video. Only reproduce on-screen captions identified by the storyboard. Keep the exact supplied product identity.`,
         },
         {
