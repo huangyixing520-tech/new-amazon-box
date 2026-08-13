@@ -1082,7 +1082,16 @@ button:active, a:active { transform: translateY(1px); }
 .thumbnail-rail { display: grid; align-content: start; gap: 9px; }
 .thumbnail-rail button { width: 54px; height: 54px; padding: 2px; overflow: hidden; border: 1px solid #888c8c; border-radius: 7px; background: white; cursor: pointer; }
 .thumbnail-rail button.selected { border: 3px solid #007185; box-shadow: 0 0 0 2px rgb(0 113 133 / .2); }
+.thumbnail-rail button.is-pending,
+.thumbnail-rail button.is-failed { display: grid; place-items: center; color: #666; }
+.thumbnail-rail button.is-failed { border-color: #d96b5f; background: #fff5f3; }
+.thumbnail-rail button:disabled { cursor: default; opacity: 1; }
 .thumbnail-rail img { width: 100%; height: 100%; object-fit: cover; }
+.listing-slot-failed { padding: 3px; font-size: 10px; line-height: 1.2; color: #a43128; }
+.listing-slot-shimmer { display: block; width: 100%; height: 100%; min-height: 42px; background: linear-gradient(105deg, #e8ece5 20%, #dce8d3 38%, #e8ece5 56%); background-size: 240% 100%; animation: listingSlotShimmer 2.4s ease-in-out infinite; }
+.listing-main-placeholder { width: 100%; aspect-ratio: 1; display: grid; place-items: center; overflow: hidden; color: #737a70; background: #f2f4ef; }
+.listing-main-placeholder .listing-slot-shimmer { grid-area: 1 / 1; min-height: 100%; }
+.listing-main-placeholder span:last-child { grid-area: 1 / 1; z-index: 1; padding: 8px 12px; border-radius: 999px; background: rgb(255 255 255 / .76); }
 .market-main-image { min-height: 480px; display: grid; grid-template-rows: minmax(0, 1fr) auto; place-items: center; }
 .market-main-image img { width: 100%; height: 450px; object-fit: contain; }
 .market-main-image span { color: #565959; font-size: 10px; }
@@ -1142,8 +1151,17 @@ button:active, a:active { transform: translateY(1px); }
 .listing-a-plus-gallery.is-standard { max-width: 970px; }
 .listing-a-plus-gallery.is-advanced { max-width: 1460px; }
 .listing-a-plus-gallery img { width: 100%; height: auto; display: block; object-fit: contain; background: #f7f8f8; }
+.listing-a-plus-slot { width: 100%; min-height: clamp(160px, 28vw, 600px); display: grid; place-items: center; overflow: hidden; background: #f2f4ef; }
+.listing-a-plus-slot img { grid-area: 1 / 1; }
+.listing-a-plus-slot .listing-slot-shimmer { min-height: inherit; }
+.listing-a-plus-slot.is-failed,
+.listing-mobile-a-plus-slot.is-failed { border: 1px solid #efaaa3; background: #fff5f3; }
+.listing-a-plus-slot button,
+.listing-mobile-a-plus-slot button { padding: 9px 14px; border: 1px solid #d96b5f; border-radius: 999px; background: white; color: #a43128; cursor: pointer; }
 .listing-mobile-a-plus { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 220px)); gap: 14px; margin-top: 14px; }
-.listing-mobile-a-plus img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border-radius: 16px; background: #eff1ed; }
+.listing-mobile-a-plus-slot { width: 100%; aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; border-radius: 16px; background: #eff1ed; }
+.listing-mobile-a-plus img { width: 100%; height: 100%; object-fit: contain; }
+@keyframes listingSlotShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 .a-plus-title-input { width: 100%; min-height: 54px; margin: 0 0 8px; padding: 5px; resize: vertical; color: #0f1111; font-size: 18px; line-height: 1.35; font-weight: 700; }
 .a-plus-title-input:hover, .a-plus-title-input:focus, .description-input:hover, .description-input:focus { background: #f7fafa; color: #0f1111; }
 .description-input { width: 100%; min-height: 78px; padding: 5px; resize: vertical; color: #0f1111; font-size: 12px; line-height: 1.6; }

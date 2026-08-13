@@ -729,13 +729,7 @@ function progressTotal(turn: Turn) {
 }
 
 function isListingReady(turn: Turn) {
-  if (turn.kind !== "listing" || turn.running || !turn.listing) {
-    return false;
-  }
-  const expectedImages = turn.imageTaskCount ?? 0;
-  const generatedImages = (turn.images ?? []).filter(Boolean).length;
-  const failedImages = turn.failedImageSlots?.length ?? 0;
-  return generatedImages + failedImages >= expectedImages;
+  return turn.kind === "listing" && Boolean(turn.listing);
 }
 
 function settledProgress(turn: Turn) {
@@ -2184,28 +2178,36 @@ function Composer({
 
 function ListingResult({
   turnId,
-  productImage,
   language,
   region,
   data,
   generatedImages = [],
+  taskCount,
+  generationIds = [],
+  failedSlots = [],
   suite,
   ready,
   onNotice,
   onListingChange,
   onGeneratedImageError,
+  onRegenerate,
+  regenerating,
 }: {
   turnId: string;
-  productImage: string;
   language: string;
   region: string;
   data?: ListingData;
   generatedImages?: string[];
+  taskCount: number;
+  generationIds?: string[];
+  failedSlots?: number[];
   suite: SuiteSettings;
   ready: boolean;
   onNotice: (text: string) => void;
   onListingChange: (listing: ListingData) => void;
   onGeneratedImageError: (url: string) => void;
+  onRegenerate: (item: GalleryItem) => void;
+  regenerating: string | null;
 }) {
   const copy = listingCopy[language as keyof typeof listingCopy] ?? listingCopy.en;
   const keywordGroups = data?.keywords
@@ -2238,19 +2240,27 @@ function ListingResult({
   const category = data?.category ?? "Marketplace › Generated product";
   const color = specs.find(([label]) => label.toLowerCase() === "color")?.[1];
   const featureStats = specs.slice(0, 3);
-  const generatedMainImages = generatedImages
-    .slice(0, suite.mainImageCount)
-    .filter(Boolean);
-  const generatedAPlusImages = generatedImages
-    .slice(suite.mainImageCount, suite.mainImageCount + suite.aPlusCount)
-    .filter(Boolean);
-  const generatedMobileAPlusImages = generatedImages
-    .slice(suite.mainImageCount + suite.aPlusCount)
-    .filter(Boolean);
-  const listingImages = generatedMainImages.length
-    ? generatedMainImages
-    : [productImage];
-  const shownGalleryImage = galleryImage || listingImages[0];
+  const listingSlotItems = suiteItems("amazon-listing", taskCount, suite).map(
+    (item, index) => ({
+      item,
+      index,
+      image: generatedImages[index] ?? "",
+      productionId: generationIds[index] ?? "",
+      failed: failedSlots.includes(index),
+    }),
+  );
+  const listingImages = listingSlotItems.slice(0, suite.mainImageCount);
+  const generatedAPlusImages = listingSlotItems.slice(
+    suite.mainImageCount,
+    suite.mainImageCount + suite.aPlusCount,
+  );
+  const generatedMobileAPlusImages = listingSlotItems.slice(
+    suite.mainImageCount + suite.aPlusCount,
+  );
+  const completedListingImages = listingImages.flatMap(({ image }) => image ? [image] : []);
+  const completedAPlusImages = generatedAPlusImages.flatMap(({ image }) => image ? [image] : []);
+  const completedMobileAPlusImages = generatedMobileAPlusImages.flatMap(({ image }) => image ? [image] : []);
+  const shownGalleryImage = galleryImage || completedListingImages[0] || "";
   const productSlug = data?.productUrlSlug ?? "MERCATO-GENERATED";
   const numericSalePrice = Number.parseFloat(salePrice.replaceAll(",", ""));
   const numericListPrice = Number.parseFloat(listPrice.replaceAll(",", ""));
@@ -2376,11 +2386,11 @@ function ListingResult({
     aPlus: {
       headline: aPlusHeadline,
       featureStats,
-      images: generatedAPlusImages,
-      mobileImages: generatedMobileAPlusImages,
+      images: completedAPlusImages,
+      mobileImages: completedMobileAPlusImages,
     },
     specifications: Object.fromEntries(specs),
-    images: listingImages,
+    images: completedListingImages,
     generatedBy: "Mercato AI",
   }, null, 2);
   const downloadHref = `data:application/json;charset=utf-8,${encodeURIComponent(listingJson)}`;
@@ -2442,29 +2452,49 @@ function ListingResult({
         <div className="market-gallery">
           <div className="thumbnail-rail" aria-label="商品图片">
             {listingImages.map(
-              (image, index) => (
+              ({ item, index, image, failed, productionId }) => (
                 <button
                   type="button"
-                  className={shownGalleryImage === image ? "selected" : ""}
-                  onClick={() => setGalleryImage(image)}
+                  className={`${shownGalleryImage === image && image ? "selected" : ""} ${failed ? "is-failed" : image ? "is-ready" : "is-pending"}`}
+                  onClick={() => {
+                    if (image) setGalleryImage(image);
+                    else if (failed) onRegenerate(item);
+                  }}
+                  disabled={!image && !failed || regenerating === item.id}
                   aria-label={`查看商品图 ${index + 1}`}
-                  key={`${image}-${index}`}
+                  key={item.id}
                   data-testid={`listing-thumb-${index}`}
+                  title={productionId || item.title}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={image} alt="" onError={() => onGeneratedImageError(image)} />
+                  {image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={image} alt="" onError={() => onGeneratedImageError(image)} />
+                  ) : failed ? (
+                    <span className="listing-slot-failed">重试本张</span>
+                  ) : (
+                    <span className="listing-slot-shimmer" aria-label="正在生成" />
+                  )}
                 </button>
               ),
             )}
           </div>
           <div className="market-main-image">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={shownGalleryImage}
-              alt={title}
-              onError={() => onGeneratedImageError(shownGalleryImage)}
-            />
-            <span>移动鼠标放大图片</span>
+            {shownGalleryImage ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={shownGalleryImage}
+                  alt={title}
+                  onError={() => onGeneratedImageError(shownGalleryImage)}
+                />
+                <span>移动鼠标放大图片</span>
+              </>
+            ) : (
+              <div className="listing-main-placeholder">
+                <i className="listing-slot-shimmer" />
+                <span>正在生成商品图</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -2669,27 +2699,43 @@ function ListingResult({
             className={`listing-a-plus-gallery ${suite.aPlusType === "standard" ? "is-standard" : "is-advanced"}`}
             aria-label="生成的 A+ 图片"
           >
-            {generatedAPlusImages.map((image, index) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={image}
-                alt={`A+ 图片 ${index + 1}`}
-                key={`${image}-${index}`}
-                onError={() => onGeneratedImageError(image)}
-              />
+            {generatedAPlusImages.map(({ item, index, image, failed, productionId }) => (
+              <div
+                className={`listing-a-plus-slot ${failed ? "is-failed" : image ? "is-ready" : "is-pending"}`}
+                data-testid={`listing-a-plus-slot-${index}`}
+                key={item.id}
+                title={productionId || item.title}
+              >
+                {image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={image} alt={`A+ 图片 ${index + 1}`} onError={() => onGeneratedImageError(image)} />
+                ) : failed ? (
+                  <button type="button" disabled={regenerating === item.id} onClick={() => onRegenerate(item)}>重试本张</button>
+                ) : (
+                  <span className="listing-slot-shimmer" aria-label="正在生成" />
+                )}
+              </div>
             ))}
           </div>
         ) : null}
         {generatedMobileAPlusImages.length ? (
           <div className="listing-mobile-a-plus" aria-label="生成的手机 A+ 图片">
-            {generatedMobileAPlusImages.map((image, index) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={image}
-                alt={`手机 A+ 图片 ${index + 1}`}
-                key={`${image}-${index}`}
-                onError={() => onGeneratedImageError(image)}
-              />
+            {generatedMobileAPlusImages.map(({ item, index, image, failed, productionId }) => (
+              <div
+                className={`listing-mobile-a-plus-slot ${failed ? "is-failed" : image ? "is-ready" : "is-pending"}`}
+                data-testid={`listing-mobile-a-plus-slot-${index}`}
+                key={item.id}
+                title={productionId || item.title}
+              >
+                {image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={image} alt={`手机 A+ 图片 ${index + 1}`} onError={() => onGeneratedImageError(image)} />
+                ) : failed ? (
+                  <button type="button" disabled={regenerating === item.id} onClick={() => onRegenerate(item)}>重试本张</button>
+                ) : (
+                  <span className="listing-slot-shimmer" aria-label="正在生成" />
+                )}
+              </div>
             ))}
           </div>
         ) : null}
@@ -4300,10 +4346,13 @@ export default function Home() {
       agentText: "",
       phase: `Listing 已完成，正在生成 0 / ${suiteImageCount} 张套图`,
       completed: 1,
+      images: Array.from({ length: suiteImageCount }, () => ""),
+      imageGenerationIds: Array.from({ length: suiteImageCount }, () => ""),
+      failedImageSlots: [],
     });
 
-    const results = new Array<string>(suiteImageCount);
-    const generationIds = new Array<string>(suiteImageCount);
+    const results = Array.from({ length: suiteImageCount }, () => "");
+    const generationIds = Array.from({ length: suiteImageCount }, () => "");
     const failedSlots: number[] = [];
     let nextSlot = 0;
     let firstError = "";
@@ -4855,8 +4904,10 @@ export default function Home() {
           images,
           imageGenerationIds,
           failedImageSlots,
-          completed: done,
-          phase: done === total ? "生成完成" : `已生成 ${done} / ${total} 张`,
+          completed: currentTurn.kind === "listing" ? 1 + done : done,
+          phase: currentTurn.kind === "listing"
+            ? `Listing 已完成 · 套图 ${done} / ${total} 张${failedImageSlots.length ? ` · ${failedImageSlots.length} 张失败` : ""}`
+            : done === total ? "生成完成" : `已生成 ${done} / ${total} 张`,
           error: undefined,
         };
       });
@@ -5254,13 +5305,14 @@ export default function Home() {
                           <ListingResult
                             key={turn.listing?.productUrlSlug ?? `${turn.id}-loading`}
                             turnId={turn.id}
-                            productImage={turn.productImage}
                             language={turn.language}
                             region={turn.region}
                             data={turn.listing}
                             generatedImages={turn.images}
+                            taskCount={turn.imageTaskCount ?? 0}
+                            generationIds={turn.imageGenerationIds ?? []}
                             suite={turn.suite}
-                            ready={ready}
+                            ready={isListingReady(turn)}
                             onNotice={showNotice}
                             onListingChange={(listing) =>
                               patchTurn(turn.id, { listing })
@@ -5268,6 +5320,9 @@ export default function Home() {
                             onGeneratedImageError={(url) =>
                               markGeneratedImageUnavailable(turn.id, url)
                             }
+                            failedSlots={turn.failedImageSlots ?? []}
+                            onRegenerate={(item) => void regenerate(turn, item)}
+                            regenerating={regenerating}
                           />
                         ) : null}
                         {turn.kind === "images" ? (

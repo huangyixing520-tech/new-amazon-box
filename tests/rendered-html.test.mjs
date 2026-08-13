@@ -222,7 +222,7 @@ test("ships the complete generation flow and its assets", async () => {
   assert.doesNotMatch(page, /<select[\s\S]*?data-testid="font-style-select"/);
   assert.match(page, /listing-result/);
   assert.match(page, /function isListingReady\(turn: Turn\)/);
-  assert.match(page, /generatedImages \+ failedImages >= expectedImages/);
+  assert.doesNotMatch(page, /generatedImages \+ failedImages >= expectedImages/);
   assert.match(page, /data-testid="listing-loading-skeleton"/);
   assert.match(page, /listing-loader-nav/);
   assert.match(page, /listing-loader-gallery/);
@@ -636,9 +636,75 @@ test("shows Listing and image progress as separate user-facing counts", async ()
     "utf8",
   );
   assert.match(page, /`图片 \$\{\(turn\.images \?\? \[\]\)\.filter\(Boolean\)\.length\} \/ \$\{turn\.imageTaskCount\}`/);
-  assert.match(page, /generatedImages \+ failedImages >= expectedImages/);
+  assert.doesNotMatch(page, /generatedImages \+ failedImages >= expectedImages/);
   assert.match(page, /markGeneratedImageUnavailable/);
   assert.match(page, /张资源加载失败/);
   assert.match(page, /Listing 已完成 · \$\{suiteImageCount\} 张套图生成失败，可单独重试/);
   assert.doesNotMatch(page, /if \(!done\) throw new Error\(firstError \|\| "Listing 文案已完成，但套图生成失败"\)/);
+});
+
+test("shows a Listing as soon as its JSON arrives while image slots keep streaming", async () => {
+  const page = await readFile(
+    new URL("../app/studio/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const readySource = page.match(
+    /function isListingReady\(turn: Turn\) \{([\s\S]*?)\n\}/,
+  )?.[1];
+
+  assert.ok(readySource, "isListingReady source should be present");
+  assert.match(readySource, /turn\.listing/);
+  assert.doesNotMatch(readySource, /turn\.running/);
+  assert.doesNotMatch(
+    readySource,
+    /expectedImages|generatedImages|failedImages|imageTaskCount/,
+  );
+  assert.match(page, /ready=\{isListingReady\(turn\)\}/);
+  assert.match(page, /if \(!ready\)[\s\S]*listing-loading-skeleton/);
+});
+
+test("keeps every configured Listing image slot mounted until its image arrives", async () => {
+  const page = await readFile(
+    new URL("../app/studio/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const listingResultSource = page.slice(
+    page.indexOf("function ListingResult("),
+    page.indexOf("function ImageSuite("),
+  );
+
+  assert.ok(listingResultSource, "ListingResult source should be present");
+  assert.doesNotMatch(
+    listingResultSource,
+    /generated(?:Main|APlus|MobileAPlus)Images\s*=\s*generatedImages[\s\S]{0,180}?\.filter\(Boolean\)/,
+  );
+  assert.match(
+    listingResultSource,
+    /suiteItems\(|Array\.from\(\{\s*length:\s*suite\.(?:mainImageCount|aPlusCount)/,
+  );
+  assert.match(listingResultSource, /data-testid=\{`listing-thumb-\$\{index\}`\}/);
+  assert.match(listingResultSource, /data-testid=\{`listing-a-plus-slot-\$\{index\}`\}/);
+  assert.match(listingResultSource, /data-testid=\{`listing-mobile-a-plus-slot-\$\{index\}`\}/);
+});
+
+test("keeps a failed Listing image in place and retries only that slot", async () => {
+  const page = await readFile(
+    new URL("../app/studio/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const listingResultSource = page.slice(
+    page.indexOf("function ListingResult("),
+    page.indexOf("function ImageSuite("),
+  );
+
+  assert.match(listingResultSource, /failedSlots(?:\s*=\s*\[\])?/);
+  assert.match(listingResultSource, /onRegenerate/);
+  assert.match(listingResultSource, /regenerating/);
+  assert.match(listingResultSource, /failedSlots\.includes\(index\)/);
+  assert.match(listingResultSource, /重试本张/);
+  assert.match(listingResultSource, /onRegenerate\(item\)/);
+  assert.match(
+    page,
+    /<ListingResult[\s\S]*?failedSlots=\{turn\.failedImageSlots \?\? \[\]\}[\s\S]*?onRegenerate=/,
+  );
 });
