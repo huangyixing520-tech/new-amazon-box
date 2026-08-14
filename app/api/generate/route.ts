@@ -24,6 +24,11 @@ import {
   selectedVideoRatio,
 } from "../../video-settings.mjs";
 import { friendlyUpstreamError } from "../../upstream-error.mjs";
+import {
+  markGenerationStatus,
+  recordGenerationRequest,
+  recordGenerationStarted,
+} from "../../lib/generation-analytics";
 
 const BASE_URL =
   process.env.DOLA_BASE_URL?.replace(/\/$/, "") ??
@@ -576,6 +581,15 @@ Final output contract: ${singleImageTaskBoundary} Render one continuous edge-to-
   const taskId = taskField(payload, ["id", "task_id"]);
   if (!taskId) return jsonError("图片任务后台没有返回任务 ID", 502);
   await recordTask(db, taskId, userId, "image");
+  await recordGenerationStarted(db, {
+    id: taskId,
+    userId,
+    requestId: String(form.get("turnId") ?? taskId),
+    mediaType: "image",
+    skill,
+    prompt,
+    slot,
+  });
   return Response.json(payload, { status: 202 });
 }
 
@@ -675,6 +689,15 @@ async function createVideo(
     );
   }
   await recordTask(db, task.id, userId, "video");
+  await recordGenerationStarted(db, {
+    id: task.id,
+    userId,
+    requestId: String(form.get("turnId") ?? task.id),
+    mediaType: "video",
+    skill,
+    prompt,
+    slot: 0,
+  });
   return Response.json(task);
 }
 
@@ -692,9 +715,21 @@ export async function POST(request: Request) {
     const action = String(form.get("action") ?? "");
     if (action === "listing") return await createListing(form, apiKey);
     if (action === "image") {
+      await recordGenerationRequest(DB, {
+        userId: user.id,
+        requestId: String(form.get("turnId") ?? crypto.randomUUID()),
+        mediaType: "image",
+        skill: String(form.get("skill") ?? "unknown"),
+      });
       return await createImage(form, apiKey, user.id, DB);
     }
     if (action === "video") {
+      await recordGenerationRequest(DB, {
+        userId: user.id,
+        requestId: String(form.get("turnId") ?? crypto.randomUUID()),
+        mediaType: "video",
+        skill: String(form.get("skill") ?? "unknown"),
+      });
       return await createVideo(request, form, apiKey, user.id, DB);
     }
     return jsonError("未知生成类型", 400);
@@ -729,9 +764,29 @@ export async function GET(request: Request) {
       );
       const payload = await response.json().catch(() => null);
       if (!response.ok) {
+        await markGenerationStatus(
+          DB,
+          imageTaskId,
+          user.id,
+          "failed",
+          upstreamError(payload, `图片任务查询失败 (${response.status})`),
+        );
         return jsonError(
           upstreamError(payload, `图片任务查询失败 (${response.status})`),
           response.status,
+        );
+      }
+      const status = String(taskField(payload, ["status", "state"]) || "")
+        .toLowerCase();
+      if (["succeeded", "success", "completed", "done"].includes(status)) {
+        await markGenerationStatus(DB, imageTaskId, user.id, "succeeded");
+      } else if (["failed", "error", "cancelled", "canceled"].includes(status)) {
+        await markGenerationStatus(
+          DB,
+          imageTaskId,
+          user.id,
+          "failed",
+          upstreamError(payload, "图片生成失败"),
         );
       }
       return Response.json(payload);
@@ -750,12 +805,36 @@ export async function GET(request: Request) {
     );
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
+      await markGenerationStatus(
+        DB,
+        taskId,
+        user.id,
+        "failed",
+        upstreamError(payload, `视频任务查询失败 (${response.status})`),
+      );
       return jsonError(
         upstreamError(payload, `视频任务查询失败 (${response.status})`),
         response.status,
       );
     }
-    return Response.json(videoTask(payload));
+    const normalizedTask = videoTask(payload);
+    const status = String(
+      (normalizedTask as Record<string, unknown>).status ||
+      (normalizedTask as Record<string, unknown>).state ||
+      "",
+    ).toLowerCase();
+    if (["succeeded", "success", "completed", "done"].includes(status)) {
+      await markGenerationStatus(DB, taskId, user.id, "succeeded");
+    } else if (["failed", "error", "cancelled", "canceled"].includes(status)) {
+      await markGenerationStatus(
+        DB,
+        taskId,
+        user.id,
+        "failed",
+        upstreamError(payload, "视频生成失败"),
+      );
+    }
+    return Response.json(normalizedTask);
   } catch (error) {
     return authErrorResponse(error);
   }

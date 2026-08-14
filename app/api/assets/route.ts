@@ -8,6 +8,7 @@ import {
   runtimeBindings,
 } from "../../lib/runtime";
 import { normalizedImageOutputDimensions } from "../../asset-output-spec.mjs";
+import { attachGenerationAsset } from "../../lib/generation-analytics";
 
 type AssetRow = {
   id: string;
@@ -16,6 +17,7 @@ type AssetRow = {
   prompt: string;
   conversation_id: string;
   turn_id: string;
+  generation_id: string | null;
   role: "input" | "output";
   slot_index: number;
   created_at: string;
@@ -28,6 +30,7 @@ type AssetBody = {
   prompt?: string;
   conversationId?: string;
   turnId?: string;
+  generationId?: string;
   createdAt?: string;
   role?: "input" | "output";
   slot?: number;
@@ -73,7 +76,8 @@ export async function GET(request: Request) {
     await ensureAssetsSchema(DB);
     const result = await DB.prepare(`
       SELECT a.id, a.type, a.title, a.prompt,
-        a.conversation_id, a.turn_id, a.role, a.slot_index, a.created_at
+        a.conversation_id, a.turn_id, a.generation_id,
+        a.role, a.slot_index, a.created_at
       FROM assets a
       INNER JOIN asset_owners o ON o.asset_id = a.id
       WHERE o.user_id = ? AND a.role = 'output'
@@ -88,6 +92,7 @@ export async function GET(request: Request) {
         prompt: asset.prompt,
         conversationId: asset.conversation_id,
         turnId: asset.turn_id,
+        generationId: asset.generation_id,
         role: asset.role,
         slot: asset.slot_index,
         createdAt: asset.created_at,
@@ -135,6 +140,7 @@ export async function POST(request: Request) {
           prompt: formText("prompt"),
           conversationId: formText("conversationId"),
           turnId: formText("turnId"),
+          generationId: formText("generationId"),
           createdAt: formText("createdAt"),
           role: formText("role") as AssetBody["role"],
           slot: formNumber("slot"),
@@ -212,8 +218,9 @@ export async function POST(request: Request) {
       DB.prepare(`
         INSERT INTO assets (
           id, object_key, source_url, type, title, prompt,
-          conversation_id, turn_id, mime_type, role, slot_index, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          conversation_id, turn_id, generation_id, mime_type,
+          role, slot_index, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         id,
         objectKey,
@@ -223,6 +230,7 @@ export async function POST(request: Request) {
         body.prompt || "",
         body.conversationId,
         body.turnId,
+        body.generationId || null,
         storedMimeType,
         role,
         slot,
@@ -272,6 +280,10 @@ export async function POST(request: Request) {
       throw error;
     }
 
+    if (role === "output" && body.generationId) {
+      await attachGenerationAsset(DB, body.generationId, user.id, id);
+    }
+
     return NextResponse.json({
       asset: {
         id,
@@ -280,6 +292,7 @@ export async function POST(request: Request) {
         prompt: body.prompt || "",
         conversationId: body.conversationId,
         turnId: body.turnId,
+        generationId: body.generationId || null,
         role,
         slot,
         createdAt,

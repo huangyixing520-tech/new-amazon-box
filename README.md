@@ -56,6 +56,22 @@ The Railway task service requires:
 See `.env.example` and `task-backend/README.md` for the remaining model
 defaults.
 
+## Operations dashboard
+
+Administrators listed in `ADMIN_EMAILS` can open `/admin`. The dashboard uses
+the authenticated product user ID as the stable UID and stores one generation
+record for every image or video result slot. The global generation search
+combines date range, exact UID, exact generation ID, and Prompt text; media,
+status, and Skill can be added to the same query.
+
+The overview reports the ordered login/page-entry → generation request →
+generation success → export funnel, per-Skill result-slot funnels, daily image
+and video completions, DAU, rolling 30-day MAU, DAU export rate, latency P50/P95,
+and grouped failures. Success, failure, and download events are written by
+server routes rather than accepted from the browser. Existing assets remain
+searchable after the additive `0003_generation_observability.sql` migration;
+new assets also keep their authoritative provider generation ID.
+
 ## Verification
 
 ```bash

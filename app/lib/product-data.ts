@@ -6,6 +6,9 @@ import {
   createConversationTurnsTableSql,
   createConversationsTableSql,
   createConversationsUserIndexSql,
+  createGenerationRecordsDateIndexSql,
+  createGenerationRecordsTableSql,
+  createGenerationRecordsUserIndexSql,
 } from "../../db/schema";
 import { ensureIdentitySchema } from "./auth";
 import type { D1Binding } from "./runtime";
@@ -20,7 +23,18 @@ export async function ensureProductDataSchema(db: D1Binding) {
     db.prepare(createAnalyticsEventsTableSql),
     db.prepare(createAnalyticsEventsDateIndexSql),
     db.prepare(createAnalyticsEventsUserIndexSql),
+    db.prepare(createGenerationRecordsTableSql),
+    db.prepare(createGenerationRecordsUserIndexSql),
+    db.prepare(createGenerationRecordsDateIndexSql),
   ]);
+  try {
+    await db.prepare(
+      "ALTER TABLE analytics_events ADD COLUMN generation_id TEXT",
+    ).run();
+  } catch (error) {
+    const message = error instanceof Error ? error.message.toLowerCase() : "";
+    if (!message.includes("duplicate column")) throw error;
+  }
 }
 
 export function safeJson<T>(value: string | null | undefined, fallback: T): T {

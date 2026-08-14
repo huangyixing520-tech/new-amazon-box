@@ -27,5 +27,9 @@ export async function ensureAssetsSchema(db: D1Binding) {
     db,
     "ALTER TABLE assets ADD COLUMN slot_index INTEGER NOT NULL DEFAULT 0",
   );
+  await addColumn(
+    db,
+    "ALTER TABLE assets ADD COLUMN generation_id TEXT",
+  );
   await ensureIdentitySchema(db);
 }

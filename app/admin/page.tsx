@@ -52,10 +52,61 @@ type UserSummary = {
 type DashboardData = {
   days: number;
   totalUsers: number;
+  summary: {
+    dau: number;
+    mau: number;
+    images: number;
+    videos: number;
+    exportRate: number;
+    attempts: number;
+    successes: number;
+    failures: number;
+  };
   totals: Metric;
-  daily: Array<Metric & { date: string }>;
+  daily: Array<Metric & {
+    date: string;
+    images: number;
+    videos: number;
+    attempts: number;
+    successes: number;
+    exportRate: number;
+  }>;
+  mainFunnel: { stages: Array<{
+    name: string;
+    count: number;
+    conversionRate: number;
+    overallRate: number;
+    dropoff: number;
+  }> };
+  diagnostics: {
+    latency: { p50Ms: number; p95Ms: number };
+    failureReasons: Array<{ reason: string; count: number }>;
+  };
   skills: Array<Metric & { id: string }>;
   users: UserSummary[];
+};
+
+type GenerationItem = {
+  id: string;
+  userId: string;
+  email: string;
+  mediaType: "image" | "video";
+  skill: string | null;
+  prompt: string;
+  status: string;
+  slot: number;
+  assetId: string | null;
+  error: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  previewUrl: string | null;
+};
+
+type GenerationSearchData = {
+  total: number;
+  page: number;
+  limit: number;
+  items: GenerationItem[];
 };
 
 type ListingResult = {
@@ -631,7 +682,7 @@ function matchesResultFilter(turn: ResultTurn, filter: ResultFilter) {
 }
 
 export default function AdminPage() {
-  const [section, setSection] = useState<"overview" | "results" | "landing" | "inspiration">(
+  const [section, setSection] = useState<"overview" | "generations" | "results" | "landing" | "inspiration">(
     "overview",
   );
   const [days, setDays] = useState(30);
@@ -654,6 +705,18 @@ export default function AdminPage() {
   const [sessionReady, setSessionReady] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [generationReload, setGenerationReload] = useState(0);
+  const [generationData, setGenerationData] = useState<GenerationSearchData | null>(null);
+  const [generationError, setGenerationError] = useState("");
+  const [generationFilters, setGenerationFilters] = useState({
+    from: "",
+    to: "",
+    userId: "",
+    generationId: "",
+    prompt: "",
+    status: "",
+    mediaType: "",
+  });
   const resultsRequestId = useRef(0);
 
   useEffect(() => {
@@ -676,6 +739,25 @@ export default function AdminPage() {
         reason instanceof Error ? reason.message : "无法读取数据",
       ));
   }, [days, reloadKey, sessionReady]);
+
+  useEffect(() => {
+    if (!sessionReady || section !== "generations") return;
+    const query = new URLSearchParams({ page: "1", limit: "50" });
+    Object.entries(generationFilters).forEach(([key, value]) => {
+      if (value.trim()) query.set(key, value.trim());
+    });
+    void fetch(`/api/admin/generations?${query}`, { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "无法读取生成记录");
+        setGenerationData(payload);
+      })
+      .catch((reason) => setGenerationError(
+        reason instanceof Error ? reason.message : "无法读取生成记录",
+      ));
+  // Filters are submitted explicitly with generationReload.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generationReload, section, sessionReady]);
 
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -816,6 +898,17 @@ export default function AdminPage() {
         </button>
         <button
           type="button"
+          className={section === "generations" ? "active" : ""}
+          onClick={() => {
+            setGenerationData(null);
+            setGenerationError("");
+            setSection("generations");
+          }}
+        >
+          <MagnifyingGlass weight="bold" />生成检索
+        </button>
+        <button
+          type="button"
           className={section === "results" ? "active" : ""}
           onClick={() => {
             setSection("results");
@@ -854,9 +947,11 @@ export default function AdminPage() {
           <section className="admin-kpis" aria-label="核心指标">
             {[
               ["累计用户", data.totalUsers, <Users key="users" weight="duotone" />],
-              ["DAU", data.daily.at(-1)?.dau ?? 0, <ChartLineUp key="dau" weight="duotone" />],
-              ["生成 DAU", data.daily.at(-1)?.generationDau ?? 0, <Sparkle key="generation" weight="duotone" />],
-              ["导出 DAU", data.daily.at(-1)?.exportDau ?? 0, <DownloadSimple key="export" weight="duotone" />],
+              ["DAU", data.summary.dau, <ChartLineUp key="dau" weight="duotone" />],
+              ["MAU", data.summary.mau, <Users key="mau" weight="duotone" />],
+              ["成功图片", data.summary.images, <ImageSquare key="images" weight="duotone" />],
+              ["成功视频", data.summary.videos, <VideoCamera key="videos" weight="duotone" />],
+              ["DAU 导出率", `${Math.round(data.summary.exportRate * 100)}%`, <DownloadSimple key="export" weight="duotone" />],
             ].map(([label, value, icon]) => (
               <article key={String(label)}>
                 <span>{icon}{label}</span>
@@ -871,27 +966,51 @@ export default function AdminPage() {
               <span>最近 {data.days} 天</span>
             </header>
             <div>
-              <article>
-                <span>发起生成</span><strong>{data.totals.requests}</strong>
-              </article>
-              <article>
-                <span>完全成功</span>
-                <strong>{data.totals.completeSuccesses}</strong>
-                <small>{rate(data.totals.completeSuccesses, data.totals.requests)}</small>
-              </article>
-              <article>
-                <span>部分成功</span>
-                <strong>{data.totals.partialSuccesses}</strong>
-                <small>{rate(data.totals.partialSuccesses, data.totals.requests)}</small>
-              </article>
-              <article>
-                <span>导出/下载</span>
-                <strong>{data.totals.exports}</strong>
-                <small>{rate(
-                  data.totals.exports,
-                  data.totals.completeSuccesses + data.totals.partialSuccesses,
-                )}</small>
-              </article>
+              {data.mainFunnel.stages.map((stage) => (
+                <article key={stage.name}>
+                  <span>{({
+                    session_started: "登录进入网页",
+                    generation_requested: "点击生成",
+                    generation_succeeded: "生成成功",
+                    media_exported: "导出或下载",
+                  } as Record<string, string>)[stage.name] ?? stage.name}</span>
+                  <strong>{stage.count}</strong>
+                  <small>{Math.round(stage.overallRate * 100)}% · 流失 {stage.dropoff}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="admin-table-section">
+            <header>
+              <h2>每日趋势</h2>
+              <span>Asia/Shanghai · 图片/视频按成功入库日</span>
+            </header>
+            <div className="admin-table-wrap">
+              <table>
+                <thead><tr>
+                  <th>日期</th><th>DAU</th><th>图片</th>
+                  <th>视频</th><th>尝试</th><th>失败</th><th>DAU 导出率</th>
+                </tr></thead>
+                <tbody>
+                  {data.daily.map((item) => (
+                    <tr key={item.date}>
+                      <td>{item.date}</td><td>{item.dau}</td>
+                      <td>{item.images}</td><td>{item.videos}</td><td>{item.attempts}</td>
+                      <td>{item.failures}</td><td>{Math.round(item.exportRate * 100)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="admin-table-section">
+            <header><h2>质量诊断</h2><span>帮助定位模型与供应商卡点</span></header>
+            <div className="admin-diagnostics">
+              <article><span>P50 耗时</span><strong>{Math.round(data.diagnostics.latency.p50Ms / 1000)} 秒</strong></article>
+              <article><span>P95 耗时</span><strong>{Math.round(data.diagnostics.latency.p95Ms / 1000)} 秒</strong></article>
+              <article><span>主要失败原因</span><strong>{data.diagnostics.failureReasons[0]?.reason || "暂无"}</strong></article>
             </div>
           </section>
 
@@ -970,6 +1089,58 @@ export default function AdminPage() {
             </div>
           </section>
         </>
+      ) : section === "generations" ? (
+        <section className="admin-table-section admin-generation-search">
+          <header>
+            <div><h2>生成记录检索</h2><span>时间、UID、生成 ID、Prompt 支持组合查询</span></div>
+            <strong>{generationData ? `共 ${generationData.total} 条` : "正在查询"}</strong>
+          </header>
+          <form onSubmit={(event) => {
+            event.preventDefault();
+            setGenerationData(null);
+            setGenerationError("");
+            setGenerationReload((value) => value + 1);
+          }}>
+            <label><span>开始日期</span><input type="date" value={generationFilters.from} onChange={(event) => setGenerationFilters((value) => ({ ...value, from: event.target.value }))} /></label>
+            <label><span>结束日期</span><input type="date" value={generationFilters.to} onChange={(event) => setGenerationFilters((value) => ({ ...value, to: event.target.value }))} /></label>
+            <label><span>用户 UID</span><input placeholder="精确 UID" value={generationFilters.userId} onChange={(event) => setGenerationFilters((value) => ({ ...value, userId: event.target.value }))} /></label>
+            <label><span>图片/视频生成 ID</span><input placeholder="精确生成 ID" value={generationFilters.generationId} onChange={(event) => setGenerationFilters((value) => ({ ...value, generationId: event.target.value }))} /></label>
+            <label className="wide"><span>Prompt</span><input placeholder="包含关键词" value={generationFilters.prompt} onChange={(event) => setGenerationFilters((value) => ({ ...value, prompt: event.target.value }))} /></label>
+            <label><span>状态</span><select value={generationFilters.status} onChange={(event) => setGenerationFilters((value) => ({ ...value, status: event.target.value }))}><option value="">全部</option><option value="running">生成中</option><option value="succeeded">成功</option><option value="failed">失败</option></select></label>
+            <label><span>媒体</span><select value={generationFilters.mediaType} onChange={(event) => setGenerationFilters((value) => ({ ...value, mediaType: event.target.value }))}><option value="">全部</option><option value="image">图片</option><option value="video">视频</option></select></label>
+            <button type="submit">查询</button>
+            <button type="button" className="secondary" onClick={() => {
+              setGenerationFilters({ from: "", to: "", userId: "", generationId: "", prompt: "", status: "", mediaType: "" });
+              setGenerationData(null);
+              setGenerationError("");
+              setGenerationReload((value) => value + 1);
+            }}>清空</button>
+          </form>
+          {generationError ? <div className="admin-results-empty" role="alert"><h2>查询失败</h2><p>{generationError}</p></div> : !generationData ? (
+            <div className="admin-results-empty"><strong>正在读取生成记录</strong></div>
+          ) : (
+            <div className="admin-table-wrap">
+              <table>
+                <thead><tr><th>时间</th><th>UID / 邮箱</th><th>生成 ID</th><th>媒体</th><th>Skill</th><th>Prompt</th><th>状态</th><th>结果</th></tr></thead>
+                <tbody>
+                  {generationData.items.map((item) => (
+                    <tr key={`${item.id}-${item.assetId || "none"}`}>
+                      <td>{dateTime(item.createdAt)}</td>
+                      <td><strong>{item.userId}</strong><small>{item.email}</small></td>
+                      <td><code>{item.id}</code></td>
+                      <td>{item.mediaType === "video" ? "视频" : "图片"}</td>
+                      <td>{skillNames[item.skill || ""] ?? item.skill ?? "历史数据"}</td>
+                      <td className="prompt-cell" title={item.prompt}>{item.prompt || "—"}</td>
+                      <td><span className={`generation-status-pill ${item.status}`}>{({ running: "生成中", succeeded: "成功", failed: "失败" } as Record<string, string>)[item.status] ?? item.status}</span>{item.error ? <small title={item.error}>{item.error}</small> : null}</td>
+                      <td>{item.previewUrl ? <a href={item.previewUrl} target="_blank" rel="noreferrer">查看</a> : "—"}</td>
+                    </tr>
+                  ))}
+                  {!generationData.items.length ? <tr><td colSpan={8}>没有匹配的生成记录</td></tr> : null}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       ) : section === "landing" ? (
         landingLoading || !landingContent ? (
           <section className="admin-state">
