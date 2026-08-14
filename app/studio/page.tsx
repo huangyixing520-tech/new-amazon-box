@@ -162,6 +162,7 @@ type AssetRecord = {
   downloadUrl?: string;
   conversationId: string;
   turnId: string;
+  generationId?: string;
   role?: "input" | "output";
   slot?: number;
   createdAt: string;
@@ -3911,6 +3912,7 @@ export default function Home() {
     role: "input" | "output" = "output",
     dimensions?: { width: number; height: number },
     sourceFile?: File,
+    generationId?: string,
   ) => {
     const temporaryId = `local-${crypto.randomUUID()}`;
     const createdAt = new Date().toISOString();
@@ -3922,6 +3924,7 @@ export default function Home() {
       url: sourceUrl,
       conversationId: turn.conversationId,
       turnId: turn.id,
+      generationId,
       role,
       slot,
       createdAt,
@@ -3936,6 +3939,7 @@ export default function Home() {
         prompt: turn.prompt,
         conversationId: turn.conversationId,
         turnId: turn.id,
+        generationId: generationId || "",
         role,
         slot: String(slot),
         createdAt,
@@ -4191,6 +4195,7 @@ export default function Home() {
       form.set("duration", String(turn.videoDuration ?? DEFAULT_VIDEO_DURATION_SECONDS));
     }
     form.set("skill", turn.skill);
+    form.set("turnId", turn.id);
     form.set("region", turn.region);
     form.set("language", turn.language);
     form.set("platform", turn.brand.platform);
@@ -4395,6 +4400,8 @@ export default function Home() {
           slot,
           "output",
           suiteOutputDimensions(turn.suite, slot),
+          undefined,
+          generationIds[slot],
         );
         if (!stored) throw new Error("图片已生成，但没有保存到资产库");
         results[slot] = stored.url;
@@ -4514,6 +4521,8 @@ export default function Home() {
           hasSuiteSettings(turn.skill)
             ? suiteOutputDimensions(turn.suite, slot)
             : undefined,
+          undefined,
+          generationIds[slot],
         );
         if (!stored) throw new Error("图片已生成，但没有保存到资产库");
         results[slot] = stored.url;
@@ -4606,7 +4615,17 @@ export default function Home() {
       const videoUrl = deepFind(payload, ["video_url", "videoUrl", "url"]);
       const status = deepFind(payload, ["status", "state"])?.toLowerCase();
       if (videoUrl && ["succeeded", "success", "completed", "done"].includes(status ?? "completed")) {
-        const stored = await storeAsset(turn, videoUrl, "video", turn.title, 0);
+        const stored = await storeAsset(
+          turn,
+          videoUrl,
+          "video",
+          turn.title,
+          0,
+          "output",
+          undefined,
+          undefined,
+          taskId,
+        );
         if (!stored) throw new Error("视频已生成，但没有保存到资产库");
         patchTurn(turn.id, {
           videoUrl: stored.url,
@@ -4887,6 +4906,8 @@ export default function Home() {
         hasSuiteSettings(turn.skill)
           ? suiteOutputDimensions(turn.suite, slot)
           : undefined,
+        undefined,
+        replacementGenerationId,
       );
       if (!stored) throw new Error("图片已生成，但没有保存到资产库");
       const nextTurns = turnsRef.current.map((currentTurn) => {
@@ -4955,6 +4976,7 @@ export default function Home() {
     setPreviewGenerating(true);
     try {
       const editedTurn = { ...turn, prompt: previewPrompt.trim() };
+      let editedGenerationId = "";
       const url = await runImageTask(
         await generationForm(
           editedTurn,
@@ -4966,6 +4988,10 @@ export default function Home() {
           "image",
           preview.slot,
         ),
+        undefined,
+        (taskId) => {
+          editedGenerationId = taskId;
+        },
       );
       const stored = await storeAsset(
         editedTurn,
@@ -4977,6 +5003,8 @@ export default function Home() {
         hasSuiteSettings(editedTurn.skill)
           ? suiteOutputDimensions(editedTurn.suite, preview.slot)
           : undefined,
+        undefined,
+        editedGenerationId,
       );
       if (!stored) throw new Error("图片已生成，但没有保存到资产库");
       if (existingTurn) {

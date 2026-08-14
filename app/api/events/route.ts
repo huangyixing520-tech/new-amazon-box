@@ -3,14 +3,9 @@ import { authErrorResponse, requireUser, verifySameOrigin } from "../../lib/auth
 import { ensureProductDataSchema } from "../../lib/product-data";
 import { runtimeBindings } from "../../lib/runtime";
 
-const allowedEvents = new Set([
-  "session_started",
-  "generation_requested",
-  "generation_completed",
-  "asset_downloaded",
-  "listing_json_downloaded",
-  "listing_link_copied",
-]);
+// Outcome events are written by generation and asset routes. The browser may
+// only report page/session entry, so success and export funnels cannot be forged.
+const allowedEvents = new Set(["session_started"]);
 
 export async function POST(request: Request) {
   try {

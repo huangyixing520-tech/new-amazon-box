@@ -10,6 +10,7 @@ export const createAssetsTableSql = `
     prompt TEXT NOT NULL,
     conversation_id TEXT NOT NULL,
     turn_id TEXT NOT NULL,
+    generation_id TEXT,
     mime_type TEXT,
     created_at TEXT NOT NULL
   )
@@ -130,6 +131,7 @@ export const createAnalyticsEventsTableSql = `
     skill TEXT,
     conversation_id TEXT,
     turn_id TEXT,
+    generation_id TEXT,
     metadata_json TEXT NOT NULL,
     created_at TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -141,6 +143,32 @@ export const createAnalyticsEventsDateIndexSql =
 
 export const createAnalyticsEventsUserIndexSql =
   "CREATE INDEX IF NOT EXISTS analytics_events_user_idx ON analytics_events(user_id, created_at DESC)";
+
+export const createGenerationRecordsTableSql = `
+  CREATE TABLE IF NOT EXISTS generation_records (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    media_type TEXT NOT NULL,
+    skill TEXT,
+    prompt TEXT NOT NULL,
+    status TEXT NOT NULL,
+    slot_index INTEGER NOT NULL DEFAULT 0,
+    asset_id TEXT,
+    error_message TEXT,
+    created_at TEXT NOT NULL,
+    started_at TEXT,
+    completed_at TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE SET NULL
+  )
+`;
+
+export const createGenerationRecordsUserIndexSql =
+  "CREATE INDEX IF NOT EXISTS generation_records_user_idx ON generation_records(user_id, created_at DESC)";
+
+export const createGenerationRecordsDateIndexSql =
+  "CREATE INDEX IF NOT EXISTS generation_records_date_idx ON generation_records(created_at DESC)";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),

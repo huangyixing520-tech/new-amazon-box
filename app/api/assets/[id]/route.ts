@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createAssetsTableSql } from "../../../../db/schema";
 import {
   authErrorResponse,
   ensureIdentitySchema,
@@ -7,6 +6,8 @@ import {
   verifyAssetAccessToken,
 } from "../../../lib/auth";
 import { runtimeBindings } from "../../../lib/runtime";
+import { ensureAssetsSchema } from "../../../lib/assets-data";
+import { recordMediaExported } from "../../../lib/generation-analytics";
 
 export async function GET(
   request: Request,
@@ -24,11 +25,11 @@ export async function GET(
     if (!runtime.DB || !runtime.GENERATED_ASSETS) {
       return NextResponse.json({ error: "资产存储尚未配置" }, { status: 503 });
     }
-    await runtime.DB.prepare(createAssetsTableSql).run();
+    await ensureAssetsSchema(runtime.DB);
     await ensureIdentitySchema(runtime.DB);
     const asset = hasUpstreamAccess
       ? await runtime.DB.prepare(`
-      SELECT a.object_key, a.mime_type, a.type, a.title
+      SELECT a.object_key, a.mime_type, a.type, a.title, a.generation_id
       FROM assets a
       WHERE a.id = ?
     `).bind(id).first<{
@@ -36,9 +37,10 @@ export async function GET(
       mime_type: string | null;
       type: "image" | "video";
       title: string;
+      generation_id: string | null;
     }>()
       : await runtime.DB.prepare(`
-      SELECT a.object_key, a.mime_type, a.type, a.title
+      SELECT a.object_key, a.mime_type, a.type, a.title, a.generation_id
       FROM assets a
       INNER JOIN asset_owners o ON o.asset_id = a.id
       WHERE a.id = ? AND o.user_id = ?
@@ -47,12 +49,21 @@ export async function GET(
       mime_type: string | null;
       type: "image" | "video";
       title: string;
+      generation_id: string | null;
     }>();
     if (!asset) return NextResponse.json({ error: "资产不存在" }, { status: 404 });
     const object = await runtime.GENERATED_ASSETS.get(asset.object_key);
     if (!object) return NextResponse.json({ error: "资产文件不存在" }, { status: 404 });
     const wantsPreview = !hasUpstreamAccess && requestUrl.searchParams.get("preview") === "1";
     const wantsDownload = !hasUpstreamAccess && requestUrl.searchParams.get("download") === "1";
+    if (wantsDownload) {
+      await recordMediaExported(runtime.DB, {
+        userId: user!.id,
+        assetId: id,
+        generationId: asset.generation_id,
+        mediaType: asset.type,
+      });
+    }
     const downloadFormat = requestUrl.searchParams.get("format") === "jpg" ? "jpg" : "png";
     if (asset.type === "image" && (wantsPreview || wantsDownload)) {
       const { default: sharp } = await import("sharp");
