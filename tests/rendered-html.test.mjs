@@ -619,6 +619,38 @@ test("uploads input assets as multipart files without losing their slots", async
   assert.match(page, /if \(role === "input"\) throw error/);
 });
 
+test("persists generated images server-side without relaying Base64 through the browser", async () => {
+  const [page, assetRoute, generateRoute] = await Promise.all([
+    readFile(new URL("../app/studio/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/assets/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/generate/route.ts", import.meta.url), "utf8"),
+  ]);
+  const runImageTaskSource = page.slice(
+    page.indexOf("const runImageTask"),
+    page.indexOf("const runListing"),
+  );
+
+  assert.match(page, /imageTaskId: generationId/);
+  assert.match(
+    page,
+    /imageTaskId=\$\{encodeURIComponent\(taskId\)\}&summary=1/,
+  );
+  assert.doesNotMatch(runImageTaskSource, /b64_json|image_url|imageUrl/);
+  assert.match(assetRoute, /async function taskResultSource/);
+  assert.match(
+    assetRoute,
+    /SELECT id FROM generation_tasks WHERE id = \? AND user_id = \?/,
+  );
+  assert.match(
+    assetRoute,
+    /v1\/image-tasks\/\$\{encodeURIComponent\(taskId\)\}/,
+  );
+  assert.match(
+    generateRoute,
+    /const summaryOnly = search\.get\("summary"\) === "1"/,
+  );
+});
+
 test("protects concurrent asset writes from ENOSPC orphan cleanup", async () => {
   const assetRoute = await readFile(
     new URL("../app/api/assets/route.ts", import.meta.url),

@@ -748,6 +748,7 @@ export async function GET(request: Request) {
     const search = new URL(request.url).searchParams;
     const imageTaskId = search.get("imageTaskId");
     if (imageTaskId) {
+      const summaryOnly = search.get("summary") === "1";
       if (!/^[a-f0-9-]+$/.test(imageTaskId)) {
         return jsonError("无效的图片任务 ID", 400);
       }
@@ -788,6 +789,15 @@ export async function GET(request: Request) {
           "failed",
           upstreamError(payload, "图片生成失败"),
         );
+      }
+      if (summaryOnly) {
+        return Response.json({
+          id: imageTaskId,
+          status: status || "queued",
+          error: ["failed", "error", "cancelled", "canceled"].includes(status)
+            ? upstreamError(payload, "图片生成失败")
+            : undefined,
+        });
       }
       return Response.json(payload);
     }

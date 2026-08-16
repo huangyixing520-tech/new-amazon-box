@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import {
   authErrorResponse,
+  ensureIdentitySchema,
   requireUser,
 } from "../../lib/auth";
 import { ensureAssetsSchema } from "../../lib/assets-data";
-import {
-  runtimeBindings,
-} from "../../lib/runtime";
+import { runtimeBindings, type D1Binding } from "../../lib/runtime";
 import { normalizedImageOutputDimensions } from "../../asset-output-spec.mjs";
 import { attachGenerationAsset } from "../../lib/generation-analytics";
 
@@ -25,6 +24,7 @@ type AssetRow = {
 
 type AssetBody = {
   sourceUrl?: string;
+  imageTaskId?: string;
   type?: "image" | "video";
   title?: string;
   prompt?: string;
@@ -37,6 +37,60 @@ type AssetBody = {
   outputWidth?: number;
   outputHeight?: number;
 };
+
+function taskBackend() {
+  const url = process.env.TASK_BACKEND_URL?.replace(/\/$/, "");
+  const token = process.env.TASK_BACKEND_TOKEN;
+  if (!url || !token) throw new Error("图片任务后台尚未配置");
+  return { url, token };
+}
+
+function taskField(payload: unknown, keys: string[]): string | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  for (const [key, value] of Object.entries(payload)) {
+    if (keys.includes(key) && typeof value === "string") return value;
+    const nested = taskField(value, keys);
+    if (nested) return nested;
+  }
+}
+
+async function taskResultSource(
+  DB: D1Binding,
+  taskId: string,
+  userId: string,
+) {
+  if (!/^[a-f0-9-]+$/i.test(taskId)) throw new Error("无效的图片任务 ID");
+  await ensureIdentitySchema(DB);
+  const owned = await DB.prepare(`
+    SELECT id FROM generation_tasks WHERE id = ? AND user_id = ?
+  `).bind(taskId, userId).first();
+  if (!owned) throw new Error("图片任务不存在或无权访问");
+
+  const backend = taskBackend();
+  const response = await fetch(
+    `${backend.url}/v1/image-tasks/${encodeURIComponent(taskId)}`,
+    {
+      headers: { Authorization: `Bearer ${backend.token}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(30_000),
+    },
+  );
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(taskField(payload, ["error", "message"]) || "图片任务结果读取失败");
+  }
+  const status = String(taskField(payload, ["status", "state"]) || "").toLowerCase();
+  if (!["succeeded", "success", "completed", "done"].includes(status)) {
+    throw new Error(
+      ["failed", "error", "cancelled", "canceled"].includes(status)
+        ? taskField(payload, ["error", "message"]) || "图片生成失败"
+        : "图片任务尚未完成",
+    );
+  }
+  const sourceUrl = taskField(payload, ["url", "image_url", "imageUrl"]);
+  if (!sourceUrl) throw new Error("图片任务没有返回有效结果");
+  return sourceUrl;
+}
 
 type BinarySource = {
   arrayBuffer(): Promise<ArrayBuffer>;
@@ -141,6 +195,7 @@ export async function POST(request: Request) {
           conversationId: formText("conversationId"),
           turnId: formText("turnId"),
           generationId: formText("generationId"),
+          imageTaskId: formText("imageTaskId"),
           createdAt: formText("createdAt"),
           role: formText("role") as AssetBody["role"],
           slot: formNumber("slot"),
@@ -149,7 +204,7 @@ export async function POST(request: Request) {
         }
       : await request.json() as AssetBody;
     if (
-      (!body.sourceUrl && !file) ||
+      (!body.sourceUrl && !file && !body.imageTaskId) ||
       !body.type ||
       !body.title ||
       !body.conversationId ||
@@ -161,6 +216,12 @@ export async function POST(request: Request) {
     await ensureAssetsSchema(DB);
     const role = body.role === "input" ? "input" : "output";
     const slot = Number.isFinite(body.slot) ? Math.max(0, Number(body.slot)) : 0;
+    const resolvedSource = file ?? body.sourceUrl ?? await taskResultSource(
+      DB,
+      body.imageTaskId!,
+      user.id,
+    );
+    const source = await sourceBytes(resolvedSource);
     const existing = await DB.prepare(`
       SELECT a.id, a.object_key
       FROM assets a
@@ -187,7 +248,6 @@ export async function POST(request: Request) {
     const id = crypto.randomUUID();
     const objectKey = `generated/${user.id}/${body.conversationId}/${id}`;
     const createdAt = body.createdAt || new Date().toISOString();
-    const source = await sourceBytes(file ?? body.sourceUrl!);
     const requestedDimensions = body.type === "image" && role === "output"
       ? normalizedImageOutputDimensions(body.outputWidth, body.outputHeight)
       : null;
@@ -224,13 +284,13 @@ export async function POST(request: Request) {
       `).bind(
         id,
         objectKey,
-        body.sourceUrl || "",
+        body.sourceUrl || (body.imageTaskId ? `task:${body.imageTaskId}` : ""),
         body.type,
         body.title,
         body.prompt || "",
         body.conversationId,
         body.turnId,
-        body.generationId || null,
+        body.generationId || body.imageTaskId || null,
         storedMimeType,
         role,
         slot,
@@ -280,8 +340,9 @@ export async function POST(request: Request) {
       throw error;
     }
 
-    if (role === "output" && body.generationId) {
-      await attachGenerationAsset(DB, body.generationId, user.id, id);
+    const generationId = body.generationId || body.imageTaskId;
+    if (role === "output" && generationId) {
+      await attachGenerationAsset(DB, generationId, user.id, id);
     }
 
     return NextResponse.json({
@@ -292,7 +353,7 @@ export async function POST(request: Request) {
         prompt: body.prompt || "",
         conversationId: body.conversationId,
         turnId: body.turnId,
-        generationId: body.generationId || null,
+        generationId: body.generationId || body.imageTaskId || null,
         role,
         slot,
         createdAt,

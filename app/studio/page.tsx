@@ -3914,6 +3914,10 @@ export default function Home() {
     sourceFile?: File,
     generationId?: string,
   ) => {
+    const taskBackedImage = type === "image" &&
+      role === "output" &&
+      Boolean(generationId) &&
+      !sourceFile;
     const temporaryId = `local-${crypto.randomUUID()}`;
     const createdAt = new Date().toISOString();
     const optimistic: AssetRecord = {
@@ -3929,7 +3933,8 @@ export default function Home() {
       slot,
       createdAt,
     };
-    if (role === "output") {
+    const hasOptimisticAsset = role === "output" && Boolean(sourceUrl);
+    if (hasOptimisticAsset) {
       setAssets((current) => [optimistic, ...current]);
     }
     try {
@@ -3953,7 +3958,9 @@ export default function Home() {
             Object.entries(metadata).forEach(([key, value]) => form.set(key, value));
             return form;
           })()
-        : JSON.stringify({ sourceUrl, ...metadata });
+        : JSON.stringify(taskBackedImage
+          ? { imageTaskId: generationId, ...metadata }
+          : { sourceUrl, ...metadata });
       const response = await fetch("/api/assets", {
         method: "POST",
         headers: sourceFile ? undefined : { "content-type": "application/json" },
@@ -3962,13 +3969,13 @@ export default function Home() {
       if (!response.ok) throw new Error(await responseError(response));
       const payload = await response.json();
       if (role === "output") {
-        setAssets((current) =>
-          current.map((asset) => asset.id === temporaryId ? payload.asset : asset),
-        );
+        setAssets((current) => hasOptimisticAsset
+          ? current.map((asset) => asset.id === temporaryId ? payload.asset : asset)
+          : [payload.asset, ...current]);
       }
       return payload.asset as AssetRecord;
     } catch (error) {
-      if (role === "output") {
+      if (hasOptimisticAsset) {
         setAssets((current) =>
           current.filter((asset) => asset.id !== temporaryId),
         );
@@ -4261,15 +4268,14 @@ export default function Home() {
       if (attempt) await new Promise((resolve) => window.setTimeout(resolve, 3000));
       if (signal?.aborted) throw new DOMException("已停止", "AbortError");
       const poll = await fetch(
-        `/api/generate?imageTaskId=${encodeURIComponent(taskId)}`,
+        `/api/generate?imageTaskId=${encodeURIComponent(taskId)}&summary=1`,
         { signal, cache: "no-store" },
       );
       if (!poll.ok) throw new Error(await responseError(poll));
       const payload = await poll.json();
       const status = deepFind(payload, ["status", "state"])?.toLowerCase();
-      const url = deepFind(payload, ["url", "image_url", "imageUrl"]);
-      if (url && ["succeeded", "success", "completed", "done"].includes(status ?? "succeeded")) {
-        return url;
+      if (["succeeded", "success", "completed", "done"].includes(status ?? "")) {
+        return taskId;
       }
       if (["failed", "error", "cancelled", "canceled"].includes(status ?? "")) {
         throw new Error(deepFind(payload, ["error", "message"]) ?? "图片生成失败");
@@ -4383,7 +4389,7 @@ export default function Home() {
               }];
             })()
           : uploadsForTurn;
-        const generatedUrl = await runImageTask(
+        const generatedTaskId = await runImageTask(
           await generationForm(turn, sourceUploads, "image", slot),
           signal,
           (taskId) => {
@@ -4391,9 +4397,11 @@ export default function Home() {
             patchTurn(turn.id, { imageGenerationIds: [...generationIds] });
           },
         );
+        const generationId = generationIds[slot] || generatedTaskId;
+        generationIds[slot] = generationId;
         const stored = await storeAsset(
           turn,
-          generatedUrl,
+          "",
           "image",
           suiteItems(turn.skill, suiteImageCount, turn.suite)[slot]?.title ??
             `Listing 图片 ${slot + 1}`,
@@ -4401,7 +4409,7 @@ export default function Home() {
           "output",
           suiteOutputDimensions(turn.suite, slot),
           undefined,
-          generationIds[slot],
+          generationId,
         );
         if (!stored) throw new Error("图片已生成，但没有保存到资产库");
         results[slot] = stored.url;
@@ -4473,8 +4481,8 @@ export default function Home() {
       imageGenerationIds: [],
       failedImageSlots: [],
     });
-    const results = new Array<string>(count);
-    const generationIds = new Array<string>(count);
+    const results = Array.from({ length: count }, () => "");
+    const generationIds = Array.from({ length: count }, () => "");
     const failedSlots: number[] = [];
     let nextSlot = 0;
     let firstError = "";
@@ -4500,7 +4508,7 @@ export default function Home() {
               }];
             })()
           : uploadsForTurn;
-        const generatedUrl = await runImageTask(
+        const generatedTaskId = await runImageTask(
           await generationForm(turn, sourceUploads, "image", slot),
           signal,
           (taskId) => {
@@ -4508,9 +4516,11 @@ export default function Home() {
             patchTurn(turn.id, { imageGenerationIds: [...generationIds] });
           },
         );
+        const generationId = generationIds[slot] || generatedTaskId;
+        generationIds[slot] = generationId;
         const stored = await storeAsset(
           turn,
-          generatedUrl,
+          "",
           "image",
           (turn.kind === "single"
             ? singleImageOutputs[turn.skill]?.title
@@ -4522,7 +4532,7 @@ export default function Home() {
             ? suiteOutputDimensions(turn.suite, slot)
             : undefined,
           undefined,
-          generationIds[slot],
+          generationId,
         );
         if (!stored) throw new Error("图片已生成，但没有保存到资产库");
         results[slot] = stored.url;
@@ -4879,7 +4889,7 @@ export default function Home() {
     const slot = Math.max(0, presets.findIndex((preset) => preset.id === item.id));
     try {
       let replacementGenerationId = "";
-      const url = await runImageTask(
+      const generatedTaskId = await runImageTask(
         await generationForm(
           turn,
           (turn.productImages?.length ? turn.productImages : [turn.productImage])
@@ -4896,9 +4906,10 @@ export default function Home() {
           replacementGenerationId = taskId;
         },
       );
+      replacementGenerationId ||= generatedTaskId;
       const stored = await storeAsset(
         turn,
-        url,
+        "",
         "image",
         item.title,
         slot,
@@ -4977,7 +4988,7 @@ export default function Home() {
     try {
       const editedTurn = { ...turn, prompt: previewPrompt.trim() };
       let editedGenerationId = "";
-      const url = await runImageTask(
+      const generatedTaskId = await runImageTask(
         await generationForm(
           editedTurn,
           [{
@@ -4993,9 +5004,10 @@ export default function Home() {
           editedGenerationId = taskId;
         },
       );
+      editedGenerationId ||= generatedTaskId;
       const stored = await storeAsset(
         editedTurn,
-        url,
+        "",
         "image",
         `${preview.title} · 改图`,
         preview.slot,
