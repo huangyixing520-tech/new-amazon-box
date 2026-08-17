@@ -808,5 +808,5 @@ test("supports pasted images, remembered settings, grouped galleries, and reliab
   assert.match(page, /zipSync\(/);
   assert.match(page, /URL\.createObjectURL\(blob\)/);
   assert.match(styles, /asset-hover-download/);
-  assert.equal(JSON.parse(packageJson).dependencies.fflate, "^0.8.2");
+  assert.equal(JSON.parse(packageJson).dependencies.fflate, "0.7.5");
 });
