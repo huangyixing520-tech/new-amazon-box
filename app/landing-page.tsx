@@ -14,8 +14,8 @@ import {
   VideoCamera,
 } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useState } from "react";
-import AccountPanel, { type ClientSession } from "./account-panel";
+import { useEffect, useState } from "react";
+import AccountPanel, { preloadGoogleSignIn, type ClientSession } from "./account-panel";
 import type { LandingContent, LandingMedia } from "./lib/landing-copy";
 
 type ResultMode = "listing" | "image" | "video";
@@ -111,6 +111,7 @@ function ProductResult({
 }
 
 export default function LandingPage({ content }: { content: LandingContent }) {
+  useEffect(() => preloadGoogleSignIn(), []);
   const [resultMode, setResultMode] = useState<ResultMode>("listing");
   const [showLogin, setShowLogin] = useState(false);
   const [featuredPoint, skillPoint, brandPoint, taskPoint, deliveryPoint] =

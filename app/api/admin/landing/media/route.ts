@@ -53,9 +53,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const key = `landing/${slot}/${crypto.randomUUID()}.${extension}`;
-    await GENERATED_ASSETS.put(key, await file.arrayBuffer(), {
-      httpMetadata: { contentType: file.type },
+    const { default: sharp } = await import("sharp");
+    const output = await sharp(Buffer.from(await file.arrayBuffer()))
+      .rotate()
+      .webp({ quality: 88, effort: 4, smartSubsample: true })
+      .toBuffer();
+    const key = `landing/${slot}/${crypto.randomUUID()}.webp`;
+    await GENERATED_ASSETS.put(key, output, {
+      httpMetadata: { contentType: "image/webp" },
     });
     return Response.json({
       url: `/api/landing/media?key=${encodeURIComponent(key)}`,

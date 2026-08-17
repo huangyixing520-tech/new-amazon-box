@@ -9,6 +9,7 @@ type ConversationRow = {
   title: string;
   created_at: string;
   updated_at: string;
+  unread: number;
 };
 
 type TurnRow = {
@@ -34,10 +35,13 @@ export async function GET(request: Request) {
     await ensureAssetsSchema(DB);
     const [conversationResult, turnResult, assetResult] = await Promise.all([
       DB.prepare(`
-        SELECT id, title, created_at, updated_at
-        FROM conversations
-        WHERE user_id = ?
-        ORDER BY created_at ASC
+        SELECT c.id, c.title, c.created_at, c.updated_at,
+          COALESCE(r.unread, 0) AS unread
+        FROM conversations c
+        LEFT JOIN conversation_read_states r
+          ON r.conversation_id = c.id AND r.user_id = c.user_id
+        WHERE c.user_id = ?
+        ORDER BY c.created_at DESC
       `).bind(user.id).all<ConversationRow>(),
       DB.prepare(`
         SELECT id, payload_json
@@ -83,7 +87,7 @@ export async function GET(request: Request) {
       );
       const restored = {
         ...turn,
-        productImage: inputImages[0] || "/product-main.png",
+        productImage: inputImages[0] || "/product-main.webp",
         productImages: inputImages,
         images: outputImages,
         videoUrl: outputVideo
@@ -106,6 +110,7 @@ export async function GET(request: Request) {
         title: row.title,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
+        unread: Boolean(row.unread),
       })),
       turns,
     });
@@ -122,7 +127,7 @@ export async function POST(request: Request) {
     if (!DB) return NextResponse.json({ error: "历史数据库尚未配置" }, { status: 503 });
     await ensureProductDataSchema(DB);
     const body = await request.json() as {
-      action?: "upsert-conversation" | "upsert-turn" | "rename-conversation" | "delete-conversation";
+      action?: "upsert-conversation" | "upsert-turn" | "rename-conversation" | "delete-conversation" | "mark-read" | "mark-unread";
       conversation?: { id?: string; title?: string; createdAt?: string };
       turn?: Record<string, unknown> & { id?: string; conversationId?: string; createdAt?: string };
       conversationId?: string;
@@ -161,21 +166,48 @@ export async function POST(request: Request) {
         images: [],
         videoUrl: undefined,
       };
-      await DB.prepare(`
-        INSERT INTO conversation_turns (
+      await DB.batch([
+        DB.prepare(`
+          INSERT INTO conversation_turns (
           id, conversation_id, user_id, payload_json, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          payload_json = excluded.payload_json,
+          ) VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            payload_json = excluded.payload_json,
+            updated_at = excluded.updated_at
+          WHERE user_id = excluded.user_id
+        `).bind(
+          body.turn.id,
+          body.turn.conversationId,
+          user.id,
+          JSON.stringify(payload),
+          body.turn.createdAt || now,
+          now,
+        ),
+        DB.prepare(`
+          UPDATE conversations SET updated_at = ?
+          WHERE id = ? AND user_id = ?
+        `).bind(now, body.turn.conversationId, user.id),
+      ]);
+      return NextResponse.json({ ok: true });
+    }
+
+    if (
+      (body.action === "mark-read" || body.action === "mark-unread") &&
+      body.conversationId
+    ) {
+      await DB.prepare(`
+        INSERT INTO conversation_read_states (user_id, conversation_id, unread, updated_at)
+        SELECT ?, id, ?, ? FROM conversations
+        WHERE id = ? AND user_id = ?
+        ON CONFLICT(user_id, conversation_id) DO UPDATE SET
+          unread = excluded.unread,
           updated_at = excluded.updated_at
-        WHERE user_id = excluded.user_id
       `).bind(
-        body.turn.id,
-        body.turn.conversationId,
         user.id,
-        JSON.stringify(payload),
-        body.turn.createdAt || now,
+        body.action === "mark-unread" ? 1 : 0,
         now,
+        body.conversationId,
+        user.id,
       ).run();
       return NextResponse.json({ ok: true });
     }

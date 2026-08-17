@@ -22,14 +22,14 @@ export const metadata: Metadata = {
     url: "/",
     title: "Mercato AI | 一张图，生成一条 Listing",
     description: "上传商品素材，生成可编辑的 Amazon Listing、商品套图和视频。",
-    images: ["/og.png"],
+    images: ["/og.webp"],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
     title: "Mercato AI | 一张图，生成一条 Listing",
     description: "上传商品素材，生成可编辑的 Amazon Listing、商品套图和视频。",
-    images: ["/og.png"],
+    images: ["/og.webp"],
   },
 };
 

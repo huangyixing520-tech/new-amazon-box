@@ -106,6 +106,18 @@ export const createConversationsTableSql = `
 export const createConversationsUserIndexSql =
   "CREATE INDEX IF NOT EXISTS conversations_user_idx ON conversations(user_id, updated_at DESC)";
 
+export const createConversationReadStatesTableSql = `
+  CREATE TABLE IF NOT EXISTS conversation_read_states (
+    user_id TEXT NOT NULL,
+    conversation_id TEXT NOT NULL,
+    unread INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, conversation_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+  )
+`;
+
 export const createConversationTurnsTableSql = `
   CREATE TABLE IF NOT EXISTS conversation_turns (
     id TEXT PRIMARY KEY,

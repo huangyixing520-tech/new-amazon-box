@@ -84,6 +84,11 @@ function loadGoogleScript() {
   return googleScriptPromise;
 }
 
+export function preloadGoogleSignIn() {
+  if (typeof window === "undefined") return;
+  void loadGoogleScript().catch(() => undefined);
+}
+
 async function responseError(response: Response, fallback: string) {
   const payload = await response.json().catch(() => null) as {
     error?: string;

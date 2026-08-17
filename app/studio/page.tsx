@@ -146,6 +146,8 @@ type Conversation = {
   id: string;
   title: string;
   createdAt: string;
+  updatedAt?: string;
+  unread?: boolean;
 };
 
 type PreviewState = GalleryItem & {
@@ -220,6 +222,11 @@ function ProductionId({
 function assetDownloadUrl(url: string, format: "png" | "jpg" = "png") {
   if (!url.startsWith("/api/assets/")) return url;
   return `${url.split("?")[0]}?download=1&format=${format}`;
+}
+
+function assetPreviewUrl(url: string) {
+  if (!url.startsWith("/api/assets/")) return url;
+  return `${url.split("?")[0]}?preview=1`;
 }
 
 type GenerationSummary = {
@@ -347,7 +354,7 @@ const quickCapabilities: Array<{
     skill: "listing-replica",
     title: "链接复刻",
     body: "粘贴商品链接，复刻结构与内容",
-    image: "/product-lifestyle.png",
+    image: "/product-lifestyle.webp",
   },
   {
     id: "quick-listing",
@@ -363,7 +370,7 @@ const quickCapabilities: Array<{
     skill: "video-replica",
     title: "视频复刻",
     body: "参考一条视频，替换成你的商品",
-    image: "/product-outdoor.png",
+    image: "/product-outdoor.webp",
   },
   {
     id: "quick-image-suite",
@@ -371,7 +378,7 @@ const quickCapabilities: Array<{
     skill: "amazon-image-set",
     title: "套图生成",
     body: "卖点图与 A+ 图一次生成",
-    image: "/product-main.png",
+    image: "/product-main.webp",
   },
   {
     id: "quick-talking-video",
@@ -379,7 +386,7 @@ const quickCapabilities: Array<{
     skill: "talking-product-video",
     title: "带货口播",
     body: "生成 15 秒商品口播与演示",
-    image: "/product-lifestyle.png",
+    image: "/product-lifestyle.webp",
   },
 ];
 
@@ -398,7 +405,7 @@ const inspirationCases: InspirationCase[] = [
     title: "便携咖啡机完整 Listing",
     description: "卖点图、A+ 内容与 Listing 文案",
     prompt: "为这款便携咖啡机生成完整亚马逊 Listing，突出便携、自加热与户外使用场景",
-    images: ["/product-main.png", "/product-lifestyle.png", "/product-outdoor.png"],
+    images: ["/product-main.webp", "/product-lifestyle.webp", "/product-outdoor.webp"],
     layout: "suite",
     suite: { aPlusType: "advanced", aPlusCount: 5, mainImageCount: 5, mainImageRatio: "1:1" },
   },
@@ -410,7 +417,7 @@ const inspirationCases: InspirationCase[] = [
     title: "旅行场景商品套图",
     description: "一张主图加多张场景与卖点图",
     prompt: "生成一套适合 Amazon 的商品套图，强调旅行便携、户外使用和快速出杯",
-    images: ["/product-outdoor.png", "/product-main.png", "/product-lifestyle.png"],
+    images: ["/product-outdoor.webp", "/product-main.webp", "/product-lifestyle.webp"],
     layout: "suite",
     suite: { aPlusType: "advanced", aPlusCount: 4, mainImageCount: 4, mainImageRatio: "1:1" },
   },
@@ -422,7 +429,7 @@ const inspirationCases: InspirationCase[] = [
     title: "明亮厨房使用场景",
     description: "自然光下的真实商品使用画面",
     prompt: "生成一张明亮现代厨房中的真实商品使用场景图，画面自然、有生活感",
-    images: ["/product-lifestyle.png"],
+    images: ["/product-lifestyle.webp"],
     layout: "portrait",
   },
   {
@@ -433,7 +440,7 @@ const inspirationCases: InspirationCase[] = [
     title: "同类商品链接复刻",
     description: "保留参考结构，替换为你的商品内容",
     prompt: "https://www.amazon.com/dp/example",
-    images: ["/product-main.png", "/product-lifestyle.png"],
+    images: ["/product-main.webp", "/product-lifestyle.webp"],
     layout: "landscape",
   },
   {
@@ -444,7 +451,7 @@ const inspirationCases: InspirationCase[] = [
     title: "15 秒户外带货口播",
     description: "开场吸引、卖点演示、行动引导",
     prompt: "生成一支 15 秒户外场景带货口播视频，前三秒突出便携卖点",
-    images: ["/product-outdoor.png"],
+    images: ["/product-outdoor.webp"],
     layout: "portrait",
   },
   {
@@ -455,7 +462,7 @@ const inspirationCases: InspirationCase[] = [
     title: "平台规范白底精修",
     description: "保留商品结构，提升材质和边缘质量",
     prompt: "生成一张平台规范的纯白背景商品图，保持产品结构准确并提升材质细节",
-    images: ["/product-main.png"],
+    images: ["/product-main.webp"],
     layout: "landscape",
   },
 ];
@@ -618,39 +625,39 @@ const gallery: GalleryItem[] = [
     id: "main",
     group: "主图 1:1",
     title: "纯白商品主图",
-    image: "/product-main.png",
+    image: "/product-main.webp",
   },
   {
     id: "feature",
     group: "副图 1:1",
     title: "轻巧便携",
-    image: "/product-main.png",
+    image: "/product-main.webp",
     crop: "crop-detail",
   },
   {
     id: "travel",
     group: "副图 1:1",
     title: "旅居咖啡场景",
-    image: "/product-lifestyle.png",
+    image: "/product-lifestyle.webp",
   },
   {
     id: "outdoor",
     group: "副图 1:1",
     title: "户外清晨",
-    image: "/product-outdoor.png",
+    image: "/product-outdoor.webp",
   },
   {
     id: "a-plus-one",
     group: "A+ 1464 × 600",
     title: "随时享用新鲜意式咖啡",
-    image: "/product-lifestyle.png",
+    image: "/product-lifestyle.webp",
     wide: true,
   },
   {
     id: "a-plus-two",
     group: "A+ 1464 × 600",
     title: "从办公室到露营地",
-    image: "/product-outdoor.png",
+    image: "/product-outdoor.webp",
     wide: true,
   },
 ];
@@ -660,26 +667,26 @@ const seedingGallery: GalleryItem[] = [
     id: "seeding-cover",
     group: "种草图 01 · 3:4",
     title: "今天的随身咖啡搭子",
-    image: "/product-lifestyle.png",
+    image: "/product-lifestyle.webp",
   },
   {
     id: "seeding-detail",
     group: "种草图 02 · 3:4",
     title: "小机身，也有浓郁油脂",
-    image: "/product-main.png",
+    image: "/product-main.webp",
     crop: "crop-detail",
   },
   {
     id: "seeding-outdoor",
     group: "种草图 03 · 3:4",
     title: "露营也能喝到现萃",
-    image: "/product-outdoor.png",
+    image: "/product-outdoor.webp",
   },
   {
     id: "seeding-routine",
     group: "种草图 04 · 3:4",
     title: "三分钟完成咖啡仪式",
-    image: "/product-lifestyle.png",
+    image: "/product-lifestyle.webp",
   },
 ];
 
@@ -706,7 +713,7 @@ function suiteItems(
           : isAPlus
             ? `A+ 图 ${slot.index + 1}`
             : `商品卖点图 ${slot.index + 1}`,
-        image: index < gallery.length ? gallery[index].image : "/product-main.png",
+        image: index < gallery.length ? gallery[index].image : "/product-main.webp",
         wide: isAPlus,
         portrait: slot.type === "main" && suite.mainImageRatio === "3:4",
       };
@@ -718,7 +725,7 @@ function suiteItems(
     id: `${skillId}-${index}`,
     group: `图片 ${index + 1}`,
     title: `生成结果 ${index + 1}`,
-    image: "/product-main.png",
+    image: "/product-main.webp",
   }));
 }
 
@@ -2258,7 +2265,7 @@ function ListingResult({
   const generatedMobileAPlusImages = listingSlotItems.slice(
     suite.mainImageCount + suite.aPlusCount,
   );
-  const completedListingImages = listingImages.flatMap(({ image }) => image ? [image] : []);
+  const completedListingImages = listingImages.flatMap(({ item, image }) => image && regenerating !== item.id ? [image] : []);
   const completedAPlusImages = generatedAPlusImages.flatMap(({ image }) => image ? [image] : []);
   const completedMobileAPlusImages = generatedMobileAPlusImages.flatMap(({ image }) => image ? [image] : []);
   const shownGalleryImage = galleryImage || completedListingImages[0] || "";
@@ -2454,28 +2461,35 @@ function ListingResult({
           <div className="thumbnail-rail" aria-label="商品图片">
             {listingImages.map(
               ({ item, index, image, failed, productionId }) => (
+                (() => {
+                  const isRegenerating = regenerating === item.id;
+                  const isReady = Boolean(image) && !isRegenerating;
+                  const isFailed = failed && !isRegenerating;
+                  return (
                 <button
                   type="button"
-                  className={`${shownGalleryImage === image && image ? "selected" : ""} ${failed ? "is-failed" : image ? "is-ready" : "is-pending"}`}
+                  className={`${shownGalleryImage === image && isReady ? "selected" : ""} ${isFailed ? "is-failed" : isReady ? "is-ready" : "is-pending"}`}
                   onClick={() => {
-                    if (image) setGalleryImage(image);
-                    else if (failed) onRegenerate(item);
+                    if (isReady) setGalleryImage(image);
+                    else if (isFailed) onRegenerate(item);
                   }}
-                  disabled={!image && !failed || regenerating === item.id}
+                  disabled={!isReady && !isFailed}
                   aria-label={`查看商品图 ${index + 1}`}
                   key={item.id}
                   data-testid={`listing-thumb-${index}`}
                   title={productionId || item.title}
                 >
-                  {image ? (
+                  {isReady ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={image} alt="" onError={() => onGeneratedImageError(image)} />
-                  ) : failed ? (
+                    <img src={assetPreviewUrl(image)} alt="" onError={() => onGeneratedImageError(image)} />
+                  ) : isFailed ? (
                     <span className="listing-slot-failed">重试本张</span>
                   ) : (
                     <span className="listing-slot-shimmer" aria-label="正在生成" />
                   )}
                 </button>
+                  );
+                })()
               ),
             )}
           </div>
@@ -2484,7 +2498,7 @@ function ListingResult({
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={shownGalleryImage}
+                  src={assetPreviewUrl(shownGalleryImage)}
                   alt={title}
                   onError={() => onGeneratedImageError(shownGalleryImage)}
                 />
@@ -2558,7 +2572,7 @@ function ListingResult({
               <div className="color-swatch">
                 <button type="button" aria-label={color}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={listingImages[0]} alt="" />
+                  <img src={assetPreviewUrl(listingImages[0])} alt="" />
                 </button>
               </div>
             </>
@@ -2701,42 +2715,56 @@ function ListingResult({
             aria-label="生成的 A+ 图片"
           >
             {generatedAPlusImages.map(({ item, index, image, failed, productionId }) => (
+              (() => {
+                const isRegenerating = regenerating === item.id;
+                const isReady = Boolean(image) && !isRegenerating;
+                const isFailed = failed && !isRegenerating;
+                return (
               <div
-                className={`listing-a-plus-slot ${failed ? "is-failed" : image ? "is-ready" : "is-pending"}`}
+                className={`listing-a-plus-slot ${isFailed ? "is-failed" : isReady ? "is-ready" : "is-pending"}`}
                 data-testid={`listing-a-plus-slot-${index}`}
                 key={item.id}
                 title={productionId || item.title}
               >
-                {image ? (
+                {isReady ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={image} alt={`A+ 图片 ${index + 1}`} onError={() => onGeneratedImageError(image)} />
-                ) : failed ? (
-                  <button type="button" disabled={regenerating === item.id} onClick={() => onRegenerate(item)}>重试本张</button>
+                  <img src={assetPreviewUrl(image)} alt={`A+ 图片 ${index + 1}`} onError={() => onGeneratedImageError(image)} />
+                ) : isFailed ? (
+                  <button type="button" onClick={() => onRegenerate(item)}>重试本张</button>
                 ) : (
                   <span className="listing-slot-shimmer" aria-label="正在生成" />
                 )}
               </div>
+                );
+              })()
             ))}
           </div>
         ) : null}
         {generatedMobileAPlusImages.length ? (
           <div className="listing-mobile-a-plus" aria-label="生成的手机 A+ 图片">
             {generatedMobileAPlusImages.map(({ item, index, image, failed, productionId }) => (
+              (() => {
+                const isRegenerating = regenerating === item.id;
+                const isReady = Boolean(image) && !isRegenerating;
+                const isFailed = failed && !isRegenerating;
+                return (
               <div
-                className={`listing-mobile-a-plus-slot ${failed ? "is-failed" : image ? "is-ready" : "is-pending"}`}
+                className={`listing-mobile-a-plus-slot ${isFailed ? "is-failed" : isReady ? "is-ready" : "is-pending"}`}
                 data-testid={`listing-mobile-a-plus-slot-${index}`}
                 key={item.id}
                 title={productionId || item.title}
               >
-                {image ? (
+                {isReady ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={image} alt={`手机 A+ 图片 ${index + 1}`} onError={() => onGeneratedImageError(image)} />
-                ) : failed ? (
-                  <button type="button" disabled={regenerating === item.id} onClick={() => onRegenerate(item)}>重试本张</button>
+                  <img src={assetPreviewUrl(image)} alt={`手机 A+ 图片 ${index + 1}`} onError={() => onGeneratedImageError(image)} />
+                ) : isFailed ? (
+                  <button type="button" onClick={() => onRegenerate(item)}>重试本张</button>
                 ) : (
                   <span className="listing-slot-shimmer" aria-label="正在生成" />
                 )}
               </div>
+                );
+              })()
             ))}
           </div>
         ) : null}
@@ -2805,7 +2833,7 @@ function ImageSuite({
                     data-testid={`preview-image-${index}`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={item.image} alt={item.title} className={item.crop ?? ""} />
+                    <img src={assetPreviewUrl(item.image)} alt={item.title} className={item.crop ?? ""} />
                   </button>
                   <footer>
                     <div>
@@ -2857,19 +2885,19 @@ const singleImageOutputs: Record<string, GalleryItem> = {
     id: "amazon-scene-output",
     group: "Amazon 场景图 · 1:1",
     title: "清晨露营咖啡时刻",
-    image: "/product-outdoor.png",
+    image: "/product-outdoor.webp",
   },
   "china-ecommerce-main-image": {
     id: "china-main-output",
     group: "国内电商主图 · 1:1",
     title: "随时随地，一键现萃",
-    image: "/product-lifestyle.png",
+    image: "/product-lifestyle.webp",
   },
   "white-background-image": {
     id: "white-background-output",
     group: "平台白底图 · 1:1",
     title: "纯白背景商品精修",
-    image: "/product-main.png",
+    image: "/product-main.webp",
   },
 };
 
@@ -2916,7 +2944,7 @@ function SingleImageResult({
               aria-label={`预览 ${item.title}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={item.image} alt={item.title} />
+              <img src={assetPreviewUrl(item.image)} alt={item.title} />
             </button>
             <footer>
               <div>
@@ -3026,7 +3054,10 @@ function AppSidebar({
   sessionReady: boolean;
   onAccount: () => void;
 }) {
-  const latestConversation = conversations[conversations.length - 1];
+  const orderedConversations = [...conversations].sort((left, right) =>
+    new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+  );
+  const latestConversation = orderedConversations[0];
   const [contextMenu, setContextMenu] = useState<{
     conversationId: string;
     x: number;
@@ -3085,7 +3116,7 @@ function AppSidebar({
         <span className="nav-caption">
           {conversations.length ? `全部对话 · ${conversations.length}` : "还没有生成记录"}
         </span>
-        {conversations.map((conversation) => {
+        {orderedConversations.map((conversation) => {
           const conversationTurns = turns.filter(
             (turn) => turn.conversationId === conversation.id,
           );
@@ -3109,7 +3140,10 @@ function AppSidebar({
               }}
               key={conversation.id}
             >
-              <strong>{conversation.title}</strong>
+              <span className="conversation-title-row">
+                <strong>{conversation.title}</strong>
+                {conversation.unread ? <i className="conversation-unread" aria-label="有新内容未查看" /> : null}
+              </span>
               <small>
                 {runningCount
                   ? `${runningCount} 个任务生成中`
@@ -3538,7 +3572,7 @@ function PreviewModal({
       </button>
       <div className="preview-content">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={preview.image} alt={preview.title} />
+        <img src={assetPreviewUrl(preview.image)} alt={preview.title} />
         <footer>
           <div><span>{preview.group}</span><strong>{preview.title}</strong></div>
           <div className="preview-downloads">
@@ -3714,15 +3748,19 @@ export default function Home() {
   const referenceVideoRef = useRef<Upload | null>(null);
   const sessionTracked = useRef(false);
   const pendingHomeConversationId = useRef<string | null>(null);
+  const activeConversationIdRef = useRef<string | null>(null);
+  const screenRef = useRef(screen);
 
   const modeSkills = skillsByMode(mode);
   const selectedSkill =
     modeSkills.find((item) => item.id === skill) ?? modeSkills[0];
   const selectedKind = selectedSkill.kind;
-  const productImage = uploads[0]?.url ?? "/product-main.png";
+  const productImage = uploads[0]?.url ?? "/product-main.webp";
   const activeConversation =
     conversations.find((item) => item.id === activeConversationId) ??
-    conversations[conversations.length - 1];
+    [...conversations].sort((left, right) =>
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+    )[0];
   const activeTurns = turns.filter(
     (turn) => turn.conversationId === activeConversation?.id,
   );
@@ -3762,6 +3800,11 @@ export default function Home() {
   }, [referenceVideo]);
 
   useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+    screenRef.current = screen;
+  }, [activeConversationId, screen]);
+
+  useEffect(() => {
     if (screen !== "studio") return;
     const minimizeComposer = () => setStudioComposerMinimized(true);
     window.addEventListener("wheel", minimizeComposer, { passive: true });
@@ -3799,7 +3842,7 @@ export default function Home() {
       turnsRef.current = restoredTurns;
       setTurns(restoredTurns);
       setActiveConversationId((current) =>
-        current ?? restoredConversations[restoredConversations.length - 1]?.id ?? null,
+        current ?? restoredConversations[0]?.id ?? null,
       );
     }).catch(() => undefined);
 
@@ -3852,6 +3895,33 @@ export default function Home() {
       keepalive: true,
     });
     if (!response.ok) throw new Error(await responseError(response));
+  };
+
+  const setConversationUnread = (conversationId: string, unread: boolean) => {
+    setConversations((current) => current.map((conversation) =>
+      conversation.id === conversationId
+        ? {
+            ...conversation,
+            unread,
+            updatedAt: unread ? new Date().toISOString() : conversation.updatedAt,
+          }
+        : conversation
+    ));
+    void fetch("/api/history", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: unread ? "mark-unread" : "mark-read",
+        conversationId,
+      }),
+      keepalive: true,
+    }).catch(() => undefined);
+  };
+
+  const markResultReady = (conversationId: string) => {
+    const isViewing = screenRef.current === "studio" &&
+      activeConversationIdRef.current === conversationId;
+    setConversationUnread(conversationId, !isViewing);
   };
 
   const scheduleTurnPersistence = (turn: Turn, immediate = false) => {
@@ -4003,7 +4073,7 @@ export default function Home() {
       if (upload.owned) URL.revokeObjectURL(upload.url);
     });
     const nextUploads = [
-      { id: "sample", name: "便携咖啡机示例图", url: "/product-main.png" },
+      { id: "sample", name: "便携咖啡机示例图", url: "/product-main.webp" },
     ];
     uploadsRef.current = nextUploads;
     setUploads(nextUploads);
@@ -4676,6 +4746,7 @@ export default function Home() {
             )
           : await runImages(turn, uploadsForTurn, controller.signal);
       trackEvent("generation_completed", turn, summary);
+      if (summary.completed > 0) markResultReady(turn.conversationId);
     } catch (error) {
       if ((error as Error).name === "AbortError") {
         trackEvent("generation_completed", turn, {
@@ -4741,12 +4812,15 @@ export default function Home() {
       (conversation) => conversation.id === conversationId,
     );
     if (!existingConversation) {
+      const now = new Date().toISOString();
       conversationToPersist = {
         id: conversationId,
         title: taskPrompt.slice(0, 22),
-        createdAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
+        unread: false,
       };
-      setConversations((current) => [...current, conversationToPersist!]);
+      setConversations((current) => [conversationToPersist!, ...current]);
       setActiveConversationId(conversationId);
     } else {
       setActiveConversationId(conversationId);
@@ -4754,6 +4828,8 @@ export default function Home() {
         conversationToPersist = {
           ...existingConversation,
           title: taskPrompt.slice(0, 22),
+          updatedAt: new Date().toISOString(),
+          unread: false,
         };
         setConversations((current) =>
           current.map((conversation) =>
@@ -4762,6 +4838,12 @@ export default function Home() {
               : conversation,
           ),
         );
+      } else {
+        setConversations((current) => current.map((conversation) =>
+          conversation.id === conversationId
+            ? { ...conversation, updatedAt: new Date().toISOString(), unread: false }
+            : conversation
+        ));
       }
     }
     if (origin === "home") pendingHomeConversationId.current = null;
@@ -4948,6 +5030,7 @@ export default function Home() {
       const updatedTurn = nextTurns.find((currentTurn) => currentTurn.id === turn.id);
       if (updatedTurn) scheduleTurnPersistence(updatedTurn, true);
       setRegenerating(null);
+      markResultReady(turn.conversationId);
       showNotice(`「${item.title}」已更新`);
     } catch (error) {
       setRegenerating(null);
@@ -4960,7 +5043,9 @@ export default function Home() {
     const existingTurn = turns.find((item) => item.id === preview.turnId);
     const fallbackConversationId =
       activeConversationId ??
-      conversations[conversations.length - 1]?.id ??
+      [...conversations].sort((left, right) =>
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+      )[0]?.id ??
       `conversation-${crypto.randomUUID()}`;
     const turn: Turn = existingTurn ?? {
       id: `edit-${crypto.randomUUID()}`,
@@ -5046,11 +5131,14 @@ export default function Home() {
   const openConversation = (conversationId?: string) => {
     if (!conversations.length) return;
     const targetConversationId =
-      conversationId ?? conversations[conversations.length - 1].id;
+      conversationId ?? [...conversations].sort((left, right) =>
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+      )[0].id;
     pendingHomeConversationId.current = null;
     setActiveConversationId(targetConversationId);
     setStudioComposerMinimized(false);
     setScreen("studio");
+    setConversationUnread(targetConversationId, false);
     window.setTimeout(() => {
       document.getElementById("conversation-top")?.scrollIntoView({
         behavior: "smooth",
@@ -5106,7 +5194,9 @@ export default function Home() {
       setScreen("home");
     } else if (activeConversationId === conversationId) {
       setActiveConversationId(
-        remainingConversations[remainingConversations.length - 1].id,
+        [...remainingConversations].sort((left, right) =>
+          new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+        )[0].id,
       );
     }
     void fetch("/api/history", {
@@ -5125,14 +5215,17 @@ export default function Home() {
 
   const openNewConversation = () => {
     const id = `conversation-${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
     const conversation = {
       id,
       title: "新对话",
-      createdAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
+      unread: false,
     };
     setConversations((current) => [
-      ...current,
       conversation,
+      ...current,
     ]);
     void persistConversation(conversation).catch(() =>
       showNotice("新对话暂未保存，请检查网络"),

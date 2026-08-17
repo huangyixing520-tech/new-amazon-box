@@ -158,12 +158,12 @@ test("ships the complete generation flow and its assets", async () => {
     readFile(new URL("../app/api/admin/assets/[id]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../.env.example", import.meta.url), "utf8"),
-    access(new URL("../public/product-main.png", import.meta.url)),
-    access(new URL("../public/product-lifestyle.png", import.meta.url)),
-    access(new URL("../public/product-outdoor.png", import.meta.url)),
+    access(new URL("../public/product-main.webp", import.meta.url)),
+    access(new URL("../public/product-lifestyle.webp", import.meta.url)),
+    access(new URL("../public/product-outdoor.webp", import.meta.url)),
     access(new URL("../public/product-demo.mp4", import.meta.url)),
     access(new URL("../public/mercato-demo-assets.zip", import.meta.url)),
-    access(new URL("../public/og.png", import.meta.url)),
+    access(new URL("../public/og.webp", import.meta.url)),
   ]);
 
   assert.match(page, /图片生成/);
@@ -244,7 +244,7 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(styles, /\.listing-loader-buybox\s*\{[^}]*border:/);
   assert.match(
     styles,
-    /\.asset-wide \.asset-visual img\s*\{[^}]*height:\s*100%;[^}]*aspect-ratio:\s*auto;[^}]*object-fit:\s*contain;/,
+    /\.asset-wide \.asset-visual img\s*\{[^}]*height:\s*auto;[^}]*aspect-ratio:\s*auto;[^}]*object-fit:\s*contain;/,
   );
   assert.match(styles, /\.brand-gene-panel\s*\{[^}]*position:\s*absolute;[^}]*box-shadow:/);
   assert.match(styles, /\.single-image-result\s*\{[^}]*width:\s*min\(620px, 100%\)/);
@@ -467,8 +467,7 @@ test("ships the complete generation flow and its assets", async () => {
     "1024x1536",
   );
   assert.match(assetRoute, /normalizedImageOutputDimensions/);
-  assert.match(assetRoute, /fit:\s*"cover"/);
-  assert.match(assetRoute, /position:\s*"centre"/);
+  assert.match(assetRoute, /fit:\s*"fill"/);
   assert.match(assetRoute, /storedBuffer/);
   assert.match(assetRoute, /storedMimeType/);
   assert.match(assetRoute, /\?preview=1/);
@@ -739,4 +738,50 @@ test("keeps a failed Listing image in place and retries only that slot", async (
     page,
     /<ListingResult[\s\S]*?failedSlots=\{turn\.failedImageSlots \?\? \[\]\}[\s\S]*?onRegenerate=/,
   );
+});
+
+test("keeps regenerated results loading in place and marks unseen conversations", async () => {
+  const [page, history, styles] = await Promise.all([
+    readFile(new URL("../app/studio/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/history/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /isRegenerating = regenerating === item\.id/);
+  assert.match(page, /markResultReady\(turn\.conversationId\)/);
+  assert.match(page, /conversation-unread/);
+  assert.match(page, /orderedConversations/);
+  assert.match(history, /conversation_read_states/);
+  assert.match(history, /ORDER BY c\.created_at DESC/);
+  assert.match(history, /"mark-read" \| "mark-unread"/);
+  assert.match(styles, /\.conversation-list\s*\{[^}]*overflow-y:\s*auto/);
+  assert.match(styles, /\.conversation-unread\s*\{[^}]*background:\s*#e43e35/);
+});
+
+test("shows final generation prompts with their input images in admin", async () => {
+  const [route, page] = await Promise.all([
+    readFile(new URL("../app/api/admin/generations/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(route, /a\.turn_id IN/);
+  assert.match(route, /inputImages:/);
+  assert.match(route, /\?preview=1/);
+  assert.match(page, /最终 Prompt/);
+  assert.match(page, /admin-generation-inputs/);
+});
+
+test("preloads Google sign-in and serves WebP previews with PNG and JPG downloads", async () => {
+  const [account, landing, asset, landingMedia, inspirationMedia] = await Promise.all([
+    readFile(new URL("../app/account-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/landing-page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/assets/[id]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/landing/media/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/inspiration/media/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(account, /export function preloadGoogleSignIn/);
+  assert.match(landing, /preloadGoogleSignIn\(\)/);
+  assert.match(asset, /"content-type": "image\/webp"/);
+  assert.match(asset, /downloadFormat === "jpg"/);
+  assert.match(asset, /\.png\(\{ compressionLevel: 9/);
+  assert.match(landingMedia, /\.webp\(\{ quality: 88/);
+  assert.match(inspirationMedia, /\.webp\(\{ quality: 88/);
 });

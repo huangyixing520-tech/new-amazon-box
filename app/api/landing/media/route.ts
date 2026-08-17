@@ -15,10 +15,15 @@ export async function GET(request: Request) {
     return Response.json({ error: "图片不存在" }, { status: 404 });
   }
 
-  return new Response(object.body, {
+  const source = await new Response(object.body).arrayBuffer();
+  const { default: sharp } = await import("sharp");
+  const preview = await sharp(Buffer.from(source))
+    .rotate()
+    .webp({ quality: 88, effort: 4, smartSubsample: true })
+    .toBuffer();
+  return new Response(preview, {
     headers: {
-      "content-type":
-        object.httpMetadata?.contentType || "application/octet-stream",
+      "content-type": "image/webp",
       "cache-control": "public, max-age=31536000, immutable",
       "x-content-type-options": "nosniff",
     },

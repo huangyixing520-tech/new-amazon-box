@@ -12,9 +12,14 @@ export async function storeInspirationImage(file: File, kind: "result" | "input"
   if (!file.size || file.size > maxFileSize) throw new Error("单张图片不能超过 10 MB");
   const { GENERATED_ASSETS } = await runtimeBindings();
   if (!GENERATED_ASSETS) throw new Error("案例图片存储尚未配置");
-  const key = `inspiration/${kind}/${crypto.randomUUID()}.${extension}`;
-  await GENERATED_ASSETS.put(key, await file.arrayBuffer(), {
-    httpMetadata: { contentType: file.type },
+  const { default: sharp } = await import("sharp");
+  const output = await sharp(Buffer.from(await file.arrayBuffer()))
+    .rotate()
+    .webp({ quality: 88, effort: 4, smartSubsample: true })
+    .toBuffer();
+  const key = `inspiration/${kind}/${crypto.randomUUID()}.webp`;
+  await GENERATED_ASSETS.put(key, output, {
+    httpMetadata: { contentType: "image/webp" },
   });
   return `/api/inspiration/media?key=${encodeURIComponent(key)}`;
 }

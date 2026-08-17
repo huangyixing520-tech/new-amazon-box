@@ -4,6 +4,7 @@ import {
   createAnalyticsEventsUserIndexSql,
   createConversationTurnsIndexSql,
   createConversationTurnsTableSql,
+  createConversationReadStatesTableSql,
   createConversationsTableSql,
   createConversationsUserIndexSql,
   createGenerationRecordsDateIndexSql,
@@ -18,6 +19,7 @@ export async function ensureProductDataSchema(db: D1Binding) {
   await db.batch([
     db.prepare(createConversationsTableSql),
     db.prepare(createConversationsUserIndexSql),
+    db.prepare(createConversationReadStatesTableSql),
     db.prepare(createConversationTurnsTableSql),
     db.prepare(createConversationTurnsIndexSql),
     db.prepare(createAnalyticsEventsTableSql),

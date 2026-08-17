@@ -112,7 +112,7 @@ export async function GET(
           prompt: asset.prompt,
           slot: asset.slot_index,
           createdAt: asset.created_at,
-          url: `/api/admin/assets/${encodeURIComponent(asset.id)}`,
+          url: `/api/admin/assets/${encodeURIComponent(asset.id)}?preview=1`,
         }));
       const turns = turnsByConversation.get(row.conversation_id) ?? [];
       turns.push({

@@ -57,10 +57,10 @@ export const DEFAULT_LANDING_CONTENT: LandingContent = {
   closingBody: "使用自己的模型 API Key 开始创作，生成记录只属于当前账号。",
   media: {
     hero: "/landing-hero.webp",
-    listing: "/product-main.png",
-    lifestyle: "/product-lifestyle.png",
-    scene: "/product-outdoor.png",
-    videoPoster: "/product-lifestyle.png",
+    listing: "/product-main.webp",
+    lifestyle: "/product-lifestyle.webp",
+    scene: "/product-outdoor.webp",
+    videoPoster: "/product-lifestyle.webp",
   },
 };
 

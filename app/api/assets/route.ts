@@ -260,8 +260,7 @@ export async function POST(request: Request) {
         .resize({
           width: requestedDimensions.width,
           height: requestedDimensions.height,
-          fit: "cover",
-          position: "centre",
+          fit: "fill",
         })
         .png({ compressionLevel: 9 })
         .toBuffer();

@@ -5,6 +5,7 @@ import { runtimeBindings } from "../../../lib/runtime";
 
 type GenerationRow = {
   id: string;
+  request_id: string;
   user_id: string;
   email: string;
   media_type: "image" | "video";
@@ -54,13 +55,14 @@ export async function GET(request: Request) {
     if (search.get("skill")) { where.push("skill = ?"); values.push(search.get("skill")); }
 
     const source = `
-      SELECT g.id, g.user_id, u.email, g.media_type, g.skill, g.prompt,
+      SELECT g.id, g.request_id, g.user_id, u.email, g.media_type, g.skill, g.prompt,
         g.status, g.slot_index, g.asset_id, g.error_message,
         g.created_at, g.completed_at
       FROM generation_records g
       INNER JOIN users u ON u.id = g.user_id
       UNION ALL
-      SELECT COALESCE(a.generation_id, a.id) AS id, o.user_id, u.email,
+      SELECT COALESCE(a.generation_id, a.id) AS id, a.turn_id AS request_id,
+        o.user_id, u.email,
         a.type AS media_type, NULL AS skill, a.prompt, 'succeeded' AS status,
         a.slot_index, a.id AS asset_id, NULL AS error_message,
         a.created_at, a.created_at AS completed_at
@@ -80,11 +82,33 @@ export async function GET(request: Request) {
       LIMIT ? OFFSET ?
     `).bind(...values, limit, (page - 1) * limit).all<GenerationRow>();
 
+    const rows = result.results ?? [];
+    const turnIds = [...new Set(rows.map((row) => row.request_id).filter(Boolean))];
+    const inputsByTurn = new Map<string, Array<{ slot: number; url: string }>>();
+    if (turnIds.length) {
+      const inputs = await DB.prepare(`
+        SELECT a.id, a.turn_id, a.slot_index
+        FROM assets a
+        INNER JOIN asset_owners o ON o.asset_id = a.id
+        WHERE a.role = 'input' AND a.type = 'image'
+          AND a.turn_id IN (${turnIds.map(() => "?").join(",")})
+        ORDER BY a.turn_id, a.slot_index
+      `).bind(...turnIds).all<{ id: string; turn_id: string; slot_index: number }>();
+      for (const input of inputs.results ?? []) {
+        const current = inputsByTurn.get(input.turn_id) ?? [];
+        current.push({
+          slot: Number(input.slot_index || 0),
+          url: `/api/admin/assets/${encodeURIComponent(input.id)}?preview=1`,
+        });
+        inputsByTurn.set(input.turn_id, current);
+      }
+    }
+
     return Response.json({
       total: Number(count?.total || 0),
       page,
       limit,
-      items: (result.results ?? []).map((row) => ({
+      items: rows.map((row) => ({
         id: row.id,
         userId: row.user_id,
         email: row.email,
@@ -98,8 +122,11 @@ export async function GET(request: Request) {
         createdAt: row.created_at,
         completedAt: row.completed_at,
         previewUrl: row.asset_id
-          ? `/api/admin/assets/${encodeURIComponent(row.asset_id)}`
+          ? `/api/admin/assets/${encodeURIComponent(row.asset_id)}?preview=1`
           : null,
+        inputImages: (inputsByTurn.get(row.request_id) ?? [])
+          .sort((left, right) => left.slot - right.slot)
+          .map((input) => input.url),
       })),
     });
   } catch (error) {

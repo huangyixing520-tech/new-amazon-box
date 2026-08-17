@@ -100,6 +100,7 @@ type GenerationItem = {
   createdAt: string;
   completedAt: string | null;
   previewUrl: string | null;
+  inputImages: string[];
 };
 
 type GenerationSearchData = {
@@ -1121,7 +1122,7 @@ export default function AdminPage() {
           ) : (
             <div className="admin-table-wrap">
               <table>
-                <thead><tr><th>时间</th><th>UID / 邮箱</th><th>生成 ID</th><th>媒体</th><th>Skill</th><th>Prompt</th><th>状态</th><th>结果</th></tr></thead>
+                <thead><tr><th>时间</th><th>UID / 邮箱</th><th>生成 ID</th><th>媒体</th><th>Skill</th><th>最终 Prompt</th><th>输入图</th><th>状态</th><th>结果</th></tr></thead>
                 <tbody>
                   {generationData.items.map((item) => (
                     <tr key={`${item.id}-${item.assetId || "none"}`}>
@@ -1131,11 +1132,22 @@ export default function AdminPage() {
                       <td>{item.mediaType === "video" ? "视频" : "图片"}</td>
                       <td>{skillNames[item.skill || ""] ?? item.skill ?? "历史数据"}</td>
                       <td className="prompt-cell" title={item.prompt}>{item.prompt || "—"}</td>
+                      <td>
+                        {item.inputImages.length ? (
+                          <div className="admin-generation-inputs">
+                            {item.inputImages.map((url, index) => (
+                              <a href={url} target="_blank" rel="noreferrer" key={url} aria-label={`查看输入图 ${index + 1}`}>
+                                <img src={url} alt="" />
+                              </a>
+                            ))}
+                          </div>
+                        ) : "—"}
+                      </td>
                       <td><span className={`generation-status-pill ${item.status}`}>{({ running: "生成中", succeeded: "成功", failed: "失败" } as Record<string, string>)[item.status] ?? item.status}</span>{item.error ? <small title={item.error}>{item.error}</small> : null}</td>
                       <td>{item.previewUrl ? <a href={item.previewUrl} target="_blank" rel="noreferrer">查看</a> : "—"}</td>
                     </tr>
                   ))}
-                  {!generationData.items.length ? <tr><td colSpan={8}>没有匹配的生成记录</td></tr> : null}
+                  {!generationData.items.length ? <tr><td colSpan={9}>没有匹配的生成记录</td></tr> : null}
                 </tbody>
               </table>
             </div>
