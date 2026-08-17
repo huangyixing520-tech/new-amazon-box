@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ClipboardEvent,
   type DragEvent,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
@@ -17,6 +18,7 @@ import {
   CaretDown,
   CaretUp,
   ChatCircle,
+  CopySimple,
   DownloadSimple,
   House,
   Images,
@@ -141,6 +143,7 @@ type Turn = {
 const MAX_UPLOADS = 9;
 const MAX_REFERENCE_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_IMAGE_TASK_CONCURRENCY = 10;
+const STUDIO_SETTINGS_KEY = "mercato-studio-settings-v1";
 
 type Conversation = {
   id: string;
@@ -189,32 +192,26 @@ type InspirationCase = {
 
 function ProductionId({
   id,
-  compact = false,
   onNotice,
 }: {
   id?: string;
-  compact?: boolean;
   onNotice?: (text: string) => void;
 }) {
   if (!id) return null;
-  const visibleId = compact && id.length > 18
-    ? `${id.slice(0, 8)}…${id.slice(-6)}`
-    : id;
 
   return (
     <button
       type="button"
-      className={`production-id ${compact ? "is-compact" : ""}`}
-      title={`生产 ID：${id}（点击复制）`}
+      className="production-id"
+      title="复制完整生成 ID"
       onClick={() => {
         void navigator.clipboard.writeText(id)
-          .then(() => onNotice?.("生产 ID 已复制"))
-          .catch(() => onNotice?.("复制失败，请手动复制生产 ID"));
+          .then(() => onNotice?.("生成 ID 已复制"))
+          .catch(() => onNotice?.("生成 ID 复制失败"));
       }}
     >
-      <span>生产 ID</span>
-      <code>{visibleId}</code>
-      <i>复制</i>
+      <span>复制生成 ID</span>
+      <CopySimple aria-hidden="true" weight="bold" />
     </button>
   );
 }
@@ -227,6 +224,34 @@ function assetDownloadUrl(url: string, format: "png" | "jpg" = "png") {
 function assetPreviewUrl(url: string) {
   if (!url.startsWith("/api/assets/")) return url;
   return `${url.split("?")[0]}?preview=1`;
+}
+
+function safeDownloadName(value: string) {
+  return value.replace(/[\\/:*?"<>|\r\n]+/g, "-").trim() || "mercato-image";
+}
+
+function saveDownload(blob: Blob, filename: string) {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+async function fetchImageBlob(url: string, format: "png" | "jpg" = "png") {
+  const response = await fetch(assetDownloadUrl(url, format), { credentials: "same-origin" });
+  if (!response.ok) throw new Error(await responseError(response));
+  const blob = await response.blob();
+  if (!blob.type.startsWith("image/")) throw new Error("下载文件不是有效图片");
+  return blob;
+}
+
+async function fetchDownload(url: string, title: string, format: "png" | "jpg" = "png") {
+  const blob = await fetchImageBlob(url, format);
+  saveDownload(blob, `${safeDownloadName(title)}.${format}`);
 }
 
 type GenerationSummary = {
@@ -700,7 +725,7 @@ function suiteItems(
       const slot = suiteSlot(suite, index);
       const isAPlus = slot.type === "a-plus";
       const isMobile = slot.type === "a-plus-mobile";
-      const aPlusSize = suite.aPlusType === "standard" ? "970×600" : "1460×600";
+      const aPlusSize = suite.aPlusType === "standard" ? "970×600" : "1464×600";
       return {
         id: `${skillId}-${slot.type}-${slot.index}`,
         group: isMobile
@@ -1676,6 +1701,18 @@ function Composer({
     }
   };
 
+  const pasteImages = (
+    event: ClipboardEvent<HTMLTextAreaElement | HTMLInputElement>,
+  ) => {
+    const images = Array.from(event.clipboardData.items)
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => Boolean(file));
+    if (!images.length) return;
+    event.preventDefault();
+    onFiles(images.slice(0, Math.max(0, MAX_UPLOADS - uploads.length)));
+  };
+
   const isFileDrag = (event: DragEvent<HTMLElement>) =>
     Array.from(event.dataTransfer.types).includes("Files");
 
@@ -1774,6 +1811,7 @@ function Composer({
                 onClick={onExpand}
                 onChange={(event) => onPrompt(event.target.value)}
                 onKeyDown={submitOnShortcut}
+                onPaste={pasteImages}
               />
             </label>
           ) : (
@@ -1788,6 +1826,7 @@ function Composer({
               onClick={onExpand}
               onChange={(event) => onPrompt(event.target.value)}
               onKeyDown={submitOnShortcut}
+              onPaste={pasteImages}
             />
           )}
           <button
@@ -1865,6 +1904,7 @@ function Composer({
                     placeholder="https://www.amazon.com/dp/..."
                     onChange={(event) => onPrompt(event.target.value)}
                     onKeyDown={submitOnShortcut}
+                    onPaste={pasteImages}
                     aria-describedby="link-replica-help"
                   />
                 </div>
@@ -1881,6 +1921,7 @@ function Composer({
                   }
                   onChange={(event) => onPrompt(event.target.value)}
                   onKeyDown={submitOnShortcut}
+                  onPaste={pasteImages}
                 />
               )}
               {isLinkReplica ? (
@@ -2460,7 +2501,7 @@ function ListingResult({
         <div className="market-gallery">
           <div className="thumbnail-rail" aria-label="商品图片">
             {listingImages.map(
-              ({ item, index, image, failed, productionId }) => (
+              ({ item, index, image, failed }) => (
                 (() => {
                   const isRegenerating = regenerating === item.id;
                   const isReady = Boolean(image) && !isRegenerating;
@@ -2477,7 +2518,7 @@ function ListingResult({
                   aria-label={`查看商品图 ${index + 1}`}
                   key={item.id}
                   data-testid={`listing-thumb-${index}`}
-                  title={productionId || item.title}
+                  title={item.title}
                 >
                   {isReady ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -2714,7 +2755,7 @@ function ListingResult({
             className={`listing-a-plus-gallery ${suite.aPlusType === "standard" ? "is-standard" : "is-advanced"}`}
             aria-label="生成的 A+ 图片"
           >
-            {generatedAPlusImages.map(({ item, index, image, failed, productionId }) => (
+            {generatedAPlusImages.map(({ item, index, image, failed }) => (
               (() => {
                 const isRegenerating = regenerating === item.id;
                 const isReady = Boolean(image) && !isRegenerating;
@@ -2724,7 +2765,7 @@ function ListingResult({
                 className={`listing-a-plus-slot ${isFailed ? "is-failed" : isReady ? "is-ready" : "is-pending"}`}
                 data-testid={`listing-a-plus-slot-${index}`}
                 key={item.id}
-                title={productionId || item.title}
+                title={item.title}
               >
                 {isReady ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -2742,7 +2783,7 @@ function ListingResult({
         ) : null}
         {generatedMobileAPlusImages.length ? (
           <div className="listing-mobile-a-plus" aria-label="生成的手机 A+ 图片">
-            {generatedMobileAPlusImages.map(({ item, index, image, failed, productionId }) => (
+            {generatedMobileAPlusImages.map(({ item, index, image, failed }) => (
               (() => {
                 const isRegenerating = regenerating === item.id;
                 const isReady = Boolean(image) && !isRegenerating;
@@ -2752,7 +2793,7 @@ function ListingResult({
                 className={`listing-mobile-a-plus-slot ${isFailed ? "is-failed" : isReady ? "is-ready" : "is-pending"}`}
                 data-testid={`listing-mobile-a-plus-slot-${index}`}
                 key={item.id}
-                title={productionId || item.title}
+                title={item.title}
               >
                 {isReady ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -2779,9 +2820,9 @@ function ImageSuite({
   taskCount,
   suite,
   generatedImages = [],
-  generationIds = [],
   failedSlots = [],
   onPreview,
+  onDownload,
   onRegenerate,
   regenerating,
 }: {
@@ -2790,30 +2831,52 @@ function ImageSuite({
   taskCount: number;
   suite?: SuiteSettings;
   generatedImages?: string[];
-  generationIds?: string[];
   failedSlots?: number[];
   onPreview: (item: GalleryItem, slot: number) => void;
+  onDownload: (item: GalleryItem) => void;
   onRegenerate: (item: GalleryItem) => void;
   regenerating: string | null;
 }) {
   const isSeeding = skillId === "china-seeding-image";
-  const items = suiteItems(skillId, taskCount, suite).map((item, index) => ({
+  const items: GalleryItem[] = suiteItems(skillId, taskCount, suite).map((item, index): GalleryItem => ({
     ...item,
     image: generatedImages[index] ?? item.image,
   }));
-  const title = skills.find((item) => item.id === skillId)?.label ?? "商品套图";
+  const groups = items.reduce<Array<{ key: string; title: string; items: Array<{ item: GalleryItem; index: number }> }>>(
+    (current, item, index) => {
+      const slot = hasSuiteSettings(skillId) ? suiteSlot(suite ?? defaultSuiteSettings, index) : null;
+      const key = slot?.type ?? (item.wide ? "wide" : item.portrait ? "portrait" : "square");
+      const groupTitle = slot?.type === "main"
+        ? "主副图"
+        : slot?.type === "a-plus-mobile"
+          ? "手机 A+ 图"
+          : slot?.type === "a-plus"
+            ? `${suite?.aPlusType === "standard" ? "普通" : "高级"} A+ 图`
+            : isSeeding
+              ? "种草图"
+              : item.wide
+                ? "横版图"
+                : item.portrait
+                  ? "竖版图"
+                  : "方形图";
+      const group = current.find((candidate) => candidate.key === key);
+      if (group) group.items.push({ item, index });
+      else current.push({ key, title: groupTitle, items: [{ item, index }] });
+      return current;
+    },
+    [],
+  );
 
   return (
     <section className={`image-suite ${isSeeding ? "seeding-suite" : ""}`} data-testid="image-result">
-      <header className="result-section-head">
-        <div>
-          <span>{isSeeding ? "SEEDING COLLECTION" : "IMAGE COLLECTION"}</span>
-          <h2>{title}</h2>
-        </div>
-        <p>{taskCount} 张图片</p>
-      </header>
-      <div className="asset-grid" aria-live="polite">
-        {items.map((item, index) => {
+      {groups.map((group) => (
+        <section className={`result-ratio-group is-${group.key}`} key={group.key}>
+          <header>
+            <h3>{group.title}</h3>
+            <span>{group.items.length} 张</span>
+          </header>
+          <div className="asset-grid" aria-live="polite">
+        {group.items.map(({ item, index }) => {
           const ready = Boolean(generatedImages[index]) && regenerating !== item.id;
           return (
             <article
@@ -2824,7 +2887,7 @@ function ImageSuite({
               data-testid={`image-card-${index}`}
             >
               {ready ? (
-                <>
+                <div className="asset-image-shell">
                   <button
                     type="button"
                     className="asset-visual"
@@ -2835,28 +2898,18 @@ function ImageSuite({
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={assetPreviewUrl(item.image)} alt={item.title} className={item.crop ?? ""} />
                   </button>
-                  <footer>
-                    <div>
-                      <span>{item.group}</span>
-                      <strong>{item.title}</strong>
-                      <ProductionId id={generationIds[index]} compact />
-                    </div>
-                    <div>
-                      <a
-                        href={assetDownloadUrl(item.image)}
-                        download
+                  <button
+                        type="button"
+                        onClick={() => onDownload(item)}
                         data-analytics-event="asset_downloaded"
                         data-turn-id={turnId}
                         aria-label={`下载 ${item.title}`}
                         title={`下载 ${item.title}`}
-                        className="artifact-download"
+                        className="artifact-download asset-hover-download"
                       >
                         <DownloadSimple aria-hidden="true" weight="bold" />
-                      </a>
-                      <button type="button" onClick={() => onRegenerate(item)}>重做</button>
-                    </div>
-                  </footer>
-                </>
+                  </button>
+                </div>
               ) : (
                 <div className={`asset-skeleton ${failedSlots.includes(index) ? "asset-failed" : ""}`}>
                   <span>
@@ -2866,7 +2919,6 @@ function ImageSuite({
                         ? "本张生成失败"
                         : `第 ${index + 1} 张 · 正在生成`}
                   </span>
-                  <ProductionId id={generationIds[index]} compact />
                   {failedSlots.includes(index) ? (
                     <button type="button" onClick={() => onRegenerate(item)}>重试本张</button>
                   ) : null}
@@ -2875,7 +2927,9 @@ function ImageSuite({
             </article>
           );
         })}
-      </div>
+          </div>
+        </section>
+      ))}
     </section>
   );
 }
@@ -2905,19 +2959,17 @@ function SingleImageResult({
   turnId,
   skillId,
   generatedImage,
-  generationId,
   ready,
   onPreview,
-  onRegenerate,
+  onDownload,
   regenerating,
 }: {
   turnId: string;
   skillId: string;
   generatedImage?: string;
-  generationId?: string;
   ready: boolean;
   onPreview: (item: GalleryItem, slot: number) => void;
-  onRegenerate: (item: GalleryItem) => void;
+  onDownload: (item: GalleryItem) => void;
   regenerating: string | null;
 }) {
   const preset = singleImageOutputs[skillId] ?? singleImageOutputs["amazon-scene-image"];
@@ -2936,7 +2988,7 @@ function SingleImageResult({
       </header>
       <article className="single-asset-card">
         {showImage ? (
-          <>
+          <div className="asset-image-shell">
             <button
               type="button"
               className="single-asset-visual"
@@ -2946,28 +2998,18 @@ function SingleImageResult({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={assetPreviewUrl(item.image)} alt={item.title} />
             </button>
-            <footer>
-              <div>
-                <span>{item.group}</span>
-                <strong>{item.title}</strong>
-                <ProductionId id={generationId} compact />
-              </div>
-              <div>
-                <a
-                  href={assetDownloadUrl(item.image)}
-                  download
+            <button
+                  type="button"
+                  onClick={() => onDownload(item)}
                   data-analytics-event="asset_downloaded"
                   data-turn-id={turnId}
                   aria-label={`下载 ${item.title}`}
                   title={`下载 ${item.title}`}
-                  className="artifact-download"
+                  className="artifact-download asset-hover-download"
                 >
                   <DownloadSimple aria-hidden="true" weight="bold" />
-                </a>
-                <button type="button" onClick={() => onRegenerate(item)}>重新生成</button>
-              </div>
-            </footer>
-          </>
+            </button>
+          </div>
         ) : (
           <div className="single-asset-skeleton">
             <span>{regenerating === item.id ? "正在重新生成" : "正在生成图片"}</span>
@@ -3539,6 +3581,7 @@ function PreviewModal({
   generating,
   onPrompt,
   onSubmit,
+  onDownload,
   onClose,
 }: {
   preview: PreviewState;
@@ -3546,6 +3589,7 @@ function PreviewModal({
   generating: boolean;
   onPrompt: (value: string) => void;
   onSubmit: () => void;
+  onDownload: (format: "png" | "jpg") => void;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -3576,22 +3620,22 @@ function PreviewModal({
         <footer>
           <div><span>{preview.group}</span><strong>{preview.title}</strong></div>
           <div className="preview-downloads">
-            <a
-              href={assetDownloadUrl(preview.image, "png")}
-              download
+            <button
+              type="button"
+              onClick={() => onDownload("png")}
               data-analytics-event="asset_downloaded"
               data-turn-id={preview.turnId}
             >
               下载 PNG
-            </a>
-            <a
-              href={assetDownloadUrl(preview.image, "jpg")}
-              download
+            </button>
+            <button
+              type="button"
+              onClick={() => onDownload("jpg")}
               data-analytics-event="asset_downloaded"
               data-turn-id={preview.turnId}
             >
               下载 JPG
-            </a>
+            </button>
           </div>
         </footer>
         <form
@@ -3739,6 +3783,7 @@ export default function Home() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [studioComposerMinimized, setStudioComposerMinimized] = useState(false);
   const [homeComposerMinimized, setHomeComposerMinimized] = useState(false);
+  const [settingsHydrated, setSettingsHydrated] = useState(false);
   const [selectedInspiration, setSelectedInspiration] = useState<InspirationCase | null>(null);
   const homeComposerAnchor = useRef<HTMLDivElement | null>(null);
   const controllers = useRef<Map<string, AbortController>>(new Map());
@@ -3764,6 +3809,53 @@ export default function Home() {
   const activeTurns = turns.filter(
     (turn) => turn.conversationId === activeConversation?.id,
   );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STUDIO_SETTINGS_KEY) ?? "null") as Partial<{
+        mode: GenerationMode;
+        generationModel: string;
+        videoRatio: string;
+        videoDuration: number;
+        skill: string;
+        region: string;
+        language: string;
+        brand: BrandSettings;
+        suite: SuiteSettings;
+        }> | null;
+        if (saved?.mode && modes.some((item) => item.id === saved.mode)) setMode(saved.mode);
+        if (saved?.skill && skills.some((item) => item.id === saved.skill)) setSkill(saved.skill);
+        if (saved?.generationModel) setGenerationModel(saved.generationModel);
+        if (saved?.videoRatio) setVideoRatio(saved.videoRatio);
+        if (saved?.videoDuration) setVideoDuration(saved.videoDuration);
+        if (saved?.region && regions.some((item) => item.id === saved.region)) setRegion(saved.region);
+        if (saved?.language && languages.some((item) => item.id === saved.language)) setLanguage(saved.language);
+        if (saved?.brand) setBrand((current) => ({ ...current, ...saved.brand }));
+        if (saved?.suite) setSuite((current) => ({ ...current, ...saved.suite }));
+      } catch {
+        localStorage.removeItem(STUDIO_SETTINGS_KEY);
+      } finally {
+        setSettingsHydrated(true);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!settingsHydrated) return;
+    localStorage.setItem(STUDIO_SETTINGS_KEY, JSON.stringify({
+      mode,
+      generationModel,
+      videoRatio,
+      videoDuration,
+      skill,
+      region,
+      language,
+      brand,
+      suite,
+    }));
+  }, [brand, generationModel, language, mode, region, settingsHydrated, skill, suite, videoDuration, videoRatio]);
 
   useEffect(() => () => {
     controllers.current.forEach((controller) => controller.abort());
@@ -3872,6 +3964,84 @@ export default function Home() {
   const showNotice = (text: string) => {
     setNotice(text);
     window.setTimeout(() => setNotice(""), 2200);
+  };
+
+  const downloadImage = (url: string, title: string) => {
+    void fetchDownload(url, title).catch((error) => {
+      showNotice(error instanceof Error ? error.message : "图片下载失败");
+    });
+  };
+
+  const downloadTurnImages = async (turn: Turn) => {
+    const images = (turn.images ?? []).filter(Boolean);
+    if (!images.length) {
+      showNotice("当前批次还没有可下载的图片");
+      return;
+    }
+    trackEvent("asset_downloaded", turn, { scope: "batch", count: images.length });
+    try {
+      if (images.length === 1) {
+        await fetchDownload(images[0], `${turn.title}-1`);
+        return;
+      }
+      const entries = await Promise.all(images.map(async (url, index) => {
+        const blob = await fetchImageBlob(url);
+        return [`${String(index + 1).padStart(2, "0")}-${safeDownloadName(turn.title)}.png`, new Uint8Array(await blob.arrayBuffer())] as const;
+      }));
+      const { zipSync } = await import("fflate");
+      const archive = zipSync(Object.fromEntries(entries), { level: 6 });
+      const archiveBytes = new Uint8Array(archive.byteLength);
+      archiveBytes.set(archive);
+      saveDownload(new Blob([archiveBytes.buffer], { type: "application/zip" }), `${safeDownloadName(turn.title)}-全部图片.zip`);
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "图片打包下载失败");
+    }
+  };
+
+  const restoreTurnToComposer = (turn: Turn, sendAgain = false) => {
+    uploadsRef.current.forEach((upload) => {
+      if (upload.owned) URL.revokeObjectURL(upload.url);
+    });
+    const restoredUploads = (turn.productImages?.length ? turn.productImages : [turn.productImage])
+      .filter(Boolean)
+      .slice(0, MAX_UPLOADS)
+      .map((url, index) => ({
+        id: `${turn.id}-restore-${index}`,
+        name: `商品图片-${index + 1}.png`,
+        url,
+        mediaType: "image" as const,
+      }));
+    const restoredReference = turn.referenceVideo
+      ? {
+          id: `${turn.id}-restore-video`,
+          name: turn.referenceVideoName || "参考视频.mp4",
+          url: turn.referenceVideo,
+          mediaType: "video" as const,
+        }
+      : null;
+    uploadsRef.current = restoredUploads;
+    referenceVideoRef.current = restoredReference;
+    setUploads(restoredUploads);
+    setReferenceVideo(restoredReference);
+    setPrompt(turn.prompt);
+    setMode(turn.mode);
+    setGenerationModel(turn.generationModel ?? DEFAULT_VIDEO_MODEL);
+    setVideoRatio(turn.videoRatio ?? DEFAULT_VIDEO_RATIO);
+    setVideoDuration(turn.videoDuration ?? DEFAULT_VIDEO_DURATION_SECONDS);
+    setSkill(turn.skill);
+    setRegion(turn.region);
+    setLanguage(turn.language);
+    setBrand({ ...turn.brand });
+    setSuite({ ...turn.suite });
+    setStudioComposerMinimized(false);
+    if (!sendAgain) {
+      showNotice("本批次输入和设置已恢复");
+      window.requestAnimationFrame(() => document.getElementById("conversation-prompt")?.focus());
+      return;
+    }
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      document.querySelector<HTMLButtonElement>('[data-testid="conversation-send"]')?.click();
+    }));
   };
 
   const persistConversation = async (conversation: Conversation) => {
@@ -5371,8 +5541,9 @@ export default function Home() {
                     <div className="message-avatar ai-avatar">M</div>
                     <div className="assistant-content">
                       <header className="assistant-head">
-                        <div>
+                        <div className="assistant-title-row">
                           <h2>{skills.find((item) => item.id === turn.skill)?.label ?? generation.title}</h2>
+                          <ProductionId id={turn.id} onNotice={showNotice} />
                         </div>
                         <span>
                           {turn.kind === "listing" && turn.imageTaskCount
@@ -5425,8 +5596,6 @@ export default function Home() {
                         <span style={{ transform: `scaleX(${settled / total})` }} />
                       </div>
 
-                      <ProductionId id={turn.id} onNotice={showNotice} />
-
                       <div className={`dynamic-result dynamic-${turn.kind}`}>
                         {turn.error ? (
                           <div className="generation-error" role="alert">
@@ -5465,9 +5634,9 @@ export default function Home() {
                             taskCount={turn.imageTaskCount ?? 6}
                             suite={turn.suite}
                             generatedImages={turn.images}
-                            generationIds={turn.imageGenerationIds}
                             failedSlots={turn.failedImageSlots}
                             onPreview={(item, slot) => openPreview(turn, item, slot)}
+                            onDownload={(item) => downloadImage(item.image, item.title)}
                             onRegenerate={(item) => void regenerate(turn, item)}
                             regenerating={regenerating}
                           />
@@ -5479,9 +5648,9 @@ export default function Home() {
                             taskCount={turn.imageTaskCount ?? 4}
                             suite={turn.suite}
                             generatedImages={turn.images}
-                            generationIds={turn.imageGenerationIds}
                             failedSlots={turn.failedImageSlots}
                             onPreview={(item, slot) => openPreview(turn, item, slot)}
+                            onDownload={(item) => downloadImage(item.image, item.title)}
                             onRegenerate={(item) => void regenerate(turn, item)}
                             regenerating={regenerating}
                           />
@@ -5491,10 +5660,9 @@ export default function Home() {
                             turnId={turn.id}
                             skillId={turn.skill}
                             generatedImage={turn.images?.[0]}
-                            generationId={turn.imageGenerationIds?.[0]}
                             ready={ready}
                             onPreview={(item, slot) => openPreview(turn, item, slot)}
-                            onRegenerate={(item) => void regenerate(turn, item)}
+                            onDownload={(item) => downloadImage(item.image, item.title)}
                             regenerating={regenerating}
                           />
                         ) : null}
@@ -5506,6 +5674,20 @@ export default function Home() {
                           />
                         ) : null}
                       </div>
+                      {turn.kind !== "video" ? (
+                        <div className="batch-actions" aria-label="本批生成操作">
+                          <button type="button" onClick={() => restoreTurnToComposer(turn)}>
+                            重新编辑
+                          </button>
+                          <button type="button" disabled={turn.running} onClick={() => restoreTurnToComposer(turn, true)}>
+                            再次生成
+                          </button>
+                          <button type="button" disabled={!(turn.images ?? []).some(Boolean)} onClick={() => void downloadTurnImages(turn)}>
+                            <DownloadSimple aria-hidden="true" weight="bold" />
+                            全部下载
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </article>
@@ -5566,6 +5748,11 @@ export default function Home() {
             generating={previewGenerating}
             onPrompt={setPreviewPrompt}
             onSubmit={() => void editPreviewImage()}
+            onDownload={(format) => {
+              void fetchDownload(preview.image, preview.title, format).catch((error) =>
+                showNotice(error instanceof Error ? error.message : "图片下载失败")
+              );
+            }}
             onClose={() => setPreview(null)}
           />
         ) : null}
@@ -5630,6 +5817,11 @@ export default function Home() {
             generating={previewGenerating}
             onPrompt={setPreviewPrompt}
             onSubmit={() => void editPreviewImage()}
+            onDownload={(format) => {
+              void fetchDownload(preview.image, preview.title, format).catch((error) =>
+                showNotice(error instanceof Error ? error.message : "图片下载失败")
+              );
+            }}
             onClose={() => setPreview(null)}
           />
         ) : null}

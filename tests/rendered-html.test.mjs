@@ -27,7 +27,7 @@ test("maps every suite slot to one task and the correct final canvas", () => {
   });
   assert.deepEqual(
     [advanced.outputWidth, advanced.outputHeight],
-    [1460, 600],
+    [1464, 600],
   );
   assert.deepEqual(
     [standard.outputWidth, standard.outputHeight],
@@ -37,7 +37,7 @@ test("maps every suite slot to one task and the correct final canvas", () => {
     [mobile.outputWidth, mobile.outputHeight],
     [600, 450],
   );
-  assert.match(advanced.formatInstruction, /1460 x 600/);
+  assert.match(advanced.formatInstruction, /1464 x 600/);
   assert.match(standard.formatInstruction, /970 x 600/);
   assert.match(mobile.formatInstruction, /completed Premium A\+ image/);
   assert.match(singleImageTaskBoundary, /one independent image task/i);
@@ -45,8 +45,8 @@ test("maps every suite slot to one task and the correct final canvas", () => {
 });
 
 test("asset output dimensions accept only supported exact canvases", () => {
-  assert.deepEqual(normalizedImageOutputDimensions(1460, 600), {
-    width: 1460,
+  assert.deepEqual(normalizedImageOutputDimensions(1464, 600), {
+    width: 1464,
     height: 600,
   });
   assert.deepEqual(normalizedImageOutputDimensions(970, 600), {
@@ -233,7 +233,7 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /single-image-result/);
   assert.match(page, /video-result/);
   assert.match(styles, /\.listing-a-plus-gallery\s*\{[^}]*flex-direction:\s*column;/);
-  assert.match(styles, /\.listing-a-plus-gallery\.is-advanced\s*\{[^}]*max-width:\s*1460px;/);
+  assert.match(styles, /\.listing-a-plus-gallery\.is-advanced\s*\{[^}]*max-width:\s*1464px;/);
   assert.match(styles, /\.listing-a-plus-gallery\.is-standard\s*\{[^}]*max-width:\s*970px;/);
   assert.match(
     styles,
@@ -440,7 +440,8 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(generateRoute, /one continuous edge-to-edge canvas/);
   assert.match(generateRoute, /do not place separate sub-images/);
   assert.match(page, /imageGenerationIds/);
-  assert.match(page, /生产 ID/);
+  assert.match(page, /复制生成 ID/);
+  assert.doesNotMatch(page, /<code>\{visibleId\}<\/code>/);
   assert.match(page, /onTaskCreated\?\.\(taskId\)/);
   assert.match(generateRoute, /detectedImageMediaType/);
   assert.match(generateRoute, /supportedImageMediaTypes/);
@@ -784,4 +785,28 @@ test("preloads Google sign-in and serves WebP previews with PNG and JPG download
   assert.match(asset, /\.png\(\{ compressionLevel: 9/);
   assert.match(landingMedia, /\.webp\(\{ quality: 88/);
   assert.match(inspirationMedia, /\.webp\(\{ quality: 88/);
+});
+
+test("supports pasted images, remembered settings, grouped galleries, and reliable batch downloads", async () => {
+  const [page, styles, packageJson] = await Promise.all([
+    readFile(new URL("../app/studio/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /event\.clipboardData\.items/);
+  assert.match(page, /onPaste=\{pasteImages\}/);
+  assert.match(page, /mercato-studio-settings-v1/);
+  assert.match(page, /localStorage\.setItem\(STUDIO_SETTINGS_KEY/);
+  assert.match(page, /主副图/);
+  assert.match(page, /手机 A\+ 图/);
+  assert.match(page, /高级.*A\+ 图/);
+  assert.match(page, /重新编辑/);
+  assert.match(page, /再次生成/);
+  assert.match(page, /全部下载/);
+  assert.match(page, /fetchImageBlob/);
+  assert.match(page, /zipSync\(/);
+  assert.match(page, /URL\.createObjectURL\(blob\)/);
+  assert.match(styles, /asset-hover-download/);
+  assert.equal(JSON.parse(packageJson).dependencies.fflate, "^0.8.2");
 });

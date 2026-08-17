@@ -4,7 +4,7 @@ const supportedImageOutputs = new Set([
   "1024x1024",
   "1024x1365",
   "1024x1536",
-  "1460x600",
+  "1464x600",
 ]);
 
 export function normalizedImageOutputDimensions(width, height) {
