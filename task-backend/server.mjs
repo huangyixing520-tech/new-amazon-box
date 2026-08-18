@@ -171,7 +171,7 @@ export function createTaskServer(options = {}) {
       options.userKeyEncryptionSecret ??
       process.env.USER_KEY_ENCRYPTION_SECRET,
     token: options.token ?? process.env.TASK_BACKEND_TOKEN,
-    model: options.model ?? process.env.IMAGE_MODEL ?? "gpt-image-2",
+    model: options.model ?? process.env.IMAGE_MODEL ?? "dolaio/gpt-image-2",
     concurrency: Math.min(
       MAX_TASK_CONCURRENCY,
       Math.max(1, Number(options.concurrency ?? process.env.TASK_CONCURRENCY ?? 10)),
@@ -226,7 +226,7 @@ export function createTaskServer(options = {}) {
         : config.apiKey;
       if (!upstreamKey) throw new Error("任务没有可用的模型 API Key");
       const request = new FormData();
-      request.set("model", config.model);
+      request.set("model", task.model || config.model);
       request.set("prompt", task.prompt);
       request.set("size", task.size);
       request.set("quality", task.quality);
@@ -394,6 +394,7 @@ export function createTaskServer(options = {}) {
         outputWidth: String(form.get("outputWidth") ?? ""),
         outputHeight: String(form.get("outputHeight") ?? ""),
         quality: String(form.get("quality") ?? "medium"),
+        model: String(form.get("model") ?? config.model),
         images: images.map((image) => ({
           name: image.name,
           type: image.type,

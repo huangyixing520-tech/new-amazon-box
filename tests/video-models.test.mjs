@@ -10,7 +10,7 @@ import {
 test("video model list exposes the three ByteDance Seedance choices", () => {
   assert.deepEqual(
     VIDEO_MODEL_OPTIONS.map(({ id }) => id),
-    ["seedance-2.0-fast", "seedance-2.0-mini", "seedance-2.0"],
+    ["seedance-2.0", "seedance-2.0-fast", "seedance-2.0-mini"],
   );
 });
 

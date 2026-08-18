@@ -34,6 +34,10 @@ import { openAiResponseLine } from "../openai-content.mjs";
 import { imageOutputSpec } from "../image-output-spec.mjs";
 import { imageTaskCount } from "../image-task-count.mjs";
 import {
+  DEFAULT_IMAGE_MODEL,
+  IMAGE_MODEL_OPTIONS,
+} from "../image-models.mjs";
+import {
   DEFAULT_VIDEO_MODEL,
   VIDEO_MODEL_OPTIONS,
 } from "../video-models.mjs";
@@ -278,6 +282,7 @@ const modes: Option[] = [
 ];
 
 const videoModels: Option[] = VIDEO_MODEL_OPTIONS;
+const imageModels: Option[] = IMAGE_MODEL_OPTIONS;
 
 const skills: SkillOption[] = [
   {
@@ -1946,22 +1951,22 @@ function Composer({
             accent
             testId="mode-trigger"
           />
+          <OptionMenu
+            label={mode === "video" ? "选择视频模型" : "选择图片模型"}
+            options={mode === "video" ? videoModels : imageModels}
+            value={generationModel}
+            open={openMenu === "model"}
+            onOpen={() => setOpenMenu(openMenu === "model" ? null : "model")}
+            onDismiss={() => setOpenMenu(null)}
+            onChange={(value) => {
+              onGenerationModel(value);
+              setOpenMenu(null);
+            }}
+            prefix="模型"
+            testId="model-trigger"
+          />
           {mode === "video" ? (
             <>
-              <OptionMenu
-                label="选择视频模型"
-                options={videoModels}
-                value={generationModel}
-                open={openMenu === "model"}
-                onOpen={() => setOpenMenu(openMenu === "model" ? null : "model")}
-                onDismiss={() => setOpenMenu(null)}
-                onChange={(value) => {
-                  onGenerationModel(value);
-                  setOpenMenu(null);
-                }}
-                prefix="模型"
-                testId="model-trigger"
-              />
               <OptionMenu
                 label="选择视频尺寸"
                 options={VIDEO_RATIO_OPTIONS}
@@ -3755,7 +3760,8 @@ export default function Home() {
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [referenceVideo, setReferenceVideo] = useState<Upload | null>(null);
   const [mode, setMode] = useState<GenerationMode>("listing");
-  const [generationModel, setGenerationModel] = useState(DEFAULT_VIDEO_MODEL);
+  const [imageGenerationModel, setImageGenerationModel] = useState(DEFAULT_IMAGE_MODEL);
+  const [videoGenerationModel, setVideoGenerationModel] = useState(DEFAULT_VIDEO_MODEL);
   const [videoRatio, setVideoRatio] = useState(DEFAULT_VIDEO_RATIO);
   const [videoDuration, setVideoDuration] = useState(DEFAULT_VIDEO_DURATION_SECONDS);
   const [skill, setSkill] = useState("amazon-listing");
@@ -3792,6 +3798,8 @@ export default function Home() {
   const screenRef = useRef(screen);
 
   const modeSkills = skillsByMode(mode);
+  const generationModel = mode === "video" ? videoGenerationModel : imageGenerationModel;
+  const setGenerationModel = mode === "video" ? setVideoGenerationModel : setImageGenerationModel;
   const selectedSkill =
     modeSkills.find((item) => item.id === skill) ?? modeSkills[0];
   const selectedKind = selectedSkill.kind;
@@ -3811,6 +3819,8 @@ export default function Home() {
         const saved = JSON.parse(localStorage.getItem(STUDIO_SETTINGS_KEY) ?? "null") as Partial<{
         mode: GenerationMode;
         generationModel: string;
+        imageGenerationModel: string;
+        videoGenerationModel: string;
         videoRatio: string;
         videoDuration: number;
         skill: string;
@@ -3821,7 +3831,10 @@ export default function Home() {
         }> | null;
         if (saved?.mode && modes.some((item) => item.id === saved.mode)) setMode(saved.mode);
         if (saved?.skill && skills.some((item) => item.id === saved.skill)) setSkill(saved.skill);
-        if (saved?.generationModel) setGenerationModel(saved.generationModel);
+        if (saved?.imageGenerationModel) setImageGenerationModel(saved.imageGenerationModel);
+        if (saved?.videoGenerationModel ?? saved?.generationModel) {
+          setVideoGenerationModel(saved.videoGenerationModel ?? saved.generationModel!);
+        }
         if (saved?.videoRatio) setVideoRatio(saved.videoRatio);
         if (saved?.videoDuration) setVideoDuration(saved.videoDuration);
         if (saved?.region && regions.some((item) => item.id === saved.region)) setRegion(saved.region);
@@ -3841,7 +3854,8 @@ export default function Home() {
     if (!settingsHydrated) return;
     localStorage.setItem(STUDIO_SETTINGS_KEY, JSON.stringify({
       mode,
-      generationModel,
+      imageGenerationModel,
+      videoGenerationModel,
       videoRatio,
       videoDuration,
       skill,
@@ -3850,7 +3864,7 @@ export default function Home() {
       brand,
       suite,
     }));
-  }, [brand, generationModel, language, mode, region, settingsHydrated, skill, suite, videoDuration, videoRatio]);
+  }, [brand, imageGenerationModel, language, mode, region, settingsHydrated, skill, suite, videoDuration, videoGenerationModel, videoRatio]);
 
   useEffect(() => () => {
     controllers.current.forEach((controller) => controller.abort());
@@ -4020,7 +4034,11 @@ export default function Home() {
     setReferenceVideo(restoredReference);
     setPrompt(turn.prompt);
     setMode(turn.mode);
-    setGenerationModel(turn.generationModel ?? DEFAULT_VIDEO_MODEL);
+    if (turn.mode === "video") {
+      setVideoGenerationModel(turn.generationModel ?? DEFAULT_VIDEO_MODEL);
+    } else {
+      setImageGenerationModel(turn.generationModel ?? DEFAULT_IMAGE_MODEL);
+    }
     setVideoRatio(turn.videoRatio ?? DEFAULT_VIDEO_RATIO);
     setVideoDuration(turn.videoDuration ?? DEFAULT_VIDEO_DURATION_SECONDS);
     setSkill(turn.skill);
@@ -4431,7 +4449,9 @@ export default function Home() {
     const form = new FormData();
     form.set("action", action);
     form.set("mode", turn.mode);
-    if (action === "video") {
+    if (action === "image") {
+      form.set("model", turn.generationModel ?? DEFAULT_IMAGE_MODEL);
+    } else if (action === "video") {
       form.set("model", turn.generationModel ?? DEFAULT_VIDEO_MODEL);
       form.set("ratio", turn.videoRatio ?? DEFAULT_VIDEO_RATIO);
       form.set("duration", String(turn.videoDuration ?? DEFAULT_VIDEO_DURATION_SECONDS));
@@ -5026,7 +5046,7 @@ export default function Home() {
       title: taskPrompt.slice(0, 22),
       prompt: taskPrompt,
       mode,
-      generationModel: mode === "video" ? generationModel : undefined,
+      generationModel,
       videoRatio: mode === "video" ? videoRatio : undefined,
       videoDuration: mode === "video" ? videoDuration : undefined,
       skill: selectedSkill.id,
@@ -5212,7 +5232,7 @@ export default function Home() {
       title: preview.title,
       prompt: previewPrompt.trim(),
       mode: "image",
-      generationModel: undefined,
+      generationModel: imageGenerationModel,
       skill: selectedSkill.mode === "image" ? selectedSkill.id : "amazon-image-set",
       kind: selectedSkill.mode === "image" ? selectedSkill.kind : "images",
       region,
@@ -5498,9 +5518,9 @@ export default function Home() {
                           <span>{skills.find((item) => item.id === turn.skill)?.label}</span>
                           {turn.generationModel ? (
                             <span>
-                              模型：{VIDEO_MODEL_OPTIONS.find(
-                                (item) => item.id === turn.generationModel,
-                              )?.label ?? turn.generationModel}
+                              模型：{(turn.mode === "video" ? VIDEO_MODEL_OPTIONS : IMAGE_MODEL_OPTIONS)
+                                .find((item) => item.id === turn.generationModel)?.label
+                                ?? turn.generationModel}
                             </span>
                           ) : null}
                           {turn.mode === "video" && turn.videoRatio ? (

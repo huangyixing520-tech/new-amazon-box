@@ -419,7 +419,11 @@ test("ships the complete generation flow and its assets", async () => {
   assert.doesNotMatch(page, /SkeletonPreview|codex-preview/);
   assert.match(generateRoute, /MiniMax-M3/);
   assert.doesNotMatch(generateRoute, /glm-4\.5v|glm-4\.6v/);
-  assert.match(taskBackend, /process\.env\.IMAGE_MODEL \?\? "gpt-image-2"/);
+  assert.match(taskBackend, /process\.env\.IMAGE_MODEL \?\? "dolaio\/gpt-image-2"/);
+  assert.match(taskBackend, /task\.model \|\| config\.model/);
+  assert.match(generateRoute, /selectedImageModel/);
+  assert.match(page, /选择图片模型/);
+  assert.match(page, /mode === "video" \? videoModels : imageModels/);
   assert.match(taskBackend, /const MAX_IMAGE_RETRIES = 18/);
   assert.match(taskBackend, /const IMAGE_RETRY_INTERVAL_MS = 10_000/);
   assert.match(generateRoute, /selectedVideoModel/);

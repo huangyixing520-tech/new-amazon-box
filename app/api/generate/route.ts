@@ -16,6 +16,7 @@ import {
 } from "../../listing-response.mjs";
 import amazonImageSkillPrompt from "../../../skills/amazon-image-set/references/amazon-image-skill.md?raw";
 import videoReplicaAnalysisPrompt from "../../../skills/video-replica/references/video-analysis-prompt.md?raw";
+import { selectedImageModel } from "../../image-models.mjs";
 import { selectedVideoModel } from "../../video-models.mjs";
 import {
   DEFAULT_VIDEO_DURATION_SECONDS,
@@ -556,6 +557,10 @@ Final output contract: ${singleImageTaskBoundary} Render one continuous edge-to-
           : process.env.IMAGE_DEFAULT_SQUARE_SIZE ?? "1024x1024",
   );
   request.set("quality", process.env.IMAGE_DEFAULT_QUALITY ?? "medium");
+  request.set(
+    "model",
+    selectedImageModel(String(form.get("model") ?? ""), process.env.IMAGE_MODEL),
+  );
   if (slotType) {
     request.set("outputWidth", String(outputSpec.outputWidth));
     request.set("outputHeight", String(outputSpec.outputHeight));

@@ -338,6 +338,7 @@ test("uses a per-user key without exposing or persisting it in plaintext", async
 
   const form = new FormData();
   form.set("prompt", "One image only");
+  form.set("model", "dolaio/gpt-image-2");
   form.set("image", new File(["product"], "product.png", { type: "image/png" }));
   const created = await fetch(`http://127.0.0.1:${backendPort}/v1/image-tasks`, {
     method: "POST",
@@ -353,6 +354,7 @@ test("uses a per-user key without exposing or persisting it in plaintext", async
     "utf8",
   );
   assert.equal(persisted.includes("user-specific-key"), false);
+  assert.equal(JSON.parse(persisted).model, "dolaio/gpt-image-2");
   assert.equal(JSON.stringify(created).includes("user-specific-key"), false);
 
   let completed;

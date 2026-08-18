@@ -1,5 +1,10 @@
 export const VIDEO_MODEL_OPTIONS = [
   {
+    id: "seedance-2.0",
+    label: "Seedance 2.0",
+    description: "ByteDance 标准版，适合正式成片",
+  },
+  {
     id: "seedance-2.0-fast",
     label: "Seedance 2.0 Fast",
     description: "ByteDance 高速版，适合快速预览与批量尝试",
@@ -8,11 +13,6 @@ export const VIDEO_MODEL_OPTIONS = [
     id: "seedance-2.0-mini",
     label: "Seedance 2.0 Mini",
     description: "ByteDance 轻量版，适合日常商品短视频",
-  },
-  {
-    id: "seedance-2.0",
-    label: "Seedance 2.0",
-    description: "ByteDance 标准版，适合正式成片",
   },
 ];
 
