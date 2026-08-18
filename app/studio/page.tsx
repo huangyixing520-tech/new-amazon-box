@@ -765,11 +765,6 @@ function isListingReady(turn: Turn) {
   return turn.kind === "listing" && Boolean(turn.listing);
 }
 
-function settledProgress(turn: Turn) {
-  const failed = turn.failedImageSlots?.length ?? 0;
-  return Math.min(progressTotal(turn), turn.completed + failed);
-}
-
 const generationCopy: Record<
   SkillKind,
   { title: string; count: string; phases: string[] }
@@ -5123,13 +5118,6 @@ export default function Home() {
     }, 0);
   };
 
-  const stopGeneration = (turnId: string) => {
-    controllers.current.get(turnId)?.abort();
-    controllers.current.delete(turnId);
-    patchTurn(turnId, { running: false, phase: "已停止" });
-    showNotice("已停止未完成的生成");
-  };
-
   const regenerate = async (turn: Turn, item: GalleryItem) => {
     setRegenerating(item.id);
     showNotice(`正在重新生成「${item.title}」`);
@@ -5439,9 +5427,7 @@ export default function Home() {
 
           <section className="conversation-stream" aria-label="创作对话">
             {activeTurns.map((turn, index) => {
-              const generation = generationCopy[turn.kind];
               const total = progressTotal(turn);
-              const settled = settledProgress(turn);
               const ready = turn.kind === "listing"
                 ? isListingReady(turn)
                 : turn.completed === total && !turn.running;
@@ -5542,59 +5528,10 @@ export default function Home() {
                     <div className="assistant-content">
                       <header className="assistant-head">
                         <div className="assistant-title-row">
-                          <h2>{skills.find((item) => item.id === turn.skill)?.label ?? generation.title}</h2>
+                          <h2>{assetDateLabel(turn.createdAt)}</h2>
                           <ProductionId id={turn.id} onNotice={showNotice} />
                         </div>
-                        <span>
-                          {turn.kind === "listing" && turn.imageTaskCount
-                            ? `1 个 Listing + ${turn.imageTaskCount} 张图片`
-                            : turn.imageTaskCount
-                              ? `${total} 张图片`
-                              : generation.count}
-                        </span>
                       </header>
-
-                      <div className="generation-status">
-                        <div>
-                          <span className={turn.running ? "pulse-dot" : "done-dot"} />
-                          <strong data-testid={`progress-${index}`}>
-                            {turn.phase}
-                          </strong>
-                          <span>
-                            {turn.kind === "listing" && turn.imageTaskCount
-                              ? `图片 ${(turn.images ?? []).filter(Boolean).length} / ${turn.imageTaskCount}`
-                              : `${turn.completed} / ${total}`}
-                          </span>
-                        </div>
-                        {turn.running ? (
-                          <button type="button" onClick={() => stopGeneration(turn.id)}>停止生成</button>
-                        ) : settled < total || Boolean(turn.failedImageSlots?.length) ? (
-                          <button
-                            type="button"
-                            onClick={() => void runGeneration(
-                              turn,
-                              (turn.productImages?.length ? turn.productImages : [turn.productImage])
-                                .map((url, imageIndex) => ({
-                                  id: `${turn.id}-retry-${imageIndex}`,
-                                  name: `reference-${imageIndex + 1}.png`,
-                                  url,
-                                })),
-                              turn.referenceVideo
-                                ? {
-                                    id: `${turn.id}-reference-video`,
-                                    name: turn.referenceVideoName || "reference-video.mp4",
-                                    url: turn.referenceVideo,
-                                  }
-                                : undefined,
-                            )}
-                          >
-                            重新生成
-                          </button>
-                        ) : null}
-                      </div>
-                      <div className="progress-meter" aria-hidden="true">
-                        <span style={{ transform: `scaleX(${settled / total})` }} />
-                      </div>
 
                       <div className={`dynamic-result dynamic-${turn.kind}`}>
                         {turn.error ? (

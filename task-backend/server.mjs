@@ -36,6 +36,13 @@ function errorMessage(payload, fallback) {
   return fallback;
 }
 
+function actionableImageError(message) {
+  if (/allowance not enough|allowance not enought|insufficient (?:balance|quota)/i.test(message)) {
+    return "模型额度不足，请充值当前 API Key 或在账户设置中更换可用的 API Key";
+  }
+  return message;
+}
+
 function retryableImageError(message) {
   return /(?:429|负载已饱和|稍后再试|overload|rate.?limit|too many requests)/i.test(message);
 }
@@ -259,7 +266,9 @@ export function createTaskServer(options = {}) {
       task.error = undefined;
     } catch (error) {
       task.status = "failed";
-      task.error = error instanceof Error ? error.message : "图片生成失败";
+      task.error = actionableImageError(
+        error instanceof Error ? error.message : "图片生成失败",
+      );
     }
     await saveTask(task);
   }

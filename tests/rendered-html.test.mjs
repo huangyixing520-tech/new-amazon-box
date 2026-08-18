@@ -167,6 +167,14 @@ test("ships the complete generation flow and its assets", async () => {
   ]);
 
   assert.match(page, /图片生成/);
+  assert.match(page, /assetDateLabel\(turn\.createdAt\)/);
+  assert.doesNotMatch(page, /className="generation-status"/);
+  assert.doesNotMatch(page, /className="progress-meter"/);
+  assert.match(
+    styles,
+    /\.result-ratio-group\.is-main \.asset-skeleton \{ min-height: 0; aspect-ratio: 1; \}/,
+  );
+  assert.match(taskBackend, /模型额度不足，请充值当前 API Key/);
   assert.match(authLibrary, /envValue\("LOCAL_AUTH_BYPASS"\) === "1"/);
   assert.match(authLibrary, /\["localhost", "127\.0\.0\.1", "::1"\]\.includes\(hostname\)/);
   assert.match(authLibrary, /if \(usesLocalAuthBypass\(request\)\) return localBypassUser\(\)/);
@@ -318,7 +326,6 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /brandContext/);
   assert.match(page, /hasSuiteSettings\(skill\)/);
   assert.match(page, /skillId === "amazon-listing"/);
-  assert.match(page, /1 个 Listing \+/);
   assert.match(page, /generatedAPlusImages/);
   assert.match(page, /generatedMobileAPlusImages/);
   assert.match(page, /runGeneration/);
@@ -339,7 +346,6 @@ test("ships the complete generation flow and its assets", async () => {
   assert.doesNotMatch(page, /1,284 ratings/);
   assert.match(page, /fetch\("\/api\/generate"/);
   assert.doesNotMatch(page, /const streamTurn/);
-  assert.match(page, /停止生成/);
   assert.match(page, /重新生成/);
   assert.match(page, /preview-modal/);
   assert.match(page, /conversation-send/);
@@ -662,12 +668,12 @@ test("protects concurrent asset writes from ENOSPC orphan cleanup", async () => 
   assert.match(assetRoute, /DELETE FROM asset_owners WHERE asset_id = \? AND user_id = \?/);
 });
 
-test("shows Listing and image progress as separate user-facing counts", async () => {
+test("keeps partial Listing recovery without showing header progress counts", async () => {
   const page = await readFile(
     new URL("../app/studio/page.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(page, /`图片 \$\{\(turn\.images \?\? \[\]\)\.filter\(Boolean\)\.length\} \/ \$\{turn\.imageTaskCount\}`/);
+  assert.doesNotMatch(page, /className="generation-status"/);
   assert.doesNotMatch(page, /generatedImages \+ failedImages >= expectedImages/);
   assert.match(page, /markGeneratedImageUnavailable/);
   assert.match(page, /张资源加载失败/);
