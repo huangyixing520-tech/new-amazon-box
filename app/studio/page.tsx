@@ -3130,7 +3130,6 @@ function VideoResult({
 function AppSidebar({
   screen,
   conversations,
-  turns,
   activeConversationId,
   onHome,
   onConversation,
@@ -3143,7 +3142,6 @@ function AppSidebar({
 }: {
   screen: "home" | "studio" | "assets";
   conversations: Conversation[];
-  turns: Turn[];
   activeConversationId: string | null;
   onHome: () => void;
   onConversation: (conversationId?: string) => void;
@@ -3222,10 +3220,6 @@ function AppSidebar({
           <section className="conversation-group" aria-labelledby={`conversation-group-${group.id}`} key={group.id}>
             <h2 id={`conversation-group-${group.id}`}>{group.label}</h2>
             {group.conversations.map((conversation) => {
-              const conversationTurns = turns.filter(
-                (turn) => turn.conversationId === conversation.id,
-              );
-              const runningCount = conversationTurns.filter((turn) => turn.running).length;
               return (
                 <button
                   type="button"
@@ -3249,11 +3243,6 @@ function AppSidebar({
                     <strong>{conversation.title}</strong>
                     {conversation.unread ? <i className="conversation-unread" aria-label="有新内容未查看" /> : null}
                   </span>
-                  <small>
-                    {runningCount
-                      ? `${runningCount} 个任务生成中`
-                      : `${conversationTurns.length} 个任务`}
-                  </small>
                 </button>
               );
             })}
@@ -3569,9 +3558,6 @@ function InspirationTemplatePreview({
   onClose: () => void;
   onUse: (item: InspirationCase) => void;
 }) {
-  const modeLabel = item.mode === "video" ? "视频生成" : item.mode === "listing" ? "Listing 生成" : "图片生成";
-  const skillLabel = skills.find((skillItem) => skillItem.id === item.skill)?.label ?? item.title;
-
   return (
     <section className="template-preview-page" data-testid="template-preview-page">
       <div className="template-preview-media">
@@ -3582,18 +3568,11 @@ function InspirationTemplatePreview({
         <button type="button" className="template-preview-close" aria-label="返回优秀案例" onClick={onClose}>
           <X weight="bold" aria-hidden="true" />
         </button>
-        <div className="template-preview-heading">
-          <span>{modeLabel}</span>
-          <h1>{item.title}</h1>
-          <p>{item.description}</p>
-        </div>
         <div className="template-preview-prompt">
-          <h2>生成内容</h2>
           <p>{item.prompt}</p>
         </div>
         {item.inputImages?.length ? (
           <div className="template-preview-inputs">
-            <h2>输入图片</h2>
             <div>
               {item.inputImages.map((url) => (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -3602,16 +3581,6 @@ function InspirationTemplatePreview({
             </div>
           </div>
         ) : null}
-        <dl className="template-preview-settings">
-          <div><dt>技能</dt><dd>{skillLabel}</dd></div>
-          {item.suite ? (
-            <>
-              <div><dt>A+ 图</dt><dd>{item.suite.aPlusCount ?? 0} 张</dd></div>
-              <div><dt>卖点图</dt><dd>{item.suite.mainImageCount ?? 0} 张</dd></div>
-              <div><dt>图片比例</dt><dd>{item.suite.mainImageRatio ?? "1:1"}</dd></div>
-            </>
-          ) : null}
-        </dl>
         <button type="button" className="template-preview-use" onClick={() => onUse(item)}>
           做同款 <ArrowRight weight="bold" aria-hidden="true" />
         </button>
@@ -5448,7 +5417,6 @@ export default function Home() {
         <AppSidebar
           screen={screen}
           conversations={conversations}
-          turns={turns}
           activeConversationId={activeConversationId}
           onHome={openHome}
           onConversation={openConversation}
@@ -5766,7 +5734,6 @@ export default function Home() {
         <AppSidebar
           screen={screen}
           conversations={conversations}
-          turns={turns}
           activeConversationId={activeConversationId}
           onHome={openHome}
           onConversation={openConversation}
@@ -5836,7 +5803,6 @@ export default function Home() {
       <AppSidebar
         screen={screen}
         conversations={conversations}
-        turns={turns}
         activeConversationId={activeConversationId}
         onHome={openHome}
         onConversation={openConversation}

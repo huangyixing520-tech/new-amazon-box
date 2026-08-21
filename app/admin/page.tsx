@@ -510,24 +510,13 @@ function LandingConfigEditor({
 function InspirationCaseUploader() {
   type CaseTab = "featured" | "image" | "video";
   type AdminCase = {
-    id: string; tabs: CaseTab[]; skill: string; title: string; description: string;
-    prompt: string; images: string[]; inputImages: string[]; createdAt: string;
+    id: string; tabs: CaseTab[]; prompt: string; images: string[]; inputImages: string[]; createdAt: string;
     orderByTab: Partial<Record<CaseTab, number>>;
   };
   const tabOptions: Array<[CaseTab, string]> = [["featured", "精选"], ["image", "图片"], ["video", "视频"]];
-  const skillOptions = [
-    ["white-background-image", "商品白底图"], ["amazon-image-set", "商品套图"],
-    ["ecommerce-image-set", "跨境电商套图"], ["amazon-scene-image", "人物场景图"],
-    ["china-ecommerce-main-image", "国内电商主图"], ["china-seeding-image", "种草组图"],
-    ["amazon-listing", "亚马逊 Listing"], ["listing-replica", "链接复刻"],
-    ["video-replica", "视频复刻"], ["talking-product-video", "带货口播"],
-  ];
   const [cases, setCases] = useState<AdminCase[]>([]);
   const [editingId, setEditingId] = useState("");
-  const [title, setTitle] = useState("办公椅白底商品图精修");
-  const [description, setDescription] = useState("生成纯白背景商品图，保留商品结构与细节");
   const [prompt, setPrompt] = useState("请帮我生成一张白底商品图。");
-  const [skill, setSkill] = useState("white-background-image");
   const [tabs, setTabs] = useState<CaseTab[]>(["featured", "image"]);
   const [resultImage, setResultImage] = useState<File | null>(null);
   const [inputImages, setInputImages] = useState<File[]>([]);
@@ -557,14 +546,12 @@ function InspirationCaseUploader() {
   }, []);
 
   function resetForm() {
-    setEditingId(""); setTitle(""); setDescription(""); setPrompt("");
-    setSkill("white-background-image"); setTabs(["featured", "image"]);
+    setEditingId(""); setPrompt(""); setTabs(["featured", "image"]);
     setResultImage(null); setInputImages([]); setCurrentResult(""); setCurrentInputs([]); setStatus("");
   }
 
   function editCase(item: AdminCase) {
-    setEditingId(item.id); setTitle(item.title); setDescription(item.description); setPrompt(item.prompt);
-    setSkill(item.skill); setTabs(item.tabs); setResultImage(null); setInputImages([]);
+    setEditingId(item.id); setPrompt(item.prompt); setTabs(item.tabs); setResultImage(null); setInputImages([]);
     setCurrentResult(item.images[0] ?? ""); setCurrentInputs(item.inputImages ?? []); setStatus("");
     document.querySelector(".admin-inspiration-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -588,7 +575,7 @@ function InspirationCaseUploader() {
       for (const file of inputImages) inputUrls.push(await uploadImage(file, "input"));
       const body = new FormData();
       if (editingId) body.set("id", editingId);
-      body.set("title", title); body.set("description", description); body.set("prompt", prompt); body.set("skill", skill);
+      body.set("prompt", prompt);
       tabs.forEach((tab) => body.append("tabs", tab));
       if (resultUrl) body.set("resultUrl", resultUrl);
       inputUrls.forEach((url) => body.append("inputUrls", url));
@@ -632,14 +619,11 @@ function InspirationCaseUploader() {
     <div className="admin-inspiration-workspace">
       <section className="admin-inspiration-editor">
         <header>
-          <div><span>{editingId ? "编辑模式" : "新增案例"}</span><h2>{editingId ? "编辑优秀案例" : "新增优秀案例"}</h2><p>结果图用于首页展示，输入图、Prompt、Skill 和分类会保留在案例详情。</p></div>
-          <div>{status ? <span role="status">{status}</span> : null}{editingId ? <button type="button" className="secondary" onClick={resetForm}>新增案例</button> : null}<button type="button" onClick={() => void saveCase()} disabled={(!editingId && !resultImage) || !title.trim() || !prompt.trim() || !tabs.length || saving}>{saving ? "正在保存" : editingId ? "保存更改" : "上传并发布"}</button></div>
+          <div><span>{editingId ? "编辑模式" : "新增案例"}</span><h2>{editingId ? "编辑优秀案例" : "新增优秀案例"}</h2><p>配置案例的 Prompt、分类、结果图和输入图。</p></div>
+          <div>{status ? <span role="status">{status}</span> : null}{editingId ? <button type="button" className="secondary" onClick={resetForm}>新增案例</button> : null}<button type="button" onClick={() => void saveCase()} disabled={(!editingId && !resultImage) || !prompt.trim() || !tabs.length || saving}>{saving ? "正在保存" : editingId ? "保存更改" : "上传并发布"}</button></div>
         </header>
         <div className="admin-inspiration-form">
-          <label>案例标题<input value={title} maxLength={80} onChange={(event) => setTitle(event.target.value)} /></label>
-          <label>案例说明<input value={description} maxLength={180} onChange={(event) => setDescription(event.target.value)} /></label>
-          <label>Prompt<textarea value={prompt} maxLength={1600} rows={4} onChange={(event) => setPrompt(event.target.value)} /></label>
-          <label className="admin-case-select">选择的 Skill<select value={skill} onChange={(event) => setSkill(event.target.value)}>{skillOptions.map(([id, label]) => <option value={id} key={id}>{label}</option>)}</select></label>
+          <label className="admin-case-prompt">Prompt<textarea value={prompt} maxLength={1600} rows={4} onChange={(event) => setPrompt(event.target.value)} /></label>
           <fieldset className="admin-case-tabs"><legend>所属分类（可多选）</legend><div>{tabOptions.map(([id, label]) => <label key={id}><input type="checkbox" checked={tabs.includes(id)} onChange={(event) => setTabs((current) => event.target.checked ? [...current, id] : current.filter((tab) => tab !== id))} /><span>{label}</span></label>)}</div></fieldset>
           <label className="admin-case-upload">结果图（首页展示）{currentResult ? <img src={currentResult} alt="当前结果图" /> : null}<input key={`result-${editingId}-${currentResult}`} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" onChange={(event) => setResultImage(event.target.files?.[0] ?? null)} /><small>{resultImage?.name || (currentResult ? "未选择新图，将保留当前结果图" : "上传 1 张生成结果图")}</small></label>
           <label className="admin-case-upload">输入图{currentInputs.length ? <span className="admin-current-inputs">当前 {currentInputs.length} 张</span> : null}<input key={`inputs-${editingId}-${currentInputs.join("|")}`} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif" onChange={(event) => setInputImages(Array.from(event.target.files ?? []).slice(0, 9))} /><small>{inputImages.length ? `将替换为 ${inputImages.length} 张输入图` : currentInputs.length ? "未选择新图，将保留当前输入图" : "最多 9 张"}</small></label>
@@ -649,7 +633,7 @@ function InspirationCaseUploader() {
       <section className="admin-inspiration-library">
         <header><div><h2>已上传案例</h2><p>点击案例进行编辑；拖拽调整当前分类内的顺序，新案例默认置顶。</p></div><span>{cases.length} 个案例</span></header>
         <div className="admin-case-filter" role="tablist" aria-label="案例分类">{tabOptions.map(([id, label]) => <button type="button" role="tab" aria-selected={activeListTab === id} className={activeListTab === id ? "active" : ""} onClick={() => setActiveListTab(id)} key={id}>{label}<b>{cases.filter((item) => item.tabs.includes(id)).length}</b></button>)}</div>
-        {loading ? <div className="admin-case-empty">正在读取已上传案例</div> : sortedCases.length ? <div className="admin-case-list">{sortedCases.map((item, index) => <article key={item.id} draggable onDragStart={() => setDraggedId(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => { const from = sortedCases.findIndex((candidate) => candidate.id === draggedId); if (from < 0 || from === index) return; const next = [...sortedCases]; const [moved] = next.splice(from, 1); next.splice(index, 0, moved); void persistOrder(next); setDraggedId(""); }}><DotsSixVertical weight="bold" aria-label="拖动排序" /><button type="button" className="admin-case-open" onClick={() => editCase(item)}><img src={item.images[0]} alt="" /><span><strong>{item.title}</strong><small>{skillOptions.find(([id]) => id === item.skill)?.[1] || item.skill}</small><em>{item.tabs.map((tab) => tabOptions.find(([id]) => id === tab)?.[1]).join(" · ")}</em></span></button><div className="admin-case-order"><button type="button" aria-label={`上移 ${item.title}`} disabled={index === 0} onClick={() => moveCase(item.id, -1)}><ArrowUp weight="bold" /></button><button type="button" aria-label={`下移 ${item.title}`} disabled={index === sortedCases.length - 1} onClick={() => moveCase(item.id, 1)}><ArrowDown weight="bold" /></button></div></article>)}</div> : <div className="admin-case-empty">该分类还没有案例</div>}
+        {loading ? <div className="admin-case-empty">正在读取已上传案例</div> : sortedCases.length ? <div className="admin-case-list">{sortedCases.map((item, index) => <article key={item.id} draggable onDragStart={() => setDraggedId(item.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => { const from = sortedCases.findIndex((candidate) => candidate.id === draggedId); if (from < 0 || from === index) return; const next = [...sortedCases]; const [moved] = next.splice(from, 1); next.splice(index, 0, moved); void persistOrder(next); setDraggedId(""); }}><DotsSixVertical weight="bold" aria-label="拖动排序" /><button type="button" className="admin-case-open" onClick={() => editCase(item)}><img src={item.images[0]} alt="" /><span><strong>优秀案例</strong><em>{item.tabs.map((tab) => tabOptions.find(([id]) => id === tab)?.[1]).join(" · ")}</em></span></button><div className="admin-case-order"><button type="button" aria-label={`上移案例 ${index + 1}`} disabled={index === 0} onClick={() => moveCase(item.id, -1)}><ArrowUp weight="bold" /></button><button type="button" aria-label={`下移案例 ${index + 1}`} disabled={index === sortedCases.length - 1} onClick={() => moveCase(item.id, 1)}><ArrowDown weight="bold" /></button></div></article>)}</div> : <div className="admin-case-empty">该分类还没有案例</div>}
       </section>
     </div>
   );

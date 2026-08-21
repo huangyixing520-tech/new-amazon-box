@@ -130,6 +130,7 @@ test("ships the complete generation flow and its assets", async () => {
     adminUserResultsRoute,
     adminAssetRoute,
     adminPage,
+    inspirationAdminRoute,
     envExample,
   ] = await Promise.all([
     readFile(new URL("../app/studio/page.tsx", import.meta.url), "utf8"),
@@ -157,6 +158,7 @@ test("ships the complete generation flow and its assets", async () => {
     readFile(new URL("../app/api/admin/users/[id]/results/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/assets/[id]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/inspiration/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../.env.example", import.meta.url), "utf8"),
     access(new URL("../public/product-main.webp", import.meta.url)),
     access(new URL("../public/product-lifestyle.webp", import.meta.url)),
@@ -289,6 +291,9 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /function InspirationGallery/);
   assert.match(page, /function InspirationTemplatePreview/);
   assert.match(page, /data-testid="template-preview-page"/);
+  assert.doesNotMatch(page, /className="template-preview-heading"/);
+  assert.doesNotMatch(page, /className="template-preview-settings"/);
+  assert.doesNotMatch(page, /<h2>输入图片<\/h2>/);
   assert.match(page, /aria-label="回到顶部"/);
   assert.match(page, /做同款/);
   assert.match(page, /商品图片/);
@@ -370,6 +375,10 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /prefix="技能"/);
   assert.match(page, /account-trigger/);
   assert.match(accountPanel, /使用 Google 登录/);
+  assert.match(accountPanel, /account-dialog-login/);
+  assert.match(accountPanel, /登录后继续创作/);
+  assert.match(accountPanel, /服务条款/);
+  assert.doesNotMatch(accountPanel, /GitHub/);
   assert.match(accountPanel, /邮箱登录/);
   assert.match(accountPanel, /注册账号/);
   assert.match(accountPanel, /\/api\/auth\/email\/\$\{emailMode\}/);
@@ -547,6 +556,11 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(adminPage, /上传替换/);
   assert.match(adminPage, /\/api\/admin\/landing/);
   assert.match(adminPage, /\/api\/admin\/landing\/media/);
+  assert.doesNotMatch(adminPage, /案例标题/);
+  assert.doesNotMatch(adminPage, /案例说明/);
+  assert.doesNotMatch(adminPage, /选择的 Skill/);
+  assert.match(inspirationAdminRoute, /title: "优秀案例"/);
+  assert.match(inspirationAdminRoute, /defaultsForTabs\(tabs\)/);
   assert.match(landingPage, /heroTitleParts/);
   assert.match(landingPage, /setShowLogin\(true\)/);
   assert.match(landingPage, /<AccountPanel/);

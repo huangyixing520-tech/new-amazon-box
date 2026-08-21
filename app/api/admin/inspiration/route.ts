@@ -19,10 +19,10 @@ function selectedTabs(form: FormData) {
   );
 }
 
-function modeForSkill(skill: string): InspirationCaseRecord["mode"] {
-  if (skill === "video-replica" || skill === "talking-product-video") return "video";
-  if (skill === "amazon-listing" || skill === "listing-replica") return "listing";
-  return "image";
+function defaultsForTabs(tabs: InspirationCaseRecord["tabs"]): Pick<InspirationCaseRecord, "mode" | "skill"> {
+  return tabs.includes("video") && !tabs.includes("image")
+    ? { mode: "video", skill: "talking-product-video" }
+    : { mode: "image", skill: "white-background-image" };
 }
 
 export async function POST(request: Request) {
@@ -31,11 +31,10 @@ export async function POST(request: Request) {
     const user = await requireAdmin(request);
     const form = await request.formData();
     const resultUrl = text(form.get("resultUrl"), 800);
-    const title = text(form.get("title"), 80);
     const prompt = text(form.get("prompt"), 1600);
     const tabs = selectedTabs(form);
-    if (!resultUrl || !title || !prompt || !tabs.length) {
-      return Response.json({ error: "请填写标题、提示词、分类并上传结果图" }, { status: 400 });
+    if (!resultUrl || !prompt || !tabs.length) {
+      return Response.json({ error: "请填写提示词、分类并上传结果图" }, { status: 400 });
     }
     const inputUrls = form.getAll("inputUrls").filter(
       (item): item is string => typeof item === "string" && item.startsWith("/api/inspiration/media?key="),
@@ -43,14 +42,13 @@ export async function POST(request: Request) {
     const { DB } = await runtimeBindings();
     if (!DB) return Response.json({ error: "案例数据库尚未就绪" }, { status: 503 });
     const createdAt = new Date().toISOString();
-    const skill = text(form.get("skill"), 80) || "white-background-image";
+    const defaults = defaultsForTabs(tabs);
     const record: InspirationCaseRecord = {
       id: `case-${crypto.randomUUID()}`,
       tabs,
-      mode: modeForSkill(skill),
-      skill,
-      title,
-      description: text(form.get("description"), 180),
+      ...defaults,
+      title: "优秀案例",
+      description: "",
       prompt,
       images: [resultUrl],
       inputImages: inputUrls,
@@ -88,13 +86,11 @@ export async function PUT(request: Request) {
     if (!DB) return Response.json({ error: "案例数据库尚未就绪" }, { status: 503 });
     const current = (await loadInspirationCases(DB)).find((item) => item.id === id);
     if (!current) return Response.json({ error: "案例不存在" }, { status: 404 });
-    const title = text(form.get("title"), 80);
     const prompt = text(form.get("prompt"), 1600);
     const tabs = selectedTabs(form);
-    if (!title || !prompt || !tabs.length) {
-      return Response.json({ error: "请填写标题、提示词和至少一个分类" }, { status: 400 });
+    if (!prompt || !tabs.length) {
+      return Response.json({ error: "请填写提示词和至少一个分类" }, { status: 400 });
     }
-    const skill = text(form.get("skill"), 80) || current.skill;
     const uploadedResultUrl = text(form.get("resultUrl"), 800);
     const uploadedInputUrls = form.getAll("inputUrls").filter(
       (item): item is string => typeof item === "string" && item.startsWith("/api/inspiration/media?key="),
@@ -104,10 +100,6 @@ export async function PUT(request: Request) {
     const next: InspirationCaseRecord = {
       ...current,
       tabs,
-      mode: modeForSkill(skill),
-      skill,
-      title,
-      description: text(form.get("description"), 180),
       prompt,
       images: [resultUrl],
       inputImages: inputUrls,

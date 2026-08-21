@@ -652,8 +652,7 @@ button:active, a:active { transform: translateY(1px); }
 .conversation-list button:hover { background: color-mix(in srgb, var(--surface-soft) 70%, transparent); }
 .conversation-list button.conversation-active { background: color-mix(in srgb, var(--surface-soft) 44%, transparent); }
 .workspace-links button:focus-visible, .conversation-list button:focus-visible { outline: 2px solid color-mix(in srgb, var(--text) 55%, transparent); outline-offset: 1px; }
-.conversation-list strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.conversation-list small { color: var(--muted); font-size: 10px; }
+.conversation-list strong { overflow: hidden; color: color-mix(in srgb, var(--text) 68%, var(--surface)); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .conversation-title-row { min-width: 0; display: flex; align-items: center; gap: 7px; }
 .conversation-title-row strong { min-width: 0; flex: 1; }
 .conversation-unread { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #e43e35; box-shadow: 0 0 0 3px rgb(228 62 53 / .12); }
@@ -720,49 +719,48 @@ button:active, a:active { transform: translateY(1px); }
   cursor: pointer;
 }
 .account-dialog-header > button svg { width: 15px; height: 15px; }
+.account-dialog-login { width: min(560px, 100%); padding: 42px 48px 38px; border-radius: 32px; }
+.account-dialog-login .account-dialog-header { position: relative; align-items: center; justify-content: center; text-align: center; }
+.account-dialog-login .account-dialog-header > div { justify-items: center; gap: 13px; }
+.account-dialog-login .account-dialog-header > button { position: absolute; top: -10px; right: -16px; background: transparent; }
+.account-login-brand { display: inline-flex; align-items: center; gap: 9px; color: #111; font-size: 25px; font-weight: 850; letter-spacing: -.055em; }
+.account-login-brand i { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 11px; background: #111; color: #fff; font-size: 14px; font-style: normal; }
+.account-dialog-login .account-dialog-header h2 { color: #8d8d8d; font-size: 18px; font-weight: 620; letter-spacing: -.025em; }
 .account-login {
   min-height: 330px;
-  padding: 44px 18px 22px;
+  padding: 34px 0 0;
   display: flex;
   align-items: center;
   flex-direction: column;
   text-align: center;
 }
-.account-security-icon {
-  width: 66px;
-  height: 66px;
-  display: grid;
-  place-items: center;
-  border-radius: 23px;
-  background: color-mix(in srgb, var(--accent), #fff 48%);
-  color: var(--accent-ink);
-}
-.account-security-icon svg { width: 34px; height: 34px; }
-.account-login h3 { margin: 22px 0 8px; font-size: 21px; letter-spacing: -.035em; }
-.account-login p { max-width: 350px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.account-login p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
 .google-login-slot {
-  width: 320px;
-  min-height: 44px;
-  margin-top: 28px;
+  width: 100%;
+  min-height: 48px;
   transition: opacity 160ms ease;
 }
+.google-login-slot > div, .google-login-slot iframe { max-width: 100% !important; }
 .google-login-slot.is-busy { opacity: .52; pointer-events: none; }
-.account-login-divider { width: 320px; margin: 20px 0 14px; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 9px; }
+.account-login-divider { width: 100%; margin: 25px 0 20px; display: flex; align-items: center; gap: 18px; color: #999; font-size: 13px; }
 .account-login-divider::before,
 .account-login-divider::after { height: 1px; flex: 1; background: var(--line); content: ""; }
-.email-auth-tabs { width: 320px; padding: 4px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; border-radius: 14px; background: var(--surface-soft); }
-.email-auth-tabs button { min-height: 34px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; font-size: 10px; font-weight: 720; }
-.email-auth-tabs button.active { background: #fff; color: var(--text); box-shadow: 0 6px 16px rgb(29 36 27 / .08); }
-.email-auth-form { width: 320px; margin-top: 14px; display: grid; gap: 11px; text-align: left; }
+.email-auth-tabs { width: 100%; padding: 4px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; border-radius: 15px; background: #f4f4f4; }
+.email-auth-tabs button { min-height: 38px; border: 0; border-radius: 11px; background: transparent; color: #999; cursor: pointer; font-size: 11px; font-weight: 720; }
+.email-auth-tabs button.active { background: #fff; color: #111; box-shadow: 0 5px 18px rgb(0 0 0 / .06); }
+.email-auth-form { width: 100%; margin-top: 14px; display: grid; gap: 12px; text-align: left; }
 .email-auth-form label { display: grid; gap: 6px; color: var(--muted); font-size: 9px; font-weight: 720; }
-.email-auth-form label > div { min-height: 44px; padding: 0 12px; display: grid; grid-template-columns: 18px minmax(0,1fr); align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 14px; background: #fff; transition: border-color 160ms ease, box-shadow 160ms ease; }
+.account-dialog-login .email-auth-form label > span { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.email-auth-form label > div { min-height: 52px; padding: 0 16px; display: grid; grid-template-columns: 18px minmax(0,1fr); align-items: center; gap: 10px; border: 1px solid transparent; border-radius: 15px; background: #f6f6f6; transition: border-color 160ms ease, box-shadow 160ms ease; }
 .email-auth-form label > div:focus-within,
 .email-auth-form label > input:focus { border-color: #8da53d; box-shadow: 0 0 0 3px rgb(201 243 62 / .18); }
 .email-auth-form label > div > svg { width: 16px; height: 16px; color: var(--muted); }
-.email-auth-form input { min-width: 0; height: 42px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 11px; }
-.email-auth-form label > input { height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 14px; }
-.email-auth-form > button { min-height: 44px; border: 0; border-radius: 14px; background: var(--text); color: #fff; cursor: pointer; font-size: 11px; font-weight: 740; }
+.email-auth-form input { min-width: 0; height: 50px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 13px; }
+.email-auth-form label > input { height: 52px; padding: 0 16px; border: 1px solid transparent; border-radius: 15px; background: #f6f6f6; font-size: 13px; }
+.email-auth-form > button { min-height: 52px; margin-top: 2px; border: 0; border-radius: var(--radius-pill); background: #111; color: #fff; cursor: pointer; font-size: 13px; font-weight: 760; }
 .email-auth-form > button:disabled { background: var(--surface-strong); color: var(--muted); cursor: not-allowed; }
+.account-login .account-login-terms { margin-top: 24px; color: #999; font-size: 11px; }
+.account-login-terms span { color: #222; text-decoration: underline; text-underline-offset: 3px; }
 .account-profile {
   margin-top: 24px;
   padding: 14px;
@@ -1909,7 +1907,7 @@ button:active, a:active { transform: translateY(1px); }
 .admin-inspiration-editor > header button:disabled { cursor: not-allowed; opacity: .45; }
 .admin-inspiration-form { margin-top: 24px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
 .admin-inspiration-form label { display: grid; gap: 7px; color: var(--muted); font-size: 9px; font-weight: 680; }
-.admin-inspiration-form label:nth-child(3) { grid-column: 1 / -1; }
+.admin-case-prompt { grid-column: 1 / -1; }
 .admin-inspiration-form input, .admin-inspiration-form textarea, .admin-inspiration-form select { width: 100%; border: 1px solid var(--line); border-radius: 13px; outline: 0; background: #f8faf6; color: var(--text); font-size: 11px; line-height: 1.55; }
 .admin-inspiration-form input { height: 43px; padding: 0 12px; }
 .admin-inspiration-form select { height: 43px; padding: 0 12px; }
@@ -2437,6 +2435,8 @@ button:active, a:active { transform: translateY(1px); }
 @media (max-width: 640px) {
   .account-dialog-backdrop { padding: 10px; }
   .account-dialog { max-height: calc(100dvh - 20px); padding: 18px; border-radius: 24px; }
+  .account-dialog-login { padding: 34px 22px 28px; }
+  .account-dialog-login .account-dialog-header > button { top: -8px; right: -8px; }
   .account-login { padding-inline: 0; }
   .google-login-slot,
   .account-login-divider,
@@ -2598,7 +2598,7 @@ button:active, a:active { transform: translateY(1px); }
   .admin-inspiration-editor > header { align-items: flex-start; flex-direction: column; }
   .admin-inspiration-editor > header > div:last-child { width: 100%; align-items: stretch; flex-direction: column; }
   .admin-inspiration-form { grid-template-columns: 1fr; }
-  .admin-inspiration-form label:nth-child(3) { grid-column: auto; }
+  .admin-case-prompt { grid-column: auto; }
   .admin-case-list article { grid-template-columns: 20px minmax(0,1fr); }
   .admin-case-order { grid-column: 2; justify-content: flex-end; }
   .admin-landing-grid > section,
