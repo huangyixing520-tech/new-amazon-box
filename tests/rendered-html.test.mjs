@@ -169,6 +169,7 @@ test("ships the complete generation flow and its assets", async () => {
   ]);
 
   assert.match(page, /图片生成/);
+  assert.match(page, /function assetDateLabel\(value: string\)/);
   assert.match(page, /assetDateLabel\(turn\.createdAt\)/);
   assert.doesNotMatch(page, /className="generation-status"/);
   assert.doesNotMatch(page, /className="progress-meter"/);
@@ -294,6 +295,7 @@ test("ships the complete generation flow and its assets", async () => {
   assert.doesNotMatch(page, /className="template-preview-heading"/);
   assert.doesNotMatch(page, /className="template-preview-settings"/);
   assert.doesNotMatch(page, /<h2>输入图片<\/h2>/);
+  assert.doesNotMatch(styles, /\.template-preview-prompt\s*\{[^}]*border-top/);
   assert.match(page, /aria-label="回到顶部"/);
   assert.match(page, /做同款/);
   assert.match(page, /商品图片/);

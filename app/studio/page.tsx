@@ -390,7 +390,7 @@ const quickCapabilities: Array<{
     mode: "listing",
     skill: "listing-replica",
     title: "链接复刻",
-    body: "粘贴商品链接，复刻结构与内容",
+    body: "复刻同款商品页",
     image: "/product-lifestyle.webp",
   },
   {
@@ -398,7 +398,7 @@ const quickCapabilities: Array<{
     mode: "listing",
     skill: "amazon-listing",
     title: "Listing 生成",
-    body: "文案、套图与商品详情同步生成",
+    body: "文案套图同步生成",
     image: "/landing-hero.webp",
   },
   {
@@ -406,7 +406,7 @@ const quickCapabilities: Array<{
     mode: "video",
     skill: "video-replica",
     title: "视频复刻",
-    body: "参考一条视频，替换成你的商品",
+    body: "替换商品复刻视频",
     image: "/product-outdoor.webp",
   },
   {
@@ -414,7 +414,7 @@ const quickCapabilities: Array<{
     mode: "image",
     skill: "amazon-image-set",
     title: "套图生成",
-    body: "卖点图与 A+ 图一次生成",
+    body: "批量生成商品套图",
     image: "/product-main.webp",
   },
   {
@@ -422,7 +422,7 @@ const quickCapabilities: Array<{
     mode: "video",
     skill: "talking-product-video",
     title: "带货口播",
-    body: "生成 15 秒商品口播与演示",
+    body: "15秒商品口播",
     image: "/product-lifestyle.webp",
   },
 ];
@@ -3336,6 +3336,23 @@ function assetTimeLabel(value: string) {
   if (Number.isNaN(date.getTime())) return "";
   const pad = (number: number) => String(number).padStart(2, "0");
   return `${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function assetDateLabel(value: string) {
+  const date = new Date(value);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const sameDay = (left: Date, right: Date) =>
+    left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+  if (sameDay(date, today)) return "今天";
+  if (sameDay(date, yesterday)) return "昨天";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "long",
+    day: "numeric",
+  }).format(date);
 }
 
 function AssetLibrary({
