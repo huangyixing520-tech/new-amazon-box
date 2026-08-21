@@ -8,7 +8,6 @@ import {
   EyeSlash,
   Key,
   LockKey,
-  ShieldCheck,
   SignOut,
   X,
 } from "@phosphor-icons/react";
@@ -189,7 +188,7 @@ export default function AccountPanel({
           size: "large",
           shape: "pill",
           text: "continue_with",
-          width: 320,
+          width: Math.min(440, googleButtonRef.current.clientWidth || 440),
         });
       })
       .catch((reason) => {
@@ -297,7 +296,7 @@ export default function AccountPanel({
   return (
     <div className="account-dialog-backdrop" role="presentation" onMouseDown={onClose}>
       <section
-        className="account-dialog"
+        className={`account-dialog ${!session ? "account-dialog-login" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="account-dialog-title"
@@ -306,8 +305,17 @@ export default function AccountPanel({
       >
         <header className="account-dialog-header">
           <div>
-            <span>ACCOUNT</span>
-            <h2 id="account-dialog-title">账号与模型 API</h2>
+            {!session ? (
+              <>
+                <strong className="account-login-brand"><i aria-hidden="true">♥</i>MERCATO</strong>
+                <h2 id="account-dialog-title">登录后继续创作</h2>
+              </>
+            ) : (
+              <>
+                <span>ACCOUNT</span>
+                <h2 id="account-dialog-title">账号与模型 API</h2>
+              </>
+            )}
           </div>
           <button type="button" onClick={onClose} aria-label="关闭账号管理">
             <X weight="bold" />
@@ -316,9 +324,6 @@ export default function AccountPanel({
 
         {!session ? (
           <div className="account-login">
-            <span className="account-security-icon"><ShieldCheck weight="duotone" /></span>
-            <h3>登录后开始创作</h3>
-            <p>Google 或邮箱均可登录。API Key、任务和生成资产只属于当前账号。</p>
             {configured ? (
               <div
                 className={`google-login-slot ${busy ? "is-busy" : ""}`}
@@ -328,7 +333,7 @@ export default function AccountPanel({
             ) : (
               <p className="account-inline-error">Google 登录尚未完成线上配置。</p>
             )}
-            <div className="account-login-divider"><span>或使用邮箱</span></div>
+            <div className="account-login-divider"><span>或</span></div>
             <div className="email-auth-tabs" role="tablist" aria-label="邮箱账号方式">
               <button
                 type="button"
@@ -401,6 +406,9 @@ export default function AccountPanel({
                 {busy ? "处理中…" : emailMode === "login" ? "登录工作台" : "创建账号"}
               </button>
             </form>
+            <p className="account-login-terms">
+              继续即表示你同意我们的 <span>服务条款</span> 和 <span>隐私政策</span>。
+            </p>
           </div>
         ) : (
           <>
