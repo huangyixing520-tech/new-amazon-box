@@ -114,3 +114,36 @@ export async function GET(
     return authErrorResponse(error);
   }
 }
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const user = await requireUser(request);
+    const { id } = await context.params;
+    const runtime = await runtimeBindings();
+    if (!runtime.DB || !runtime.GENERATED_ASSETS) {
+      return NextResponse.json({ error: "资产存储尚未配置" }, { status: 503 });
+    }
+    await ensureAssetsSchema(runtime.DB);
+    await ensureIdentitySchema(runtime.DB);
+    const asset = await runtime.DB.prepare(`
+      SELECT a.object_key
+      FROM assets a
+      INNER JOIN asset_owners o ON o.asset_id = a.id
+      WHERE a.id = ? AND o.user_id = ?
+    `).bind(id, user.id).first<{ object_key: string | null }>();
+    if (!asset) return NextResponse.json({ error: "资产不存在" }, { status: 404 });
+
+    await runtime.DB.batch([
+      runtime.DB.prepare("DELETE FROM asset_owners WHERE asset_id = ? AND user_id = ?")
+        .bind(id, user.id),
+      runtime.DB.prepare("DELETE FROM assets WHERE id = ?").bind(id),
+    ]);
+    if (asset.object_key) await runtime.GENERATED_ASSETS.delete?.(asset.object_key);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}

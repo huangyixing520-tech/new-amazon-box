@@ -7,9 +7,13 @@ import {
   selectedImageModel,
 } from "../app/image-models.mjs";
 
-test("image generation uses the DolaO GPT Image 2 channel", () => {
+test("image generation supports selectable DolaO image models", () => {
   assert.equal(DEFAULT_IMAGE_MODEL, "dolaio/gpt-image-2");
-  assert.deepEqual(IMAGE_MODEL_OPTIONS.map(({ id }) => id), [DEFAULT_IMAGE_MODEL]);
+  assert.deepEqual(IMAGE_MODEL_OPTIONS.map(({ id }) => id), [
+    DEFAULT_IMAGE_MODEL,
+    "qwen-image-3.0-pro",
+  ]);
   assert.equal(selectedImageModel(DEFAULT_IMAGE_MODEL, "gpt-image-2"), DEFAULT_IMAGE_MODEL);
+  assert.equal(selectedImageModel("qwen-image-3.0-pro"), "qwen-image-3.0-pro");
   assert.equal(selectedImageModel("unknown", "gpt-image-2"), DEFAULT_IMAGE_MODEL);
 });

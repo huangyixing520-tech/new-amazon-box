@@ -203,6 +203,9 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /链接复刻/);
   assert.match(page, /品牌基因/);
   assert.match(page, /高级 \+ 手机 A\+/);
+  assert.match(page, /data-testid="suite-settings-trigger"/);
+  assert.match(page, /data-testid="suite-settings-panel"/);
+  assert.match(page, /卖点 \{suite\.mainImageCount\} · A\+ \{suite\.aPlusCount\}/);
   assert.match(page, /a-plus-count-trigger/);
   assert.match(page, /main-image-count-trigger/);
   assert.match(
@@ -255,6 +258,7 @@ test("ships the complete generation flow and its assets", async () => {
     /\.asset-wide \.asset-visual img\s*\{[^}]*height:\s*auto;[^}]*aspect-ratio:\s*auto;[^}]*object-fit:\s*contain;/,
   );
   assert.match(styles, /\.brand-gene-panel\s*\{[^}]*position:\s*absolute;[^}]*box-shadow:/);
+  assert.match(styles, /\.suite-settings-panel\s*\{[^}]*position:\s*absolute;[^}]*grid-template-columns:\s*repeat\(4,/);
   assert.match(styles, /\.single-image-result\s*\{[^}]*width:\s*min\(620px, 100%\)/);
   assert.match(
     styles,
@@ -314,6 +318,10 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(page, /\/api\/demo-video/);
   assert.match(page, /销售国家\/地区/);
   assert.match(page, /生成内容语言/);
+  assert.match(page, /<details className="message-details">/);
+  assert.match(page, /<summary>[\s\S]*?详细信息[\s\S]*?<Info aria-hidden="true"/);
+  assert.match(styles, /\.message-details summary\s*\{/);
+  assert.match(styles, /\.message-details\[open\] \.request-tags\s*\{/);
   assert.match(page, /🇺🇸 US（美国）/);
   assert.match(page, /🇬🇧 UK（英国）/);
   assert.match(page, /🇵🇭 PHL（菲律宾）/);
@@ -385,14 +393,19 @@ test("ships the complete generation flow and its assets", async () => {
   assert.doesNotMatch(page, /一张商品图，<br \/>生成亚马逊链接/);
   assert.match(page, /<span className="brand-mark" aria-hidden="true">♥<\/span>/);
   assert.match(page, /<ArrowUp aria-hidden="true" weight="bold" \/>/);
-  assert.match(page, /添加新对话/);
+  assert.doesNotMatch(page, /添加新对话/);
   assert.match(page, /startGeneration = async \(origin: "home" \| "conversation"\)/);
   assert.match(page, /origin === "home"[\s\S]*pendingHomeConversationId\.current/);
   assert.match(page, /onSend=\{\(\) => startGeneration\("home"\)\}/);
   assert.match(page, /onSend=\{\(\) => startGeneration\("conversation"\)\}/);
   assert.match(page, /const openHome = \(\) => \{[\s\S]*setActiveConversationId\(null\)/);
   assert.match(page, /asset-library/);
-  assert.match(page, /所有生成结果会自动保存，并按日期整理/);
+  assert.match(page, /assetTimeLabel/);
+  assert.match(page, /asset-card-menu/);
+  assert.match(page, /确定删除/);
+  assert.match(assetDetailRoute, /export async function DELETE/);
+  assert.match(assetDetailRoute, /DELETE FROM asset_owners/);
+  assert.match(assetDetailRoute, /GENERATED_ASSETS\.delete/);
   assert.match(page, /继续修改图片/);
   assert.doesNotMatch(page, /resume-conversation/);
   assert.match(page, /QuickCapabilities/);

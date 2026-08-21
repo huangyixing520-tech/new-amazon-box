@@ -4,6 +4,11 @@ export const IMAGE_MODEL_OPTIONS = [
     label: "GPT Image 2",
     description: "DolaO 低价通道，适合商品图与电商套图",
   },
+  {
+    id: "qwen-image-3.0-pro",
+    label: "Qwen Image 3.0 Pro",
+    description: "千问 Pro 图像模型，支持生图与图片编辑",
+  },
 ];
 
 export const DEFAULT_IMAGE_MODEL = "dolaio/gpt-image-2";

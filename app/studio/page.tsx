@@ -20,14 +20,21 @@ import {
   ChatCircle,
   CopySimple,
   DownloadSimple,
+  DotsThree,
   House,
   Images,
+  Info,
   LinkSimple,
   Play,
   Plus,
+  Trash,
   X,
 } from "@phosphor-icons/react";
 import AccountPanel, { type ClientSession } from "../account-panel";
+import {
+  CONVERSATION_PERIODS,
+  conversationPeriod,
+} from "../conversation-period.mjs";
 import { floatingPopoverLayout } from "../floating-popover.mjs";
 import { parseFirstJsonObject } from "../first-json-object.mjs";
 import { openAiResponseLine } from "../openai-content.mjs";
@@ -1617,6 +1624,7 @@ function Composer({
 }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [openBrandMenu, setOpenBrandMenu] = useState<string | null>(null);
+  const [suiteSettingsOpen, setSuiteSettingsOpen] = useState(false);
   const [uploadPreview, setUploadPreview] = useState<Upload | null>(null);
   const [promptIdea, setPromptIdea] = useState(0);
   const [promptIdeaText, setPromptIdeaText] = useState(promptIdeasByMode[mode][0]);
@@ -1624,6 +1632,8 @@ function Composer({
   const [draggingFiles, setDraggingFiles] = useState(false);
   const brandGeneTriggerRef = useRef<HTMLDivElement>(null);
   const brandGenePanelRef = useRef<HTMLElement>(null);
+  const suiteSettingsTriggerRef = useRef<HTMLDivElement>(null);
+  const suiteSettingsPanelRef = useRef<HTMLElement>(null);
   const dragDepthRef = useRef(0);
   const modeSkills = skillsByMode(mode);
   const suiteSelectionEmpty =
@@ -1635,32 +1645,36 @@ function Composer({
   const isVideoReplica = skill === "video-replica";
 
   useEffect(() => {
-    if (openMenu !== "brand-gene") return;
+    if (openMenu !== "brand-gene" && !suiteSettingsOpen) return;
 
-    const dismissBrandGene = (event: PointerEvent) => {
+    const dismissBrandGeneAndSuiteSettings = (event: PointerEvent) => {
       const target = event.target as Node;
       if (
         brandGeneTriggerRef.current?.contains(target) ||
         brandGenePanelRef.current?.contains(target) ||
+        suiteSettingsTriggerRef.current?.contains(target) ||
+        suiteSettingsPanelRef.current?.contains(target) ||
         (target instanceof Element && target.closest("[data-floating-popover]"))
       ) return;
       setOpenMenu(null);
       setOpenBrandMenu(null);
+      setSuiteSettingsOpen(false);
     };
-    const dismissBrandGeneOnEscape = (event: globalThis.KeyboardEvent) => {
+    const dismissSettingsOnEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpenMenu(null);
         setOpenBrandMenu(null);
+        setSuiteSettingsOpen(false);
       }
     };
 
-    document.addEventListener("pointerdown", dismissBrandGene);
-    document.addEventListener("keydown", dismissBrandGeneOnEscape);
+    document.addEventListener("pointerdown", dismissBrandGeneAndSuiteSettings);
+    document.addEventListener("keydown", dismissSettingsOnEscape);
     return () => {
-      document.removeEventListener("pointerdown", dismissBrandGene);
-      document.removeEventListener("keydown", dismissBrandGeneOnEscape);
+      document.removeEventListener("pointerdown", dismissBrandGeneAndSuiteSettings);
+      document.removeEventListener("keydown", dismissSettingsOnEscape);
     };
-  }, [openMenu]);
+  }, [openMenu, suiteSettingsOpen]);
 
   useEffect(() => {
     if (compact || prompt) return;
@@ -1947,6 +1961,7 @@ function Composer({
             onChange={(value) => {
               onMode(value as GenerationMode);
               setOpenMenu(null);
+              setSuiteSettingsOpen(false);
             }}
             accent
             testId="mode-trigger"
@@ -2027,72 +2042,36 @@ function Composer({
             onChange={(value) => {
               onSkill(value);
               setOpenMenu(null);
+              setSuiteSettingsOpen(false);
             }}
             prefix="技能"
             rich
             testId="skill-trigger"
           />
           {hasSuiteSettings(skill) ? (
-            <>
-              <OptionMenu
-                label="A+ 类型"
-                options={aPlusTypes}
-                value={suite.aPlusType}
-                open={openMenu === "a-plus-type"}
-                onOpen={() => setOpenMenu(openMenu === "a-plus-type" ? null : "a-plus-type")}
-                onDismiss={() => setOpenMenu(null)}
-                onChange={(value) => {
-                  onSuite({ ...suite, aPlusType: value });
+            <div className="suite-settings-control" ref={suiteSettingsTriggerRef}>
+              <button
+                type="button"
+                className="option-trigger suite-settings-trigger"
+                aria-expanded={suiteSettingsOpen}
+                aria-controls={compact ? "compact-suite-settings-panel" : "suite-settings-panel"}
+                data-testid="suite-settings-trigger"
+                onClick={() => {
                   setOpenMenu(null);
+                  setSuiteSettingsOpen((current) => !current);
                 }}
-                prefix="A+ 类型"
-                testId="a-plus-type-trigger"
-              />
-              <OptionMenu
-                label="A+ 图数量"
-                options={aPlusCounts}
-                value={String(suite.aPlusCount)}
-                open={openMenu === "a-plus-count"}
-                onOpen={() => setOpenMenu(openMenu === "a-plus-count" ? null : "a-plus-count")}
-                onDismiss={() => setOpenMenu(null)}
-                onChange={(value) => {
-                  onSuite({ ...suite, aPlusCount: Number(value) });
-                  setOpenMenu(null);
-                }}
-                prefix="A+ 图"
-                testId="a-plus-count-trigger"
-              />
-              <OptionMenu
-                label="卖点图比例"
-                options={mainImageRatios}
-                value={suite.mainImageRatio}
-                open={openMenu === "main-image-ratio"}
-                onOpen={() => setOpenMenu(
-                  openMenu === "main-image-ratio" ? null : "main-image-ratio",
-                )}
-                onDismiss={() => setOpenMenu(null)}
-                onChange={(value) => {
-                  onSuite({ ...suite, mainImageRatio: value as "1:1" | "3:4" });
-                  setOpenMenu(null);
-                }}
-                prefix="卖点图比例"
-                testId="main-image-ratio-trigger"
-              />
-              <OptionMenu
-                label="卖点图数量"
-                options={mainImageCounts}
-                value={String(suite.mainImageCount)}
-                open={openMenu === "main-image-count"}
-                onOpen={() => setOpenMenu(openMenu === "main-image-count" ? null : "main-image-count")}
-                onDismiss={() => setOpenMenu(null)}
-                onChange={(value) => {
-                  onSuite({ ...suite, mainImageCount: Number(value) });
-                  setOpenMenu(null);
-                }}
-                prefix="卖点图"
-                testId="main-image-count-trigger"
-              />
-            </>
+              >
+                <span>生成设置</span>
+                <b className="suite-settings-summary">
+                  卖点 {suite.mainImageCount} · A+ {suite.aPlusCount}
+                </b>
+                <span className="chevron" aria-hidden="true">
+                  {suiteSettingsOpen
+                    ? <CaretUp weight="bold" />
+                    : <CaretDown weight="bold" />}
+                </span>
+              </button>
+            </div>
           ) : null}
         </div>
 
@@ -2116,6 +2095,87 @@ function Composer({
           </button>
         </div>
       </div>
+
+        {suiteSettingsOpen && hasSuiteSettings(skill) ? (
+        <section
+          className="suite-settings-panel"
+          id={compact ? "compact-suite-settings-panel" : "suite-settings-panel"}
+          data-testid="suite-settings-panel"
+          aria-label="套图生成设置"
+          ref={suiteSettingsPanelRef}
+        >
+          <header className="suite-settings-head">
+            <strong>套图生成设置</strong>
+            <small>设置图片类型、数量与比例</small>
+          </header>
+          <div className="suite-settings-field">
+            <span>A+ 类型</span>
+            <OptionMenu
+              label="A+ 类型"
+              options={aPlusTypes}
+              value={suite.aPlusType}
+              open={openMenu === "a-plus-type"}
+              onOpen={() => setOpenMenu(openMenu === "a-plus-type" ? null : "a-plus-type")}
+              onDismiss={() => setOpenMenu(null)}
+              onChange={(value) => {
+                onSuite({ ...suite, aPlusType: value });
+                setOpenMenu(null);
+              }}
+              testId="a-plus-type-trigger"
+            />
+          </div>
+          <div className="suite-settings-field">
+            <span>A+ 图数量</span>
+            <OptionMenu
+              label="A+ 图数量"
+              options={aPlusCounts}
+              value={String(suite.aPlusCount)}
+              open={openMenu === "a-plus-count"}
+              onOpen={() => setOpenMenu(openMenu === "a-plus-count" ? null : "a-plus-count")}
+              onDismiss={() => setOpenMenu(null)}
+              onChange={(value) => {
+                onSuite({ ...suite, aPlusCount: Number(value) });
+                setOpenMenu(null);
+              }}
+              testId="a-plus-count-trigger"
+            />
+          </div>
+          <div className="suite-settings-field">
+            <span>卖点图比例</span>
+            <OptionMenu
+              label="卖点图比例"
+              options={mainImageRatios}
+              value={suite.mainImageRatio}
+              open={openMenu === "main-image-ratio"}
+              onOpen={() => setOpenMenu(
+                openMenu === "main-image-ratio" ? null : "main-image-ratio",
+              )}
+              onDismiss={() => setOpenMenu(null)}
+              onChange={(value) => {
+                onSuite({ ...suite, mainImageRatio: value as "1:1" | "3:4" });
+                setOpenMenu(null);
+              }}
+              testId="main-image-ratio-trigger"
+            />
+          </div>
+          <div className="suite-settings-field">
+            <span>卖点图数量</span>
+            <OptionMenu
+              label="卖点图数量"
+              options={mainImageCounts}
+              value={String(suite.mainImageCount)}
+              open={openMenu === "main-image-count"}
+              onOpen={() => setOpenMenu(openMenu === "main-image-count" ? null : "main-image-count")}
+              onDismiss={() => setOpenMenu(null)}
+              onChange={(value) => {
+                onSuite({ ...suite, mainImageCount: Number(value) });
+                setOpenMenu(null);
+              }}
+              testId="main-image-count-trigger"
+            />
+          </div>
+        </section>
+        ) : null}
 
         {openMenu === "brand-gene" ? (
         <section
@@ -3075,7 +3135,6 @@ function AppSidebar({
   onHome,
   onConversation,
   onAssets,
-  onNewConversation,
   onRename,
   onDelete,
   session,
@@ -3089,7 +3148,6 @@ function AppSidebar({
   onHome: () => void;
   onConversation: (conversationId?: string) => void;
   onAssets: () => void;
-  onNewConversation: () => void;
   onRename: (conversationId: string, title: string) => void;
   onDelete: (conversationId: string) => void;
   session: ClientSession;
@@ -3097,8 +3155,15 @@ function AppSidebar({
   onAccount: () => void;
 }) {
   const orderedConversations = [...conversations].sort((left, right) =>
-    new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+    new Date(right.updatedAt ?? right.createdAt).getTime()
+      - new Date(left.updatedAt ?? left.createdAt).getTime()
   );
+  const conversationGroups = CONVERSATION_PERIODS.map((period) => ({
+    ...period,
+    conversations: orderedConversations.filter((conversation) =>
+      conversationPeriod(conversation.updatedAt ?? conversation.createdAt) === period.id
+    ),
+  })).filter((group) => group.conversations.length > 0);
   const latestConversation = orderedConversations[0];
   const [contextMenu, setContextMenu] = useState<{
     conversationId: string;
@@ -3149,51 +3214,51 @@ function AppSidebar({
           <Images aria-hidden="true" weight="bold" />最近结果
         </button>
       </nav>
-      {screen !== "home" ? (
-        <button className="new-chat" type="button" onClick={onNewConversation}>
-          <Plus aria-hidden="true" weight="bold" />添加新对话
-        </button>
-      ) : null}
       <nav className="conversation-list" aria-label="全部对话">
         <span className="nav-caption">
-          {conversations.length ? `全部对话 · ${conversations.length}` : "还没有生成记录"}
+          {conversations.length ? "创作历史" : "还没有生成记录"}
         </span>
-        {orderedConversations.map((conversation) => {
-          const conversationTurns = turns.filter(
-            (turn) => turn.conversationId === conversation.id,
-          );
-          const runningCount = conversationTurns.filter((turn) => turn.running).length;
-          return (
-            <button
-              type="button"
-              className={
-                screen === "studio" && conversation.id === activeConversationId
-                  ? "conversation-active"
-                  : ""
-              }
-              onClick={() => onConversation(conversation.id)}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                setContextMenu({
-                  conversationId: conversation.id,
-                  x: event.clientX,
-                  y: event.clientY,
-                });
-              }}
-              key={conversation.id}
-            >
-              <span className="conversation-title-row">
-                <strong>{conversation.title}</strong>
-                {conversation.unread ? <i className="conversation-unread" aria-label="有新内容未查看" /> : null}
-              </span>
-              <small>
-                {runningCount
-                  ? `${runningCount} 个任务生成中`
-                  : `${conversationTurns.length} 个任务`}
-              </small>
-            </button>
-          );
-        })}
+        {conversationGroups.map((group) => (
+          <section className="conversation-group" aria-labelledby={`conversation-group-${group.id}`} key={group.id}>
+            <h2 id={`conversation-group-${group.id}`}>{group.label}</h2>
+            {group.conversations.map((conversation) => {
+              const conversationTurns = turns.filter(
+                (turn) => turn.conversationId === conversation.id,
+              );
+              const runningCount = conversationTurns.filter((turn) => turn.running).length;
+              return (
+                <button
+                  type="button"
+                  className={
+                    screen === "studio" && conversation.id === activeConversationId
+                      ? "conversation-active"
+                      : ""
+                  }
+                  onClick={() => onConversation(conversation.id)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setContextMenu({
+                      conversationId: conversation.id,
+                      x: event.clientX,
+                      y: event.clientY,
+                    });
+                  }}
+                  key={conversation.id}
+                >
+                  <span className="conversation-title-row">
+                    <strong>{conversation.title}</strong>
+                    {conversation.unread ? <i className="conversation-unread" aria-label="有新内容未查看" /> : null}
+                  </span>
+                  <small>
+                    {runningCount
+                      ? `${runningCount} 个任务生成中`
+                      : `${conversationTurns.length} 个任务`}
+                  </small>
+                </button>
+              );
+            })}
+          </section>
+        ))}
       </nav>
       {contextMenu ? (
         <div
@@ -3277,51 +3342,29 @@ function AppSidebar({
   );
 }
 
-function assetDateLabel(value: string) {
+function assetTimeLabel(value: string) {
   const date = new Date(value);
-  const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(today.getDate() - 1);
-  const sameDay = (left: Date, right: Date) =>
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate();
-  if (sameDay(date, today)) return "今天";
-  if (sameDay(date, yesterday)) return "昨天";
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "long",
-    day: "numeric",
-  }).format(date);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (number: number) => String(number).padStart(2, "0");
+  return `${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 function AssetLibrary({
   assets,
   onPreview,
+  onDelete,
 }: {
   assets: AssetRecord[];
   onPreview: (asset: AssetRecord) => void;
+  onDelete: (asset: AssetRecord) => void;
 }) {
   const [filter, setFilter] = useState<"all" | "image" | "video">("all");
   const visibleAssets =
     filter === "all" ? assets : assets.filter((asset) => asset.type === filter);
-  const groups = visibleAssets.reduce<Record<string, AssetRecord[]>>(
-    (result, asset) => {
-      const label = assetDateLabel(asset.createdAt);
-      result[label] ??= [];
-      result[label].push(asset);
-      return result;
-    },
-    {},
-  );
-
   return (
     <section className="asset-library" data-testid="asset-library">
       <header className="asset-library-head">
-        <div>
-          <h1>最近结果</h1>
-          <p>所有生成结果会自动保存，并按日期整理。</p>
-        </div>
-        <span>{assets.length} 个资产</span>
+        <h1>资产</h1>
       </header>
       <div className="asset-filterbar" aria-label="资产类型">
         <button
@@ -3347,39 +3390,41 @@ function AssetLibrary({
         </button>
       </div>
       {visibleAssets.length ? (
-        Object.entries(groups).map(([label, group]) => (
-          <section className="asset-date-group" key={label}>
-            <h2>{label}</h2>
-            <div className="asset-library-grid">
-              {group.map((asset) => (
-                <article className="library-card" key={asset.id}>
-                  {asset.type === "video" ? (
-                    <video
-                      src={asset.url}
-                      muted
-                      playsInline
-                      controls
-                      aria-label={asset.title}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => onPreview(asset)}
-                      aria-label={`预览 ${asset.title}`}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={asset.url} alt={asset.title} />
+        <div className="asset-library-grid">
+          {visibleAssets.map((asset) => (
+            <article className="library-card" key={asset.id}>
+              <div className="library-card-media">
+                {asset.type === "video" ? (
+                  <video src={asset.url} muted playsInline controls aria-label={asset.title} />
+                ) : (
+                  <button type="button" onClick={() => onPreview(asset)} aria-label={`预览 ${asset.title}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={asset.url} alt={asset.title} />
+                  </button>
+                )}
+              </div>
+              <footer>
+                <div>
+                  <strong title={asset.title}>{asset.title}</strong>
+                  <time dateTime={asset.createdAt}>{assetTimeLabel(asset.createdAt)}</time>
+                </div>
+                <details className="asset-card-menu">
+                  <summary aria-label={`${asset.title} 的更多操作`}>
+                    <DotsThree aria-hidden="true" weight="bold" />
+                  </summary>
+                  <div role="menu">
+                    <a href={asset.downloadUrl ?? asset.url} download role="menuitem">
+                      <DownloadSimple aria-hidden="true" />下载
+                    </a>
+                    <button type="button" role="menuitem" onClick={() => onDelete(asset)}>
+                      <Trash aria-hidden="true" />删除
                     </button>
-                  )}
-                  <footer>
-                    <strong>{asset.title}</strong>
-                    <span>{asset.type === "video" ? "视频" : "图片"}</span>
-                  </footer>
-                </article>
-              ))}
-            </div>
-          </section>
-        ))
+                  </div>
+                </details>
+              </footer>
+            </article>
+          ))}
+        </div>
       ) : (
         <div className="asset-empty">
           <Images aria-hidden="true" weight="duotone" />
@@ -5391,29 +5436,6 @@ export default function Home() {
     showNotice("对话已删除");
   };
 
-  const openNewConversation = () => {
-    const id = `conversation-${crypto.randomUUID()}`;
-    const now = new Date().toISOString();
-    const conversation = {
-      id,
-      title: "新对话",
-      createdAt: now,
-      updatedAt: now,
-      unread: false,
-    };
-    setConversations((current) => [
-      conversation,
-      ...current,
-    ]);
-    void persistConversation(conversation).catch(() =>
-      showNotice("新对话暂未保存，请检查网络"),
-    );
-    pendingHomeConversationId.current = id;
-    setActiveConversationId(id);
-    setScreen("home");
-    window.setTimeout(() => document.getElementById("main-prompt")?.focus(), 0);
-  };
-
   const openHome = () => {
     pendingHomeConversationId.current = null;
     setActiveConversationId(null);
@@ -5431,7 +5453,6 @@ export default function Home() {
           onHome={openHome}
           onConversation={openConversation}
           onAssets={() => setScreen("assets")}
-          onNewConversation={openNewConversation}
           onRename={renameConversation}
           onDelete={deleteConversation}
           session={session}
@@ -5513,32 +5534,38 @@ export default function Home() {
                       </div>
                       <div className="message-copy">
                         <p>{turn.prompt}</p>
-                        <div className="request-tags">
-                          <span>{modes.find((item) => item.id === turn.mode)?.label}</span>
-                          <span>{skills.find((item) => item.id === turn.skill)?.label}</span>
-                          {turn.generationModel ? (
-                            <span>
-                              模型：{(turn.mode === "video" ? VIDEO_MODEL_OPTIONS : IMAGE_MODEL_OPTIONS)
-                                .find((item) => item.id === turn.generationModel)?.label
-                                ?? turn.generationModel}
-                            </span>
-                          ) : null}
-                          {turn.mode === "video" && turn.videoRatio ? (
-                            <span>尺寸：{turn.videoRatio}</span>
-                          ) : null}
-                          {turn.mode === "video" && turn.videoDuration ? (
-                            <span>时长：{turn.videoDuration} 秒</span>
-                          ) : null}
-                          <span>{regions.find((item) => item.id === turn.region)?.label}</span>
-                          <span>{languages.find((item) => item.id === turn.language)?.label}</span>
-                          {hasSuiteSettings(turn.skill) ? (
-                            <span>
-                              卖点图 {turn.suite.mainImageCount} · A+ {turn.suite.aPlusCount}
-                              {" · "}{turn.suite.mainImageRatio}
-                              {turn.suite.aPlusType === "advanced-mobile" ? " · 含手机 A+" : ""}
-                            </span>
-                          ) : null}
-                        </div>
+                        <details className="message-details">
+                          <summary>
+                            详细信息
+                            <Info aria-hidden="true" />
+                          </summary>
+                          <div className="request-tags">
+                            <span>{modes.find((item) => item.id === turn.mode)?.label}</span>
+                            <span>{skills.find((item) => item.id === turn.skill)?.label}</span>
+                            {turn.generationModel ? (
+                              <span>
+                                模型：{(turn.mode === "video" ? VIDEO_MODEL_OPTIONS : IMAGE_MODEL_OPTIONS)
+                                  .find((item) => item.id === turn.generationModel)?.label
+                                  ?? turn.generationModel}
+                              </span>
+                            ) : null}
+                            {turn.mode === "video" && turn.videoRatio ? (
+                              <span>尺寸：{turn.videoRatio}</span>
+                            ) : null}
+                            {turn.mode === "video" && turn.videoDuration ? (
+                              <span>时长：{turn.videoDuration} 秒</span>
+                            ) : null}
+                            <span>{regions.find((item) => item.id === turn.region)?.label}</span>
+                            <span>{languages.find((item) => item.id === turn.language)?.label}</span>
+                            {hasSuiteSettings(turn.skill) ? (
+                              <span>
+                                卖点图 {turn.suite.mainImageCount} · A+ {turn.suite.aPlusCount}
+                                {" · "}{turn.suite.mainImageRatio}
+                                {turn.suite.aPlusType === "advanced-mobile" ? " · 含手机 A+" : ""}
+                              </span>
+                            ) : null}
+                          </div>
+                        </details>
                       </div>
                     </div>
                   </div>
@@ -5744,7 +5771,6 @@ export default function Home() {
           onHome={openHome}
           onConversation={openConversation}
           onAssets={() => setScreen("assets")}
-          onNewConversation={openNewConversation}
           onRename={renameConversation}
           onDelete={deleteConversation}
           session={session}
@@ -5754,6 +5780,17 @@ export default function Home() {
         <section className="studio-main assets-main">
           <AssetLibrary
             assets={assets}
+            onDelete={(asset) => {
+              if (!window.confirm(`确定删除“${asset.title}”吗？删除后无法恢复。`)) return;
+              void fetch(`/api/assets/${encodeURIComponent(asset.id)}`, { method: "DELETE" })
+                .then(async (response) => {
+                  if (!response.ok) throw new Error(await responseError(response));
+                  setAssets((current) => current.filter((item) => item.id !== asset.id));
+                  if (preview?.id === asset.id) setPreview(null);
+                  showNotice("资产已删除");
+                })
+                .catch((error) => showNotice(error instanceof Error ? error.message : "资产删除失败"));
+            }}
             onPreview={(asset) => {
               setPreview({
                 id: asset.id,
@@ -5804,7 +5841,6 @@ export default function Home() {
         onHome={openHome}
         onConversation={openConversation}
         onAssets={() => setScreen("assets")}
-        onNewConversation={openNewConversation}
         onRename={renameConversation}
         onDelete={deleteConversation}
         session={session}
