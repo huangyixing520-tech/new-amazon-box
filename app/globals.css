@@ -1199,7 +1199,7 @@ button:active, a:active { transform: translateY(1px); }
 .listing-a-plus-slot img { grid-area: 1 / 1; }
 .listing-a-plus-slot .listing-slot-shimmer { min-height: inherit; }
 .listing-a-plus-slot.is-failed,
-.listing-mobile-a-plus-slot.is-failed { border: 1px solid #ddd8d2; background: #f5f3f0; }
+.listing-mobile-a-plus-slot.is-failed { border: 1px solid #e3a29a; background: #fff1ef; }
 .listing-a-plus-slot.is-failed .asset-failure-state { min-height: clamp(160px, 28vw, 420px); }
 .listing-mobile-a-plus { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 220px)); gap: 14px; margin-top: 14px; }
 .listing-mobile-a-plus-slot { width: 100%; display: grid; place-items: center; overflow: hidden; border-radius: 16px; background: #eff1ed; }
@@ -1274,13 +1274,13 @@ button:active, a:active { transform: translateY(1px); }
 .asset-card footer .production-id, .asset-skeleton .production-id, .single-asset-card footer .production-id { padding: 0; background: transparent; color: var(--muted); }
 .asset-skeleton { min-height: 240px; padding: 18px; display: flex; align-items: end; background: linear-gradient(110deg,#edf1e7 8%,#e2ebd3 20%,#eff2ea 34%); background-size: 260% 100%; animation: shimmer 3.8s cubic-bezier(.45,0,.55,1) infinite; }
 .asset-skeleton span { padding: 6px 8px; border: 1px solid rgb(173 190 145 / .24); border-radius: 7px; background: rgb(248 251 242 / .88); color: #68715f; font-size: 9px; }
-.asset-skeleton.asset-failed { padding: 0; align-items: stretch; background: #f5f3f0; animation: none; }
-.asset-failure-state { width: 100%; min-height: 100%; padding: 24px; display: grid; place-items: center; align-content: center; gap: 6px; color: #706b65; text-align: center; }
-.asset-failure-state > svg { width: 30px; height: 30px; margin-bottom: 4px; color: #948d85; }
-.asset-failure-state strong { color: #4d4944; font-size: 12px; }
-.asset-failure-state span { padding: 0; border: 0; background: transparent; color: #7b756e; font-size: 10px; }
-.asset-failure-state button { margin-top: 8px; padding: 8px 11px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #d3cec7; border-radius: 10px; background: #fff; color: #4d4944; cursor: pointer; font-size: 10px; font-weight: 700; }
-.asset-failure-state button:hover { border-color: #bcb5ad; background: #faf9f7; }
+.asset-skeleton.asset-failed { padding: 0; align-items: stretch; background: #fff1ef; box-shadow: inset 0 0 0 1px #e3a29a; animation: none; }
+.asset-failure-state { width: 100%; min-height: 100%; padding: 24px; display: grid; place-items: center; align-content: center; gap: 6px; background: #fff1ef; color: #9d3b31; text-align: center; }
+.asset-failure-state > svg { width: 30px; height: 30px; margin-bottom: 4px; color: #b34a3b; }
+.asset-failure-state strong { color: #842c24; font-size: 12px; }
+.asset-failure-state span { padding: 0; border: 0; background: transparent; color: #9a443a; font-size: 10px; }
+.asset-failure-state button { margin-top: 8px; padding: 8px 11px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #d9958b; border-radius: 10px; background: #fff9f8; color: #842c24; cursor: pointer; font-size: 10px; font-weight: 700; }
+.asset-failure-state button:hover { border-color: #c76d61; background: #ffe6e2; }
 .asset-failure-state button svg { width: 13px; height: 13px; }
 .asset-failure-state.is-compact { min-height: 150px; padding: 18px 12px; }
 .asset-failure-state.is-compact > svg { width: 25px; height: 25px; }

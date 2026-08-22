@@ -803,6 +803,7 @@ test("shows missing downloads inline and turns the slot into a retry state", asy
   assert.match(page, /onUnavailable=\{\(\) => markGeneratedImageUnavailable/);
   assert.match(styles, /\.preview-download-error/);
   assert.match(styles, /\.asset-failure-state/);
+  assert.match(styles, /\.asset-failure-state\s*\{[^}]*background:\s*#fff1ef;[^}]*color:\s*#9d3b31;/);
 });
 
 test("keeps regenerated results loading in place and marks unseen conversations", async () => {
