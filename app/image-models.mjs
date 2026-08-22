@@ -1,8 +1,13 @@
 export const IMAGE_MODEL_OPTIONS = [
   {
     id: "dolaio/gpt-image-2",
-    label: "GPT Image 2",
+    label: "Image 2 快速",
     description: "DolaO 低价通道，适合商品图与电商套图",
+  },
+  {
+    id: "gpt-image-2",
+    label: "Image 2 稳定",
+    description: "OpenAI 稳定通道，适合对成功率要求更高的任务",
   },
   {
     id: "qwen-image-3.0-pro",
