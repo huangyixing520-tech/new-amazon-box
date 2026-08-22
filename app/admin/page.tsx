@@ -123,7 +123,7 @@ type ResultAsset = {
   id: string;
   type: "image" | "video";
   title: string;
-  prompt: string;
+  prompt: string | null;
   slot: number;
   createdAt: string;
   url: string;
@@ -1327,7 +1327,7 @@ export default function AdminPage() {
                                     </footer>
                                     {asset.type === "image" && asset.prompt ? (
                                       <details className="admin-asset-prompt">
-                                        <summary>查看生图 Prompt</summary>
+                                        <summary>查看最终生图 Prompt</summary>
                                         <p>{asset.prompt}</p>
                                       </details>
                                     ) : null}

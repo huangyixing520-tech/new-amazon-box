@@ -654,7 +654,7 @@ button:active, a:active { transform: translateY(1px); }
 .workspace-links button:focus-visible, .conversation-list button:focus-visible { outline: 2px solid color-mix(in srgb, var(--text) 55%, transparent); outline-offset: 1px; }
 .conversation-list strong { overflow: hidden; color: color-mix(in srgb, var(--text) 68%, var(--surface)); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .conversation-title-row { min-width: 0; display: flex; align-items: center; gap: 7px; }
-.conversation-title-row strong { min-width: 0; flex: 1; }
+.conversation-title-row strong { min-width: 0; flex: 1; font-weight: 400; }
 .conversation-unread { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #e43e35; box-shadow: 0 0 0 3px rgb(228 62 53 / .12); }
 .conversation-menu { position: fixed; z-index: 60; width: 132px; padding: 6px; display: grid; gap: 2px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 18px 48px rgb(52 61 96 / .18); }
 .conversation-menu button { padding: 9px 10px; border: 0; border-radius: 13px; background: transparent; color: var(--text); cursor: pointer; text-align: left; font-size: 11px; }

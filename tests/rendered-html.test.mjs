@@ -836,8 +836,9 @@ test("shows final generation prompts with their input images in admin", async ()
   assert.match(page, /admin-generation-inputs/);
   assert.match(generateRoute, /request\.set\("prompt", generationPrompt\)/);
   assert.match(generateRoute, /prompt: generationPrompt/);
-  assert.match(userResultsRoute, /COALESCE\(NULLIF\(g\.prompt, ''\), a\.prompt\) AS prompt/);
-  assert.match(page, /查看生图 Prompt/);
+  assert.match(userResultsRoute, /NULLIF\(g\.prompt, ''\) AS prompt/);
+  assert.doesNotMatch(userResultsRoute, /COALESCE\(NULLIF\(g\.prompt/);
+  assert.match(page, /查看最终生图 Prompt/);
   assert.match(page, /\{asset\.prompt\}/);
 });
 

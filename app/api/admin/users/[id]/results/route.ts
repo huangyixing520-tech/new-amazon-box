@@ -34,7 +34,7 @@ type AssetRow = {
   id: string;
   type: "image" | "video";
   title: string;
-  prompt: string;
+  prompt: string | null;
   conversation_id: string;
   turn_id: string;
   slot_index: number;
@@ -82,8 +82,8 @@ export async function GET(
         LIMIT 500
       `).bind(id).all<TurnRow>(),
       DB.prepare(`
-        SELECT a.id, a.type, a.title,
-          COALESCE(NULLIF(g.prompt, ''), a.prompt) AS prompt, a.conversation_id,
+        SELECT a.id, a.type, a.title, NULLIF(g.prompt, '') AS prompt,
+          a.conversation_id,
           a.turn_id, a.slot_index, a.created_at
         FROM assets a
         INNER JOIN asset_owners o ON o.asset_id = a.id
