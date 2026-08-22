@@ -3,6 +3,7 @@ import type { D1Binding } from "./runtime";
 
 type GenerationInput = {
   id: string;
+  attemptId?: string;
   userId: string;
   requestId: string;
   mediaType: "image" | "video";
@@ -10,6 +11,8 @@ type GenerationInput = {
   prompt: string;
   slot: number;
 };
+
+export const GENERATION_TIMEOUT_MS = 12 * 60 * 1000;
 
 function eventId(prefix: string, ...parts: string[]) {
   return `${prefix}:${parts.join(":")}`.slice(0, 240);
@@ -55,7 +58,7 @@ export async function recordGenerationStarted(
     mediaType: input.mediaType,
     skill: input.skill,
   });
-  await db.batch([
+  const statements = [
     db.prepare(`
       INSERT INTO generation_records (
         id, user_id, request_id, media_type, skill, prompt, status,
@@ -95,7 +98,56 @@ export async function recordGenerationStarted(
       JSON.stringify({ slot: Math.max(0, input.slot), source: "server" }),
       now,
     ),
-  ]);
+  ];
+  if (input.attemptId && input.attemptId !== input.id) {
+    statements.push(db.prepare(`
+      DELETE FROM generation_records
+      WHERE id = ? AND user_id = ? AND status IN ('queued', 'failed')
+    `).bind(input.attemptId, input.userId));
+  }
+  await db.batch(statements);
+}
+
+export async function recordGenerationQueued(
+  db: D1Binding,
+  input: GenerationInput,
+) {
+  await ensureProductDataSchema(db);
+  const now = new Date().toISOString();
+  await db.prepare(`
+    INSERT INTO generation_records (
+      id, user_id, request_id, media_type, skill, prompt, status,
+      slot_index, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      skill = excluded.skill,
+      prompt = excluded.prompt
+    WHERE generation_records.user_id = excluded.user_id
+  `).bind(
+    input.id,
+    input.userId,
+    input.requestId || input.id,
+    input.mediaType,
+    input.skill || null,
+    input.prompt,
+    Math.max(0, input.slot),
+    now,
+  ).run();
+}
+
+export async function expireStaleGenerations(
+  db: D1Binding,
+  userId?: string,
+) {
+  await ensureProductDataSchema(db);
+  const now = new Date().toISOString();
+  const cutoff = new Date(Date.now() - GENERATION_TIMEOUT_MS).toISOString();
+  const userClause = userId ? " AND user_id = ?" : "";
+  await db.prepare(`
+    UPDATE generation_records
+    SET status = 'failed', error_message = '生成超过 12 分钟未完成', completed_at = ?
+    WHERE status IN ('queued', 'running') AND created_at < ?${userClause}
+  `).bind(...(userId ? [now, cutoff, userId] : [now, cutoff])).run();
 }
 
 export async function markGenerationStatus(

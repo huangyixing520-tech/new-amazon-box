@@ -27,6 +27,7 @@ import {
 import { friendlyUpstreamError } from "../../upstream-error.mjs";
 import {
   markGenerationStatus,
+  recordGenerationQueued,
   recordGenerationRequest,
   recordGenerationStarted,
 } from "../../lib/generation-analytics";
@@ -532,7 +533,7 @@ async function createImage(
         : imagePrompts[skill]?.[slot] ?? imagePrompts["amazon-scene-image"][0];
   const useAmazonImageSkill = Boolean(slotType) &&
     ["amazon-image-set", "amazon-listing"].includes(skill);
-  const generationPrompt = `${singleImageTaskBoundary}
+  const computedGenerationPrompt = `${singleImageTaskBoundary}
 Deliverable: ${outputSpec.label}.
 Format: ${outputSpec.formatInstruction}
 Creative direction for this slot only: ${preset}.
@@ -542,6 +543,29 @@ ${useAmazonImageSkill ? `${amazonImageSkillHostRules}\nAuthoritative Amazon imag
 The first uploaded image is the primary product identity. Remaining images are supplementary references for angles, details, packaging and usage context. Preserve the product's identity, silhouette, proportions, colors, logo and visible functional details.
 The user's overall request is background context only and must not change this single-image task boundary: ${prompt}
 Final output contract: ${singleImageTaskBoundary} Render one continuous edge-to-edge canvas. Integrate any benefits or details into that single composition; do not place separate sub-images, inset frames, alternate views, or mini-scenes inside it.`.trim();
+  const requestId = String(form.get("turnId") ?? crypto.randomUUID());
+  const retryGenerationId = String(form.get("retryGenerationId") ?? "");
+  const retryRecord = retryGenerationId
+    ? await db.prepare(`
+        SELECT prompt FROM generation_records
+        WHERE id = ? AND user_id = ? AND request_id = ? AND slot_index = ?
+          AND started_at IS NOT NULL
+      `).bind(retryGenerationId, userId, requestId, slot).first<{ prompt: string }>()
+    : null;
+  const generationPrompt = retryRecord?.prompt || computedGenerationPrompt;
+  const requestedAttemptId = String(form.get("generationAttemptId") ?? "");
+  const attemptId = /^[A-Za-z0-9._:-]{1,240}$/.test(requestedAttemptId)
+    ? requestedAttemptId
+    : `attempt-${crypto.randomUUID()}`;
+  await recordGenerationQueued(db, {
+    id: attemptId,
+    userId,
+    requestId,
+    mediaType: "image",
+    skill,
+    prompt: generationPrompt,
+    slot,
+  });
   const request = new FormData();
   request.set("prompt", generationPrompt);
   request.set(
@@ -566,34 +590,71 @@ Final output contract: ${singleImageTaskBoundary} Render one continuous edge-to-
   images.forEach((image) => request.append("image", image, image.name || "product.png"));
 
   const backend = taskBackend();
-  const response = await taskBackendFetch(`${backend.url}/v1/image-tasks`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${backend.token}`,
-      "X-Mercato-Upstream-Key": apiKey,
-    },
-    body: request,
-  });
+  let response: Response;
+  try {
+    response = await taskBackendFetch(`${backend.url}/v1/image-tasks`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${backend.token}`,
+        "X-Mercato-Upstream-Key": apiKey,
+      },
+      body: request,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "图片任务服务连接失败";
+    await markGenerationStatus(db, attemptId, userId, "failed", message);
+    return jsonError(message, 502);
+  }
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
+    const message = upstreamError(payload, `图片任务创建失败 (${response.status})`);
+    await markGenerationStatus(db, attemptId, userId, "failed", message);
     return jsonError(
-      upstreamError(payload, `图片任务创建失败 (${response.status})`),
+      message,
       response.status,
     );
   }
   const taskId = taskField(payload, ["id", "task_id"]);
-  if (!taskId) return jsonError("图片任务后台没有返回任务 ID", 502);
+  if (!taskId) {
+    const message = "图片任务后台没有返回任务 ID";
+    await markGenerationStatus(db, attemptId, userId, "failed", message);
+    return jsonError(message, 502);
+  }
   await recordTask(db, taskId, userId, "image");
   await recordGenerationStarted(db, {
     id: taskId,
+    attemptId,
     userId,
-    requestId: String(form.get("turnId") ?? taskId),
+    requestId,
     mediaType: "image",
     skill,
     prompt: generationPrompt,
     slot,
   });
   return Response.json(payload, { status: 202 });
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const { user, DB } = await userApiKey(request);
+    const imageTaskId = new URL(request.url).searchParams.get("imageTaskId") ?? "";
+    if (!/^[A-Za-z0-9._:-]+$/.test(imageTaskId)) {
+      return jsonError("无效的图片任务 ID", 400);
+    }
+    if (!(await ownsTask(DB, imageTaskId, user.id))) {
+      return jsonError("任务不存在", 404);
+    }
+    await markGenerationStatus(
+      DB,
+      imageTaskId,
+      user.id,
+      "failed",
+      "生成超过 12 分钟未完成",
+    );
+    return Response.json({ id: imageTaskId, status: "failed" });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
 }
 
 async function createVideo(

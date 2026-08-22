@@ -2,6 +2,7 @@ import { authErrorResponse, requireAdmin } from "../../../lib/auth";
 import { ensureAssetsSchema } from "../../../lib/assets-data";
 import { ensureProductDataSchema } from "../../../lib/product-data";
 import { runtimeBindings } from "../../../lib/runtime";
+import { expireStaleGenerations } from "../../../lib/generation-analytics";
 
 type GenerationRow = {
   id: string;
@@ -34,6 +35,7 @@ export async function GET(request: Request) {
     if (!DB) return Response.json({ error: "统计数据库尚未配置" }, { status: 503 });
     await ensureProductDataSchema(DB);
     await ensureAssetsSchema(DB);
+    await expireStaleGenerations(DB);
 
     const search = new URL(request.url).searchParams;
     const page = Math.max(1, Number(search.get("page") || 1));
@@ -45,7 +47,10 @@ export async function GET(request: Request) {
     if (from) { where.push("created_at >= ?"); values.push(from); }
     if (to) { where.push("created_at <= ?"); values.push(to); }
     if (search.get("userId")) { where.push("user_id = ?"); values.push(search.get("userId")); }
-    if (search.get("generationId")) { where.push("id = ?"); values.push(search.get("generationId")); }
+    if (search.get("generationId")) {
+      where.push("(id = ? OR request_id = ?)");
+      values.push(search.get("generationId"), search.get("generationId"));
+    }
     if (search.get("prompt")) {
       where.push("instr(lower(prompt), lower(?)) > 0");
       values.push(search.get("prompt")!.slice(0, 500));
@@ -110,6 +115,7 @@ export async function GET(request: Request) {
       limit,
       items: rows.map((row) => ({
         id: row.id,
+        requestId: row.request_id,
         userId: row.user_id,
         email: row.email,
         mediaType: row.media_type,

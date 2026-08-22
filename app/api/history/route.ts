@@ -3,6 +3,10 @@ import { authErrorResponse, requireUser, verifySameOrigin } from "../../lib/auth
 import { ensureAssetsSchema } from "../../lib/assets-data";
 import { ensureProductDataSchema, safeJson } from "../../lib/product-data";
 import { runtimeBindings } from "../../lib/runtime";
+import {
+  expireStaleGenerations,
+  recordGenerationQueued,
+} from "../../lib/generation-analytics";
 
 type ConversationRow = {
   id: string;
@@ -33,6 +37,7 @@ export async function GET(request: Request) {
     if (!DB) return NextResponse.json({ conversations: [], turns: [] });
     await ensureProductDataSchema(DB);
     await ensureAssetsSchema(DB);
+    await expireStaleGenerations(DB, user.id);
     const [conversationResult, turnResult, assetResult] = await Promise.all([
       DB.prepare(`
         SELECT c.id, c.title, c.created_at, c.updated_at,
@@ -85,11 +90,25 @@ export async function GET(request: Request) {
       const outputVideo = turnAssets.find(
         (asset) => asset.role === "output" && asset.type === "video",
       );
+      const expectedImageCount = typeof turn.imageTaskCount === "number"
+        ? turn.imageTaskCount
+        : outputImages.length;
+      const missingImageSlots = Array.from(
+        { length: expectedImageCount },
+        (_, slot) => slot,
+      ).filter((slot) => !outputImages[slot]);
+      const failedImageSlots = Array.from(new Set([
+        ...(Array.isArray(turn.failedImageSlots)
+          ? turn.failedImageSlots.filter((slot): slot is number => typeof slot === "number")
+          : []),
+        ...missingImageSlots,
+      ])).sort((left, right) => left - right);
       const restored = {
         ...turn,
         productImage: inputImages[0] || "/product-main.webp",
         productImages: inputImages,
         images: outputImages,
+        failedImageSlots,
         videoUrl: outputVideo
           ? `/api/assets/${encodeURIComponent(outputVideo.id)}?preview=1`
           : undefined,
@@ -98,8 +117,12 @@ export async function GET(request: Request) {
         return {
           ...restored,
           running: false,
-          phase: "生成已中断，可重新生成",
-          error: "页面关闭前任务尚未完成",
+          phase: missingImageSlots.length
+            ? `生成已中断 · ${missingImageSlots.length} 张图片可继续生成`
+            : "生成已中断，可重新生成",
+          error: missingImageSlots.length
+            ? "页面关闭或更新中断了生成，请继续生成剩余图片"
+            : "页面关闭前任务尚未完成",
         };
       }
       return restored;
@@ -188,6 +211,24 @@ export async function POST(request: Request) {
           WHERE id = ? AND user_id = ?
         `).bind(now, body.turn.conversationId, user.id),
       ]);
+      const imageTaskCount = Math.max(0, Number(body.turn.imageTaskCount ?? 0));
+      const generationIds = Array.isArray(body.turn.imageGenerationIds)
+        ? body.turn.imageGenerationIds
+        : [];
+      for (let slot = 0; slot < imageTaskCount; slot += 1) {
+        const id = typeof generationIds[slot] === "string" && generationIds[slot]
+          ? generationIds[slot]
+          : `attempt:${body.turn.id}:${slot}`;
+        await recordGenerationQueued(DB, {
+          id,
+          userId: user.id,
+          requestId: body.turn.id,
+          mediaType: "image",
+          skill: String(body.turn.skill ?? "unknown"),
+          prompt: String(body.turn.prompt ?? ""),
+          slot,
+        });
+      }
       return NextResponse.json({ ok: true });
     }
 

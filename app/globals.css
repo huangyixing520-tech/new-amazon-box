@@ -897,7 +897,7 @@ button:active, a:active { transform: translateY(1px); }
 }
 .sidebar-footer { margin-top: auto; padding: 11px 12px; border: 0; border-radius: 12px; background: transparent; cursor: pointer; text-align: left; font-size: 12px; }
 .studio-main { width: min(100%, 1600px); margin: 0 auto; padding: 32px 38px 210px; }
-.conversation-main { width: min(100%, 1540px); }
+.conversation-main { width: min(100%, 1540px); padding-inline: clamp(38px, 4vw, 72px); }
 
 .home-shell { background: #f6f7f3; }
 .home-workspace {
@@ -1096,7 +1096,7 @@ button:active, a:active { transform: translateY(1px); }
 .message-details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .message-details summary svg { width: 13px; height: 13px; flex: 0 0 auto; }
 .message-details[open] .request-tags { margin-top: 6px; flex-wrap: wrap; }
-.assistant-content { min-width: 0; }
+.assistant-content { width: min(100%, 1180px); min-width: 0; justify-self: center; }
 .assistant-head { margin-bottom: 15px; }
 .assistant-head h2 { margin: 0; font-size: 22px; letter-spacing: -.035em; }
 .assistant-title-row { display: flex; align-items: center; gap: 9px; }
@@ -1287,7 +1287,7 @@ button:active, a:active { transform: translateY(1px); }
 .seeding-suite .asset-card { grid-column: span 3; min-height: 0; }
 .seeding-suite .asset-visual { height: auto; }
 .seeding-suite .asset-visual img { min-height: 0; aspect-ratio: auto; object-fit: contain; }
-.single-image-result { width: min(620px, 100%); }
+.single-image-result { width: min(520px, 100%); }
 .single-asset-card { overflow: hidden; border-radius: 28px; background: var(--surface); }
 .single-asset-visual { width: 100%; height: auto; min-height: 0; padding: 0; display: block; overflow: hidden; border: 0; background: var(--surface-soft); cursor: zoom-in; }
 .single-asset-visual img { width: 100%; height: auto; display: block; object-fit: contain; }
@@ -1595,7 +1595,7 @@ button:active, a:active { transform: translateY(1px); }
 .generation-status-pill { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: var(--surface-strong); font-size: 9px; font-weight: 760; }
 .generation-status-pill.succeeded { background: #edf8d1; color: #4e6b10; }
 .generation-status-pill.failed { background: #fff0ed; color: #ad3b2a; }
-.generation-status-pill.running { background: #fff4cf; color: #85600b; }
+.generation-status-pill.running, .generation-status-pill.queued { background: #fff4cf; color: #85600b; }
 .admin-table-wrap { margin-top: 20px; overflow-x: auto; }
 .admin-table-wrap table { width: 100%; border-collapse: collapse; font-size: 11px; }
 .admin-table-wrap th, .admin-table-wrap td { min-width: 92px; padding: 14px 12px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }

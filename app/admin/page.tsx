@@ -88,6 +88,7 @@ type DashboardData = {
 
 type GenerationItem = {
   id: string;
+  requestId: string;
   userId: string;
   email: string;
   mediaType: "image" | "video";
@@ -1077,7 +1078,7 @@ export default function AdminPage() {
       ) : section === "generations" ? (
         <section className="admin-table-section admin-generation-search">
           <header>
-            <div><h2>生成记录检索</h2><span>时间、UID、生成 ID、Prompt 支持组合查询</span></div>
+            <div><h2>生成记录检索</h2><span>时间、UID、生成 ID、Turn ID、Prompt 支持组合查询</span></div>
             <strong>{generationData ? `共 ${generationData.total} 条` : "正在查询"}</strong>
           </header>
           <form onSubmit={(event) => {
@@ -1089,9 +1090,9 @@ export default function AdminPage() {
             <label><span>开始日期</span><input type="date" value={generationFilters.from} onChange={(event) => setGenerationFilters((value) => ({ ...value, from: event.target.value }))} /></label>
             <label><span>结束日期</span><input type="date" value={generationFilters.to} onChange={(event) => setGenerationFilters((value) => ({ ...value, to: event.target.value }))} /></label>
             <label><span>用户 UID</span><input placeholder="精确 UID" value={generationFilters.userId} onChange={(event) => setGenerationFilters((value) => ({ ...value, userId: event.target.value }))} /></label>
-            <label><span>图片/视频生成 ID</span><input placeholder="精确生成 ID" value={generationFilters.generationId} onChange={(event) => setGenerationFilters((value) => ({ ...value, generationId: event.target.value }))} /></label>
+            <label><span>生成 ID / Turn ID</span><input placeholder="精确 ID" value={generationFilters.generationId} onChange={(event) => setGenerationFilters((value) => ({ ...value, generationId: event.target.value }))} /></label>
             <label className="wide"><span>Prompt</span><input placeholder="包含关键词" value={generationFilters.prompt} onChange={(event) => setGenerationFilters((value) => ({ ...value, prompt: event.target.value }))} /></label>
-            <label><span>状态</span><select value={generationFilters.status} onChange={(event) => setGenerationFilters((value) => ({ ...value, status: event.target.value }))}><option value="">全部</option><option value="running">生成中</option><option value="succeeded">成功</option><option value="failed">失败</option></select></label>
+            <label><span>状态</span><select value={generationFilters.status} onChange={(event) => setGenerationFilters((value) => ({ ...value, status: event.target.value }))}><option value="">全部</option><option value="queued">排队中</option><option value="running">生成中</option><option value="succeeded">成功</option><option value="failed">失败</option></select></label>
             <label><span>媒体</span><select value={generationFilters.mediaType} onChange={(event) => setGenerationFilters((value) => ({ ...value, mediaType: event.target.value }))}><option value="">全部</option><option value="image">图片</option><option value="video">视频</option></select></label>
             <button type="submit">查询</button>
             <button type="button" className="secondary" onClick={() => {
@@ -1112,7 +1113,7 @@ export default function AdminPage() {
                     <tr key={`${item.id}-${item.assetId || "none"}`}>
                       <td>{dateTime(item.createdAt)}</td>
                       <td><strong>{item.userId}</strong><small>{item.email}</small></td>
-                      <td><code>{item.id}</code></td>
+                      <td><code>{item.id}</code><small>Turn: {item.requestId}</small></td>
                       <td>{item.mediaType === "video" ? "视频" : "图片"}</td>
                       <td>{skillNames[item.skill || ""] ?? item.skill ?? "历史数据"}</td>
                       <td className="prompt-cell" title={item.prompt}>{item.prompt || "—"}</td>
@@ -1127,7 +1128,7 @@ export default function AdminPage() {
                           </div>
                         ) : "—"}
                       </td>
-                      <td><span className={`generation-status-pill ${item.status}`}>{({ running: "生成中", succeeded: "成功", failed: "失败" } as Record<string, string>)[item.status] ?? item.status}</span>{item.error ? <small title={item.error}>{item.error}</small> : null}</td>
+                      <td><span className={`generation-status-pill ${item.status}`}>{({ queued: "排队中", running: "生成中", succeeded: "成功", failed: "失败" } as Record<string, string>)[item.status] ?? item.status}</span>{item.error ? <small title={item.error}>{item.error}</small> : null}</td>
                       <td>{item.previewUrl ? <a href={item.previewUrl} target="_blank" rel="noreferrer">查看</a> : "—"}</td>
                     </tr>
                   ))}

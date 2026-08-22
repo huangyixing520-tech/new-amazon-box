@@ -156,7 +156,18 @@ type Turn = {
 const MAX_UPLOADS = 9;
 const MAX_REFERENCE_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_IMAGE_TASK_CONCURRENCY = 10;
+const IMAGE_TASK_TIMEOUT_MS = 12 * 60 * 1000;
+const IMAGE_TASK_POLL_INTERVAL_MS = 3000;
+const IMAGE_TASK_MAX_POLLS = IMAGE_TASK_TIMEOUT_MS / IMAGE_TASK_POLL_INTERVAL_MS;
 const STUDIO_SETTINGS_KEY = "mercato-studio-settings-v1";
+
+const missingImageSlots = (turn: Turn) => Array.from(
+  { length: turn.imageTaskCount ?? turn.images?.length ?? 0 },
+  (_, slot) => slot,
+).filter((slot) => !turn.images?.[slot]);
+
+const generationAttemptId = (turnId: string, slot: number) =>
+  `attempt:${turnId}:${slot}`;
 
 type Conversation = {
   id: string;
@@ -3865,6 +3876,7 @@ export default function Home() {
   const [previewGenerating, setPreviewGenerating] = useState(false);
   const [assets, setAssets] = useState<AssetRecord[]>([]);
   const [regenerating, setRegenerating] = useState<string | null>(null);
+  const [resumingTurnId, setResumingTurnId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [session, setSession] = useState<ClientSession>(null);
   const [sessionReady, setSessionReady] = useState(false);
@@ -4566,6 +4578,10 @@ export default function Home() {
     form.set("prompt", turn.prompt);
     if (slot !== undefined) {
       form.set("slot", String(slot));
+      form.set(
+        "generationAttemptId",
+        turn.imageGenerationIds?.[slot] ?? generationAttemptId(turn.id, slot),
+      );
       if (hasSuiteSettings(turn.skill)) {
         const slotConfig = suiteSlot(turn.suite, slot);
         form.set("slotType", slotConfig.type);
@@ -4595,6 +4611,9 @@ export default function Home() {
     signal?: AbortSignal,
     onTaskCreated?: (taskId: string) => void,
   ) => {
+    const attemptId = String(form.get("generationAttemptId") || `attempt-${crypto.randomUUID()}`);
+    form.set("generationAttemptId", attemptId);
+    onTaskCreated?.(attemptId);
     const response = await fetch("/api/generate", {
       method: "POST",
       body: form,
@@ -4606,8 +4625,8 @@ export default function Home() {
     if (!taskId) throw new Error("图片任务后台没有返回任务 ID");
     onTaskCreated?.(taskId);
 
-    for (let attempt = 0; attempt < 240; attempt += 1) {
-      if (attempt) await new Promise((resolve) => window.setTimeout(resolve, 3000));
+    for (let attempt = 0; attempt < IMAGE_TASK_MAX_POLLS; attempt += 1) {
+      if (attempt) await new Promise((resolve) => window.setTimeout(resolve, IMAGE_TASK_POLL_INTERVAL_MS));
       if (signal?.aborted) throw new DOMException("已停止", "AbortError");
       const poll = await fetch(
         `/api/generate?imageTaskId=${encodeURIComponent(taskId)}&summary=1`,
@@ -4623,7 +4642,10 @@ export default function Home() {
         throw new Error(deepFind(payload, ["error", "message"]) ?? "图片生成失败");
       }
     }
-    throw new Error("图片生成超时，请稍后重试");
+    await fetch(`/api/generate?imageTaskId=${encodeURIComponent(taskId)}`, {
+      method: "PATCH",
+    }).catch(() => undefined);
+    throw new Error("图片生成超过 12 分钟，请重试本张");
   };
 
   const runListing = async (
@@ -4638,7 +4660,7 @@ export default function Home() {
       phase: "正在理解商品图片",
       completed: suiteImageCount ? 0 : 1,
       images: suiteImageCount ? [] : turn.images,
-      imageGenerationIds: suiteImageCount ? [] : turn.imageGenerationIds,
+      imageGenerationIds: turn.imageGenerationIds,
       failedImageSlots: suiteImageCount ? [] : turn.failedImageSlots,
     });
     patchTurn(turn.id, {
@@ -4700,12 +4722,18 @@ export default function Home() {
       phase: `Listing 已完成，正在生成 0 / ${suiteImageCount} 张套图`,
       completed: 1,
       images: Array.from({ length: suiteImageCount }, () => ""),
-      imageGenerationIds: Array.from({ length: suiteImageCount }, () => ""),
+      imageGenerationIds: Array.from(
+        { length: suiteImageCount },
+        (_, slot) => turn.imageGenerationIds?.[slot] ?? generationAttemptId(turn.id, slot),
+      ),
       failedImageSlots: [],
     });
 
     const results = Array.from({ length: suiteImageCount }, () => "");
-    const generationIds = Array.from({ length: suiteImageCount }, () => "");
+    const generationIds = Array.from(
+      { length: suiteImageCount },
+      (_, slot) => turn.imageGenerationIds?.[slot] ?? generationAttemptId(turn.id, slot),
+    );
     const failedSlots: number[] = [];
     let nextSlot = 0;
     let firstError = "";
@@ -4820,11 +4848,14 @@ export default function Home() {
       phase: "正在生成商品图片",
       completed: 0,
       images: [],
-      imageGenerationIds: [],
+      imageGenerationIds: turn.imageGenerationIds,
       failedImageSlots: [],
     });
     const results = Array.from({ length: count }, () => "");
-    const generationIds = Array.from({ length: count }, () => "");
+    const generationIds = Array.from(
+      { length: count },
+      (_, slot) => turn.imageGenerationIds?.[slot] ?? generationAttemptId(turn.id, slot),
+    );
     const failedSlots: number[] = [];
     let nextSlot = 0;
     let firstError = "";
@@ -5150,6 +5181,9 @@ export default function Home() {
       running: true,
       phase: generationCopy[selectedKind].phases[0],
       imageTaskCount: configuredImageCount || undefined,
+      imageGenerationIds: configuredImageCount
+        ? Array.from({ length: configuredImageCount }, (_, slot) => generationAttemptId(id, slot))
+        : undefined,
     };
     const nextTurns = [...turnsRef.current, turn];
     turnsRef.current = nextTurns;
@@ -5225,9 +5259,9 @@ export default function Home() {
     }, 0);
   };
 
-  const regenerate = async (turn: Turn, item: GalleryItem) => {
+  const regenerate = async (turn: Turn, item: GalleryItem, quiet = false) => {
     setRegenerating(item.id);
-    showNotice(`正在重新生成「${item.title}」`);
+    if (!quiet) showNotice(`正在重新生成「${item.title}」`);
     const presets = turn.kind === "seeding"
       ? suiteItems(turn.skill, turn.imageTaskCount ?? 4, turn.suite)
       : turn.kind === "single"
@@ -5236,18 +5270,23 @@ export default function Home() {
     const slot = Math.max(0, presets.findIndex((preset) => preset.id === item.id));
     try {
       let replacementGenerationId = "";
+      const replacementForm = await generationForm(
+        turn,
+        (turn.productImages?.length ? turn.productImages : [turn.productImage])
+          .map((url, index) => ({
+            id: `${turn.id}-regenerate-${index}`,
+            name: `reference-${index + 1}.png`,
+            url,
+          })),
+        "image",
+        slot,
+      );
+      if (turn.imageGenerationIds?.[slot]) {
+        replacementForm.set("retryGenerationId", turn.imageGenerationIds[slot]);
+      }
+      replacementForm.set("generationAttemptId", `attempt-${crypto.randomUUID()}`);
       const generatedTaskId = await runImageTask(
-        await generationForm(
-          turn,
-          (turn.productImages?.length ? turn.productImages : [turn.productImage])
-            .map((url, index) => ({
-              id: `${turn.id}-regenerate-${index}`,
-              name: `reference-${index + 1}.png`,
-              url,
-            })),
-          "image",
-          slot,
-        ),
+        replacementForm,
         undefined,
         (taskId) => {
           replacementGenerationId = taskId;
@@ -5296,11 +5335,34 @@ export default function Home() {
       if (updatedTurn) scheduleTurnPersistence(updatedTurn, true);
       setRegenerating(null);
       markResultReady(turn.conversationId);
-      showNotice(`「${item.title}」已更新`);
+      if (!quiet) showNotice(`「${item.title}」已更新`);
+      return true;
     } catch (error) {
       setRegenerating(null);
-      showNotice(error instanceof Error ? error.message : "重新生成失败");
+      if (!quiet) showNotice(error instanceof Error ? error.message : "重新生成失败");
+      return false;
     }
+  };
+
+  const resumeMissingImages = async (turn: Turn) => {
+    const slots = missingImageSlots(turn);
+    if (!slots.length || resumingTurnId) return;
+    const presets = turn.kind === "seeding"
+      ? suiteItems(turn.skill, turn.imageTaskCount ?? 4, turn.suite)
+      : turn.kind === "single"
+        ? [singleImageOutputs[turn.skill] ?? singleImageOutputs["amazon-scene-image"]]
+        : suiteItems(turn.skill, turn.imageTaskCount ?? 6, turn.suite);
+    setResumingTurnId(turn.id);
+    showNotice(`正在继续生成剩余 ${slots.length} 张图片`);
+    const outcomes = await Promise.all(slots.map(async (slot) => {
+      const currentTurn = turnsRef.current.find((candidate) => candidate.id === turn.id) ?? turn;
+      return Boolean(presets[slot]) && regenerate(currentTurn, presets[slot], true);
+    }));
+    const succeeded = outcomes.filter(Boolean).length;
+    setResumingTurnId(null);
+    showNotice(succeeded === slots.length
+      ? `剩余 ${succeeded} 张图片已生成完成`
+      : `已补生成 ${succeeded} / ${slots.length} 张，请重试失败图片`);
   };
 
   const editPreviewImage = async () => {
@@ -5338,17 +5400,19 @@ export default function Home() {
     try {
       const editedTurn = { ...turn, prompt: previewPrompt.trim() };
       let editedGenerationId = "";
+      const editForm = await generationForm(
+        editedTurn,
+        [{
+          id: `${preview.id}-edit`,
+          name: "reference-image.png",
+          url: preview.image,
+        }],
+        "image",
+        preview.slot,
+      );
+      editForm.set("generationAttemptId", `attempt-${crypto.randomUUID()}`);
       const generatedTaskId = await runImageTask(
-        await generationForm(
-          editedTurn,
-          [{
-            id: `${preview.id}-edit`,
-            name: "reference-image.png",
-            url: preview.image,
-          }],
-          "image",
-          preview.slot,
-        ),
+        editForm,
         undefined,
         (taskId) => {
           editedGenerationId = taskId;
@@ -5510,6 +5574,7 @@ export default function Home() {
           <section className="conversation-stream" aria-label="创作对话">
             {activeTurns.map((turn, index) => {
               const total = progressTotal(turn);
+              const remainingImageSlots = missingImageSlots(turn);
               const ready = turn.kind === "listing"
                 ? isListingReady(turn)
                 : turn.completed === total && !turn.running;
@@ -5701,6 +5766,17 @@ export default function Home() {
                       </div>
                       {turn.kind !== "video" ? (
                         <div className="batch-actions" aria-label="本批生成操作">
+                          {remainingImageSlots.length && !turn.running ? (
+                            <button
+                              type="button"
+                              disabled={Boolean(resumingTurnId)}
+                              onClick={() => void resumeMissingImages(turn)}
+                            >
+                              {resumingTurnId === turn.id
+                                ? "正在继续生成"
+                                : `继续生成剩余 ${remainingImageSlots.length} 张`}
+                            </button>
+                          ) : null}
                           <button type="button" onClick={() => restoreTurnToComposer(turn)}>
                             重新编辑
                           </button>

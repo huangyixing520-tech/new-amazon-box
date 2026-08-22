@@ -127,6 +127,7 @@ test("ships the complete generation flow and its assets", async () => {
     historyRoute,
     eventsRoute,
     adminRoute,
+    adminGenerationsRoute,
     adminUserResultsRoute,
     adminAssetRoute,
     adminPage,
@@ -155,6 +156,7 @@ test("ships the complete generation flow and its assets", async () => {
     readFile(new URL("../app/api/history/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/metrics/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/generations/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/users/[id]/results/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/assets/[id]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
@@ -176,6 +178,14 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(
     styles,
     /\.result-ratio-group\.is-main \.asset-skeleton \{ min-height: 0; aspect-ratio: 1; \}/,
+  );
+  assert.match(
+    styles,
+    /\.assistant-content \{ width: min\(100%, 1180px\); min-width: 0; justify-self: center; \}/,
+  );
+  assert.match(
+    styles,
+    /\.conversation-main \{ width: min\(100%, 1540px\); padding-inline: clamp\(38px, 4vw, 72px\); \}/,
   );
   assert.match(taskBackend, /模型额度不足，请充值当前 API Key/);
   assert.match(authLibrary, /envValue\("LOCAL_AUTH_BYPASS"\) === "1"/);
@@ -262,7 +272,7 @@ test("ships the complete generation flow and its assets", async () => {
   );
   assert.match(styles, /\.brand-gene-panel\s*\{[^}]*position:\s*absolute;[^}]*box-shadow:/);
   assert.match(styles, /\.suite-settings-panel\s*\{[^}]*position:\s*absolute;[^}]*grid-template-columns:\s*repeat\(4,/);
-  assert.match(styles, /\.single-image-result\s*\{[^}]*width:\s*min\(620px, 100%\)/);
+  assert.match(styles, /\.single-image-result\s*\{[^}]*width:\s*min\(520px, 100%\)/);
   assert.match(
     styles,
     /\.upload-deck-add-card:hover,[\s\S]*?background:\s*var\(--accent\)/,
@@ -546,6 +556,21 @@ test("ships the complete generation flow and its assets", async () => {
   assert.match(assetRoute, /slot_index/);
   assert.match(historyRoute, /conversation_turns/);
   assert.match(historyRoute, /role === "input"/);
+  assert.match(historyRoute, /missingImageSlots/);
+  assert.match(historyRoute, /recordGenerationQueued/);
+  assert.match(historyRoute, /attempt:\$\{body\.turn\.id\}:\$\{slot\}/);
+  assert.match(page, /继续生成剩余/);
+  assert.match(page, /resumeMissingImages/);
+  assert.match(page, /IMAGE_TASK_TIMEOUT_MS = 12 \* 60 \* 1000/);
+  assert.match(page, /generationAttemptId/);
+  assert.match(generateRoute, /recordGenerationQueued/);
+  assert.match(generateRoute, /生成超过 12 分钟未完成/);
+  assert.match(generateRoute, /retryGenerationId/);
+  assert.match(generateRoute, /retryRecord\?\.prompt \|\| computedGenerationPrompt/);
+  assert.match(generateRoute, /started_at IS NOT NULL/);
+  assert.match(page, /replacementForm\.set\("retryGenerationId"/);
+  assert.match(adminGenerationsRoute, /id = \? OR request_id = \?/);
+  assert.match(adminPage, /生成 ID \/ Turn ID/);
   assert.match(eventsRoute, /analytics_events/);
   assert.match(adminRoute, /requireAdmin/);
   assert.match(adminRoute, /generationDau/);
