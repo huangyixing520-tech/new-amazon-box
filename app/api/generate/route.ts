@@ -532,10 +532,7 @@ async function createImage(
         : imagePrompts[skill]?.[slot] ?? imagePrompts["amazon-scene-image"][0];
   const useAmazonImageSkill = Boolean(slotType) &&
     ["amazon-image-set", "amazon-listing"].includes(skill);
-  const request = new FormData();
-  request.set(
-    "prompt",
-    `${singleImageTaskBoundary}
+  const generationPrompt = `${singleImageTaskBoundary}
 Deliverable: ${outputSpec.label}.
 Format: ${outputSpec.formatInstruction}
 Creative direction for this slot only: ${preset}.
@@ -544,8 +541,9 @@ ${context.generationText}
 ${useAmazonImageSkill ? `${amazonImageSkillHostRules}\nAuthoritative Amazon image Skill:\n${amazonImageSkillPrompt}` : ""}
 The first uploaded image is the primary product identity. Remaining images are supplementary references for angles, details, packaging and usage context. Preserve the product's identity, silhouette, proportions, colors, logo and visible functional details.
 The user's overall request is background context only and must not change this single-image task boundary: ${prompt}
-Final output contract: ${singleImageTaskBoundary} Render one continuous edge-to-edge canvas. Integrate any benefits or details into that single composition; do not place separate sub-images, inset frames, alternate views, or mini-scenes inside it.`.trim(),
-  );
+Final output contract: ${singleImageTaskBoundary} Render one continuous edge-to-edge canvas. Integrate any benefits or details into that single composition; do not place separate sub-images, inset frames, alternate views, or mini-scenes inside it.`.trim();
+  const request = new FormData();
+  request.set("prompt", generationPrompt);
   request.set(
     "size",
     slotType
@@ -592,7 +590,7 @@ Final output contract: ${singleImageTaskBoundary} Render one continuous edge-to-
     requestId: String(form.get("turnId") ?? taskId),
     mediaType: "image",
     skill,
-    prompt,
+    prompt: generationPrompt,
     slot,
   });
   return Response.json(payload, { status: 202 });

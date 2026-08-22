@@ -82,10 +82,12 @@ export async function GET(
         LIMIT 500
       `).bind(id).all<TurnRow>(),
       DB.prepare(`
-        SELECT a.id, a.type, a.title, a.prompt, a.conversation_id,
+        SELECT a.id, a.type, a.title,
+          COALESCE(NULLIF(g.prompt, ''), a.prompt) AS prompt, a.conversation_id,
           a.turn_id, a.slot_index, a.created_at
         FROM assets a
         INNER JOIN asset_owners o ON o.asset_id = a.id
+        LEFT JOIN generation_records g ON g.id = a.generation_id
         WHERE o.user_id = ? AND a.role = 'output'
         ORDER BY a.created_at DESC
         LIMIT 1000

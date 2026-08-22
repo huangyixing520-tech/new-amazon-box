@@ -1325,6 +1325,12 @@ export default function AdminPage() {
                                       )}
                                       <strong>{asset.title}</strong>
                                     </footer>
+                                    {asset.type === "image" && asset.prompt ? (
+                                      <details className="admin-asset-prompt">
+                                        <summary>查看生图 Prompt</summary>
+                                        <p>{asset.prompt}</p>
+                                      </details>
+                                    ) : null}
                                   </div>
                                 ))}
                               </div>

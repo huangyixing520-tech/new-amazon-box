@@ -1662,6 +1662,9 @@ button:active, a:active { transform: translateY(1px); }
 .admin-result-asset footer { min-width: 0; padding: 8px 9px; display: flex; align-items: center; gap: 6px; }
 .admin-result-asset footer svg { width: 14px; height: 14px; flex: 0 0 auto; color: #6d832e; }
 .admin-result-asset footer strong { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-asset-prompt { padding: 0 9px 10px; border-top: 1px solid var(--line); }
+.admin-asset-prompt summary { padding-top: 9px; color: var(--muted); cursor: pointer; font-size: 9px; font-weight: 700; }
+.admin-asset-prompt p { max-height: 160px; margin: 8px 0 0; overflow: auto; color: #50574b; font-size: 10px; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-wrap; }
 .admin-prompt-details { margin-top: 12px; border-top: 1px solid var(--line); }
 .admin-prompt-details summary { padding-top: 11px; color: var(--muted); cursor: pointer; font-size: 9px; font-weight: 700; }
 .admin-prompt-details p { margin: 8px 0 0; color: #50574b; font-size: 10px; line-height: 1.6; white-space: pre-wrap; }

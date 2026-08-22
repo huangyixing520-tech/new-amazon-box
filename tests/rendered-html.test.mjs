@@ -798,8 +798,10 @@ test("keeps regenerated results loading in place and marks unseen conversations"
 });
 
 test("shows final generation prompts with their input images in admin", async () => {
-  const [route, page] = await Promise.all([
+  const [route, userResultsRoute, generateRoute, page] = await Promise.all([
     readFile(new URL("../app/api/admin/generations/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/users/[id]/results/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/generate/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(route, /a\.turn_id IN/);
@@ -807,6 +809,11 @@ test("shows final generation prompts with their input images in admin", async ()
   assert.match(route, /\?preview=1/);
   assert.match(page, /最终 Prompt/);
   assert.match(page, /admin-generation-inputs/);
+  assert.match(generateRoute, /request\.set\("prompt", generationPrompt\)/);
+  assert.match(generateRoute, /prompt: generationPrompt/);
+  assert.match(userResultsRoute, /COALESCE\(NULLIF\(g\.prompt, ''\), a\.prompt\) AS prompt/);
+  assert.match(page, /查看生图 Prompt/);
+  assert.match(page, /\{asset\.prompt\}/);
 });
 
 test("preloads Google sign-in and serves WebP previews with PNG and JPG downloads", async () => {
