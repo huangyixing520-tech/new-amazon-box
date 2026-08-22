@@ -697,7 +697,12 @@ test("protects concurrent asset writes from ENOSPC orphan cleanup", async () => 
   );
   const registerIndex = assetRoute.indexOf("INSERT INTO assets");
   const storeIndex = assetRoute.indexOf("await storeAsset()");
+  const replaceIndex = assetRoute.indexOf("for (const asset of existing.results ?? [])");
   assert.ok(registerIndex >= 0 && storeIndex >= 0 && registerIndex < storeIndex);
+  assert.ok(
+    replaceIndex > storeIndex,
+    "the old slot must remain readable until its replacement is stored",
+  );
   assert.match(assetRoute, /DELETE FROM asset_owners WHERE asset_id = \? AND user_id = \?/);
 });
 
@@ -772,12 +777,32 @@ test("keeps a failed Listing image in place and retries only that slot", async (
   assert.match(listingResultSource, /onRegenerate/);
   assert.match(listingResultSource, /regenerating/);
   assert.match(listingResultSource, /failedSlots\.includes\(index\)/);
-  assert.match(listingResultSource, /重试本张/);
+  assert.match(page, /function AssetFailureState/);
+  assert.match(page, /源文件不可用，可单独重试/);
+  assert.match(page, /重新生成/);
   assert.match(listingResultSource, /onRegenerate\(item\)/);
   assert.match(
     page,
     /<ListingResult[\s\S]*?failedSlots=\{turn\.failedImageSlots \?\? \[\]\}[\s\S]*?onRegenerate=/,
   );
+});
+
+test("shows missing downloads inline and turns the slot into a retry state", async () => {
+  const page = await readFile(
+    new URL("../app/studio/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const styles = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(page, /response\.status === 404/);
+  assert.match(page, /className="preview-download-error"/);
+  assert.match(page, /if \(failure\.status === 404\) onUnavailable\?\.\(\)/);
+  assert.match(page, /onUnavailable=\{\(\) => markGeneratedImageUnavailable/);
+  assert.match(styles, /\.preview-download-error/);
+  assert.match(styles, /\.asset-failure-state/);
 });
 
 test("keeps regenerated results loading in place and marks unseen conversations", async () => {

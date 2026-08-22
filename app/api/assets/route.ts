@@ -235,16 +235,6 @@ export async function POST(request: Request) {
       id: string;
       object_key: string | null;
     }>();
-    for (const asset of existing.results ?? []) {
-      await DB.batch([
-        DB.prepare("DELETE FROM asset_owners WHERE asset_id = ? AND user_id = ?")
-          .bind(asset.id, user.id),
-        DB.prepare("DELETE FROM assets WHERE id = ?").bind(asset.id),
-      ]);
-      if (asset.object_key) {
-        await GENERATED_ASSETS.delete?.(asset.object_key);
-      }
-    }
     const id = crypto.randomUUID();
     const objectKey = `generated/${user.id}/${body.conversationId}/${id}`;
     const createdAt = body.createdAt || new Date().toISOString();
@@ -337,6 +327,20 @@ export async function POST(request: Request) {
       ]);
       await GENERATED_ASSETS.delete?.(objectKey);
       throw error;
+    }
+
+    // Keep the previous slot readable until its replacement has been stored.
+    // If the new write fails, the existing asset remains available for preview
+    // and download instead of leaving a broken result behind.
+    for (const asset of existing.results ?? []) {
+      await DB.batch([
+        DB.prepare("DELETE FROM asset_owners WHERE asset_id = ? AND user_id = ?")
+          .bind(asset.id, user.id),
+        DB.prepare("DELETE FROM assets WHERE id = ?").bind(asset.id),
+      ]);
+      if (asset.object_key) {
+        await GENERATED_ASSETS.delete?.(asset.object_key);
+      }
     }
 
     const generationId = body.generationId || body.imageTaskId;

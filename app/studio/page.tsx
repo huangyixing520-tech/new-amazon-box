@@ -13,6 +13,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
+  ArrowClockwise,
   ArrowUp,
   ArrowRight,
   CaretDown,
@@ -22,6 +23,7 @@ import {
   DownloadSimple,
   DotsThree,
   House,
+  ImageBroken,
   Images,
   Info,
   LinkSimple,
@@ -254,7 +256,17 @@ function saveDownload(blob: Blob, filename: string) {
 
 async function fetchImageBlob(url: string, format: "png" | "jpg" = "png") {
   const response = await fetch(assetDownloadUrl(url, format), { credentials: "same-origin" });
-  if (!response.ok) throw new Error(await responseError(response));
+  if (!response.ok) {
+    const error = new Error(
+      response.status === 404
+        ? "这张图的源文件未完整保存，请返回后重试本张"
+        : response.status >= 500
+          ? "图片暂时无法读取，请稍后重试"
+          : await responseError(response),
+    ) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
   const blob = await response.blob();
   if (!blob.type.startsWith("image/")) throw new Error("下载文件不是有效图片");
   return blob;
@@ -2285,6 +2297,26 @@ function Composer({
   );
 }
 
+function AssetFailureState({
+  compact = false,
+  onRetry,
+}: {
+  compact?: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <div className={`asset-failure-state ${compact ? "is-compact" : ""}`} role="status">
+      <ImageBroken aria-hidden="true" weight="duotone" />
+      <strong>图片未保存</strong>
+      <span>源文件不可用，可单独重试</span>
+      <button type="button" onClick={onRetry}>
+        <ArrowClockwise aria-hidden="true" weight="bold" />
+        重新生成
+      </button>
+    </div>
+  );
+}
+
 function ListingResult({
   turnId,
   language,
@@ -2831,7 +2863,7 @@ function ListingResult({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={assetPreviewUrl(image)} alt={`A+ 图片 ${index + 1}`} onError={() => onGeneratedImageError(image)} />
                 ) : isFailed ? (
-                  <button type="button" onClick={() => onRegenerate(item)}>重试本张</button>
+                  <AssetFailureState onRetry={() => onRegenerate(item)} />
                 ) : (
                   <span className="listing-slot-shimmer" aria-label="正在生成" />
                 )}
@@ -2859,7 +2891,7 @@ function ListingResult({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={assetPreviewUrl(image)} alt={`手机 A+ 图片 ${index + 1}`} onError={() => onGeneratedImageError(image)} />
                 ) : isFailed ? (
-                  <button type="button" onClick={() => onRegenerate(item)}>重试本张</button>
+                  <AssetFailureState compact onRetry={() => onRegenerate(item)} />
                 ) : (
                   <span className="listing-slot-shimmer" aria-label="正在生成" />
                 )}
@@ -2972,16 +3004,15 @@ function ImageSuite({
                 </div>
               ) : (
                 <div className={`asset-skeleton ${failedSlots.includes(index) ? "asset-failed" : ""}`}>
-                  <span>
-                    {regenerating === item.id
-                      ? "正在重做"
-                      : failedSlots.includes(index)
-                        ? "本张生成失败"
-                        : `第 ${index + 1} 张 · 正在生成`}
-                  </span>
                   {failedSlots.includes(index) ? (
-                    <button type="button" onClick={() => onRegenerate(item)}>重试本张</button>
-                  ) : null}
+                    <AssetFailureState compact={item.portrait} onRetry={() => onRegenerate(item)} />
+                  ) : (
+                    <span>
+                      {regenerating === item.id
+                        ? "正在重做"
+                        : `第 ${index + 1} 张，正在生成`}
+                    </span>
+                  )}
                 </div>
               )}
             </article>
@@ -3613,6 +3644,7 @@ function PreviewModal({
   onPrompt,
   onSubmit,
   onDownload,
+  onUnavailable,
   onClose,
 }: {
   preview: PreviewState;
@@ -3620,9 +3652,12 @@ function PreviewModal({
   generating: boolean;
   onPrompt: (value: string) => void;
   onSubmit: () => void;
-  onDownload: (format: "png" | "jpg") => void;
+  onDownload: (format: "png" | "jpg") => Promise<void>;
+  onUnavailable?: () => void;
   onClose: () => void;
 }) {
+  const [downloadError, setDownloadError] = useState("");
+
   useEffect(() => {
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -3630,6 +3665,17 @@ function PreviewModal({
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [onClose]);
+
+  const download = async (format: "png" | "jpg") => {
+    setDownloadError("");
+    try {
+      await onDownload(format);
+    } catch (error) {
+      const failure = error as Error & { status?: number };
+      setDownloadError(failure.message || "图片下载失败，请稍后重试");
+      if (failure.status === 404) onUnavailable?.();
+    }
+  };
 
   return (
     <div
@@ -3653,7 +3699,7 @@ function PreviewModal({
           <div className="preview-downloads">
             <button
               type="button"
-              onClick={() => onDownload("png")}
+              onClick={() => void download("png")}
               data-analytics-event="asset_downloaded"
               data-turn-id={preview.turnId}
             >
@@ -3661,7 +3707,7 @@ function PreviewModal({
             </button>
             <button
               type="button"
-              onClick={() => onDownload("jpg")}
+              onClick={() => void download("jpg")}
               data-analytics-event="asset_downloaded"
               data-turn-id={preview.turnId}
             >
@@ -3669,6 +3715,16 @@ function PreviewModal({
             </button>
           </div>
         </footer>
+        {downloadError ? (
+          <div className="preview-download-error" role="alert">
+            <ImageBroken aria-hidden="true" weight="duotone" />
+            <div>
+              <strong>图片文件不可用</strong>
+              <span>{downloadError}</span>
+            </div>
+            <button type="button" onClick={onClose}>返回重试</button>
+          </div>
+        ) : null}
         <form
           className="preview-composer"
           onSubmit={(event) => {
@@ -5712,16 +5768,14 @@ export default function Home() {
 
         {preview ? (
           <PreviewModal
+            key={preview.image}
             preview={preview}
             prompt={previewPrompt}
             generating={previewGenerating}
             onPrompt={setPreviewPrompt}
             onSubmit={() => void editPreviewImage()}
-            onDownload={(format) => {
-              void fetchDownload(preview.image, preview.title, format).catch((error) =>
-                showNotice(error instanceof Error ? error.message : "图片下载失败")
-              );
-            }}
+            onDownload={(format) => fetchDownload(preview.image, preview.title, format)}
+            onUnavailable={() => markGeneratedImageUnavailable(preview.turnId, preview.image)}
             onClose={() => setPreview(null)}
           />
         ) : null}
@@ -5790,16 +5844,13 @@ export default function Home() {
         </section>
         {preview ? (
           <PreviewModal
+            key={preview.image}
             preview={preview}
             prompt={previewPrompt}
             generating={previewGenerating}
             onPrompt={setPreviewPrompt}
             onSubmit={() => void editPreviewImage()}
-            onDownload={(format) => {
-              void fetchDownload(preview.image, preview.title, format).catch((error) =>
-                showNotice(error instanceof Error ? error.message : "图片下载失败")
-              );
-            }}
+            onDownload={(format) => fetchDownload(preview.image, preview.title, format)}
             onClose={() => setPreview(null)}
           />
         ) : null}
